@@ -1,6 +1,8 @@
+{% load markdown_extras %}
+<script>document.title = 'User Memory - Liminal Salt';</script>
 <!-- Header -->
 <header class="header">
-    <h1>📝 User Memory</h1>
+    <h1>User Memory</h1>
     <div class="subtitle">Model: {{ model }}</div>
 </header>
 
@@ -23,17 +25,41 @@
     </div>
 
     <div class="memory-timestamp">
-        {% if last_update %}Last updated: {{ last_update|date:"M d, Y" }} at {{ last_update|time:"g:i A" }}{% else %}Never updated from all sessions{% endif %}<span id="memory-status" {% if not just_updated %}style="display: none;"{% endif %}> · {% if just_updated %}✅ {{ success }}{% else %}Updating memory from all sessions<span class="updating-dots"><span>.</span><span>.</span><span>.</span></span>{% endif %}</span>
+        {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update|date:'U' }}"></span>{% else %}Never updated from all sessions{% endif %}<span id="memory-status" {% if not just_updated %}style="display: none;"{% endif %}> · {% if just_updated %}✅ {{ success }}{% else %}Updating memory from all sessions<span class="updating-dots"><span>.</span><span>.</span><span>.</span></span>{% endif %}</span>
     </div>
+    <script>
+        (function() {
+            const el = document.getElementById('last-update-time');
+            if (el && el.dataset.timestamp) {
+                const date = new Date(parseInt(el.dataset.timestamp) * 1000);
+                el.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            }
+        })();
+    </script>
 
     <div class="memory-content-box">
-        {% if memory_content %}
-            {{ memory_content|linebreaks }}
-        {% else %}
+        {% if memory_content %}{{ memory_content|markdown }}{% else %}
             <div class="empty-state">
                 <strong>No long-term memory found yet.</strong><br>
                 Memory will be created after your first update.
             </div>
         {% endif %}
+    </div>
+
+    <!-- Memory Modification Input -->
+    <div class="input-area" style="margin-top: 20px;">
+        <form hx-post="{% url 'modify_memory' %}"
+              hx-target="#main-content"
+              hx-swap="innerHTML"
+              hx-on::before-request="showMemoryModifying(event)">
+            {% csrf_token %}
+            <input type="text"
+                   name="command"
+                   id="memory-command-input"
+                   placeholder="Update your memory..."
+                   required
+                   autocomplete="off">
+            <button type="submit">Update</button>
+        </form>
     </div>
 </div>

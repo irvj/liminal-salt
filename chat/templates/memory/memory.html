@@ -72,11 +72,17 @@
         }
         .content {
             background: #3B4252;
-            padding: 20px;
+            padding: 16px;
             border-radius: 8px;
             margin-top: 20px;
-            white-space: pre-wrap;
             line-height: 1.6;
+            border-left: 4px solid #5E81AC;
+        }
+        .content p {
+            margin-bottom: 1em;
+        }
+        .content p:last-child {
+            margin-bottom: 0;
         }
         .empty-state {
             text-align: center;
@@ -88,12 +94,49 @@
             background: #4C566A;
             margin: 20px 0;
         }
+        .input-area {
+            background: #3B4252;
+            padding: 20px;
+            border-top: 1px solid #4C566A;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        .input-area form {
+            display: flex;
+            gap: 12px;
+        }
+        .input-area input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #4C566A;
+            border-radius: 4px;
+            background: #2E3440;
+            color: #ECEFF4;
+            font-size: 16px;
+        }
+        .input-area input:focus {
+            outline: none;
+            border-color: #88C0D0;
+        }
+        .input-area button {
+            padding: 12px 24px;
+            background: #5E81AC;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .input-area button:hover {
+            background: #81A1C1;
+        }
     </style>
 </head>
+{% load markdown_extras %}
 <body>
     <a href="{% url 'chat' %}" class="button button-back">← Back to Chat</a>
 
-    <h1>📝 User Memory</h1>
+    <h1>User Memory</h1>
     <div class="subtitle">Model: {{ model }}</div>
 
     {% if success %}
@@ -120,8 +163,17 @@
 
     {% if last_update %}
     <div class="subtitle">
-        Last updated: {{ last_update|date:"M d, Y" }} at {{ last_update|time:"g:i A" }}
+        Last updated: <span id="last-update-time" data-timestamp="{{ last_update|date:'U' }}"></span>
     </div>
+    <script>
+        (function() {
+            const el = document.getElementById('last-update-time');
+            if (el && el.dataset.timestamp) {
+                const date = new Date(parseInt(el.dataset.timestamp) * 1000);
+                el.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            }
+        })();
+    </script>
     {% else %}
     <div class="subtitle">Never updated from all sessions</div>
     {% endif %}
@@ -129,12 +181,25 @@
     <div class="divider"></div>
 
     {% if memory_content %}
-    <div class="content">{{ memory_content }}</div>
+    <div class="content">{{ memory_content|markdown }}</div>
     {% else %}
     <div class="content empty-state">
         <strong>No long-term memory found yet.</strong><br>
         Memory will be created after your first update.
     </div>
     {% endif %}
+
+    <!-- Memory Modification Input -->
+    <div class="input-area" style="margin-top: 20px;">
+        <form method="POST" action="{% url 'modify_memory' %}">
+            {% csrf_token %}
+            <input type="text"
+                   name="command"
+                   placeholder="Update your memory..."
+                   required
+                   autocomplete="off">
+            <button type="submit">Update</button>
+        </form>
+    </div>
 </body>
 </html>

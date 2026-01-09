@@ -536,7 +536,7 @@ def update_memory(request):
                 # Update memory
                 summarizer = Summarizer(api_key, model)
                 summarizer.update_long_term_memory(all_messages, str(ltm_file))
-                success_msg = "Memory updated successfully"
+                success_msg = "Memory Updated"
 
         except Exception as e:
             error_msg = f"Memory update failed: {str(e)}"
@@ -595,6 +595,48 @@ def wipe_memory(request):
         return redirect(f"{reverse('memory')}?success=Memory wiped successfully")
 
     return redirect('memory')
+
+
+def modify_memory(request):
+    """Modify memory based on user command (HTMX endpoint)"""
+    from django.conf import settings
+    from datetime import datetime
+    from .services import Summarizer
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    command = request.POST.get('command', '').strip()
+    if not command:
+        return HttpResponse(status=400)
+
+    config = load_config()
+    if not config:
+        return HttpResponse("Configuration not found", status=500)
+
+    api_key = config.get("OPENROUTER_API_KEY")
+    model = config.get("MODEL")
+    ltm_file = settings.LTM_FILE
+
+    # Call the summarizer to modify memory
+    summarizer = Summarizer(api_key, model)
+    updated_memory = summarizer.modify_memory_with_command(command, str(ltm_file))
+
+    # Get last update time
+    last_update = None
+    if os.path.exists(ltm_file):
+        last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
+
+    # Return the updated memory view
+    context = {
+        'model': model,
+        'memory_content': updated_memory if updated_memory else "",
+        'last_update': last_update,
+        'success': "Memory Updated" if updated_memory else None,
+        'error': "Failed to update memory" if not updated_memory else None,
+        'just_updated': True,
+    }
+    return render(request, 'memory/memory_main.html', context)
 
 
 def settings(request):

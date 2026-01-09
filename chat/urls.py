@@ -15,6 +15,7 @@ urlpatterns = [
     path('memory/', views.memory, name='memory'),
     path('memory/update/', views.update_memory, name='update_memory'),
     path('memory/wipe/', views.wipe_memory, name='wipe_memory'),
+    path('memory/modify/', views.modify_memory, name='modify_memory'),
     path('settings/', views.settings, name='settings'),
     path('settings/save/', views.save_settings, name='save_settings'),
 ]
