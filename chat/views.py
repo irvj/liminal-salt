@@ -1,16 +1,12 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
-import sys
 import os
 import json
 import logging
 
-# Add parent directory to path to import our modules
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 logger = logging.getLogger(__name__)
 
-from config_manager import fetch_available_models
+from .services import fetch_available_models
 from .utils import (
     load_config, save_config, group_models_by_provider,
     flatten_models_with_provider_prefix, ensure_sessions_dir
@@ -151,9 +147,9 @@ def setup_wizard(request):
 def chat(request):
     """Main chat view - session determined from Django session storage"""
     from datetime import datetime
-    from context_manager import load_context, get_available_personalities
-    from chat_core import ChatCore
-    from summarizer import Summarizer
+    from .services import load_context, get_available_personalities
+    from .services import ChatCore
+    from .services import Summarizer
     from django.conf import settings
     from .utils import (
         get_sessions_with_titles, group_sessions_by_personality,
@@ -291,7 +287,7 @@ def switch_session(request):
 def new_chat(request):
     """Create new chat (POST)"""
     from datetime import datetime
-    from context_manager import get_available_personalities
+    from .services import get_available_personalities
     from django.conf import settings
 
     config = load_config()
@@ -376,9 +372,9 @@ def delete_chat(request):
 def send_message(request):
     """Send message to chat (HTMX endpoint) - returns HTML fragment"""
     from datetime import datetime
-    from context_manager import load_context
-    from chat_core import ChatCore
-    from summarizer import Summarizer
+    from .services import load_context
+    from .services import ChatCore
+    from .services import Summarizer
     from django.conf import settings
     from .utils import title_has_artifacts, get_current_session
 
@@ -518,7 +514,7 @@ def update_memory(request):
     from django.conf import settings
     from django.urls import reverse
     from datetime import datetime
-    from summarizer import Summarizer
+    from .services import Summarizer
     from .utils import aggregate_all_sessions_messages
 
     if request.method == 'POST':
@@ -603,7 +599,7 @@ def wipe_memory(request):
 
 def settings(request):
     """Settings view"""
-    from context_manager import get_available_personalities
+    from .services import get_available_personalities
     from django.conf import settings as django_settings
 
     config = load_config()
@@ -644,7 +640,7 @@ def settings(request):
 
 def save_settings(request):
     """Save settings (POST)"""
-    from context_manager import get_available_personalities
+    from .services import get_available_personalities
     from django.conf import settings as django_settings
 
     if request.method == 'POST':

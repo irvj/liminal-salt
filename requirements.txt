@@ -1,4 +1,2 @@
+django>=5.0
 requests
-python-dotenv
-streamlit
-Django>=5.0

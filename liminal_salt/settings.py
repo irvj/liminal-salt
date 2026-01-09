@@ -44,7 +44,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'liminal_salt_django.urls'
+ROOT_URLCONF = 'liminal_salt.urls'
 
 TEMPLATES = [
     {
@@ -60,7 +60,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'liminal_salt_django.wsgi.application'
+WSGI_APPLICATION = 'liminal_salt.wsgi.application'
 
 
 # Database
@@ -77,7 +77,7 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'chat' / 'static']
+# STATICFILES_DIRS = [BASE_DIR / 'chat' / 'static']  # Uncomment when adding static files
 
 
 # Session Configuration
@@ -91,11 +91,12 @@ SESSION_COOKIE_AGE = 1209600  # 2 weeks
 
 
 # Liminal Salt Custom Settings
-# Paths to data directories - relative to project root
-SESSIONS_DIR = BASE_DIR.parent / 'sessions'
-PERSONALITIES_DIR = BASE_DIR.parent / 'personalities'
-LTM_FILE = BASE_DIR.parent / 'long_term_memory.md'
-CONFIG_FILE = BASE_DIR.parent / 'config.json'
+# Paths to data directories
+DATA_DIR = BASE_DIR / 'data'
+SESSIONS_DIR = DATA_DIR / 'sessions'
+PERSONALITIES_DIR = DATA_DIR / 'personalities'
+LTM_FILE = DATA_DIR / 'long_term_memory.md'
+CONFIG_FILE = BASE_DIR / 'config.json'  # Config stays at root
 
 
 # Default primary key field type
