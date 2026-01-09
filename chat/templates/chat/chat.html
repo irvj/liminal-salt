@@ -514,7 +514,7 @@
     </div>
 </div>
 
-<!-- Edit Personality Modal (Alpine.js) -->
+<!-- Edit/New Personality Modal (Alpine.js) -->
 <div x-data="editPersonalityModal()" x-cloak>
     <div x-show="showModal"
          x-transition:enter="transition ease-out duration-200"
@@ -522,7 +522,7 @@
          class="modal-backdrop"
          @click.self="showModal = false">
         <div class="modal" style="max-width: 700px;">
-            <h3>Edit Personality</h3>
+            <h3 x-text="isNew ? 'New Personality' : 'Edit Personality'"></h3>
             <div class="form-group" style="margin-bottom: 16px;">
                 <label for="personality-name" style="display: block; margin-bottom: 8px; font-weight: 500; color: #D8DEE9;">Display Name:</label>
                 <input type="text" id="personality-name" x-model="displayName" class="modal-input" @input="displayName = displayName.replace(/[^a-zA-Z0-9 ]/g, '')">
@@ -767,11 +767,12 @@
         }
     }
 
-    // Alpine.js component for edit personality modal
+    // Alpine.js component for edit/new personality modal
     function editPersonalityModal() {
         return {
             showModal: false,
-            personality: '',      // Original folder name
+            isNew: false,         // true for new personality, false for edit
+            personality: '',      // Original folder name (empty for new)
             displayName: '',      // User-editable display name
             content: '',
             init() {
@@ -786,14 +787,19 @@
                     .replace(/\s+/g, '_')
                     .replace(/[^a-z0-9_]/g, '');
 
-                fetch('{% url "save_personality_file" %}', {
+                const url = this.isNew ? '{% url "create_personality" %}' : '{% url "save_personality_file" %}';
+                const body = this.isNew
+                    ? `name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`
+                    : `personality=${encodeURIComponent(this.personality)}&new_name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`;
+
+                fetch(url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'X-CSRFToken': csrfToken,
                         'HX-Request': 'true'
                     },
-                    body: `personality=${encodeURIComponent(this.personality)}&new_name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`
+                    body: body
                 })
                 .then(response => response.text())
                 .then(html => {
@@ -816,9 +822,21 @@
             // Convert folder name to display name for editing
             const displayName = personality.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
+            window.editPersonalityModalComponent.isNew = false;
             window.editPersonalityModalComponent.personality = personality;
             window.editPersonalityModalComponent.displayName = displayName;
             window.editPersonalityModalComponent.content = content;
+            window.editPersonalityModalComponent.showModal = true;
+        }
+    }
+
+    // Open new personality modal (called from settings page)
+    function openNewPersonalityModal() {
+        if (window.editPersonalityModalComponent) {
+            window.editPersonalityModalComponent.isNew = true;
+            window.editPersonalityModalComponent.personality = '';
+            window.editPersonalityModalComponent.displayName = '';
+            window.editPersonalityModalComponent.content = '';
             window.editPersonalityModalComponent.showModal = true;
         }
     }

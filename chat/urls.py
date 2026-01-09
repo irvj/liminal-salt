@@ -19,4 +19,5 @@ urlpatterns = [
     path('settings/', views.settings, name='settings'),
     path('settings/save/', views.save_settings, name='save_settings'),
     path('settings/save-personality/', views.save_personality_file, name='save_personality_file'),
+    path('settings/create-personality/', views.create_personality, name='create_personality'),
 ]

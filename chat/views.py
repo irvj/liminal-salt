@@ -831,3 +831,51 @@ def _update_sessions_personality(old_name, new_name):
             except Exception as e:
                 logger.error(f"Error updating session {filename}: {e}")
                 continue
+
+
+def create_personality(request):
+    """Create a new personality"""
+    from django.conf import settings as django_settings
+    from .services import get_available_personalities
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    name = request.POST.get('name', '').strip()
+    content = request.POST.get('content', '')
+
+    if not name:
+        return HttpResponse("Personality name required", status=400)
+
+    # Validate name (only alphanumeric and underscores)
+    if not all(c.isalnum() or c == '_' for c in name):
+        return HttpResponse("Invalid personality name. Use only letters, numbers, and underscores.", status=400)
+
+    config = load_config()
+    personalities_dir = str(django_settings.PERSONALITIES_DIR)
+    personality_path = os.path.join(personalities_dir, name)
+
+    # Check if already exists
+    if os.path.exists(personality_path):
+        return HttpResponse(f"A personality named '{name}' already exists.", status=400)
+
+    # Create the folder and identity.md file
+    os.makedirs(personality_path)
+    filepath = os.path.join(personality_path, 'identity.md')
+    with open(filepath, 'w') as f:
+        f.write(content)
+
+    # Return updated settings partial with new personality selected
+    available_personalities = get_available_personalities(personalities_dir)
+    default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+    model = config.get("MODEL", "")
+
+    context = {
+        'model': model,
+        'personalities': available_personalities,
+        'default_personality': default_personality,
+        'selected_personality': name,
+        'personality_preview': content,
+        'success': "Personality created",
+    }
+    return render(request, 'settings/settings_main.html', context)
