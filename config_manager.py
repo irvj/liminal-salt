@@ -31,8 +31,13 @@ def fetch_available_models(api_key):
         )
         if response.status_code == 200:
             models = response.json().get("data", [])
-            # Return simplified list with id and name
-            return [{"id": m["id"], "name": m.get("name", m["id"])} for m in models]
+            # Return list with id, name, pricing, and context_length
+            return [{
+                "id": m["id"],
+                "name": m.get("name", m["id"]),
+                "pricing": m.get("pricing", {}),
+                "context_length": m.get("context_length", 0)
+            } for m in models]
         else:
             return None
     except Exception:

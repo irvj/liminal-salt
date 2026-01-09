@@ -27,12 +27,54 @@ def group_models_by_provider(models):
     return sorted_groups
 
 def flatten_models_with_provider_prefix(grouped_models):
-    """Flatten grouped models for selectbox with provider prefixes"""
+    """Flatten grouped models with provider prefix and pricing"""
     options = []
     for provider, models in grouped_models.items():
         for model in models:
-            options.append((model["id"], f"[{provider}] {model['name']}"))
+            pricing_str = format_model_pricing(model.get("pricing", {}))
+            if pricing_str:
+                display_name = f"[{provider}] {model['name']} - {pricing_str}"
+            else:
+                display_name = f"[{provider}] {model['name']}"
+            options.append((model["id"], display_name))
     return options
+
+def format_model_pricing(pricing):
+    """
+    Format pricing information for display
+
+    Args:
+        pricing: Dict with 'prompt' and 'completion' keys (strings)
+
+    Returns:
+        Formatted string like "$3.00/$15.00 per 1M" or "Free"
+    """
+    if not pricing:
+        return ""
+
+    prompt_cost = float(pricing.get("prompt", 0))
+    completion_cost = float(pricing.get("completion", 0))
+
+    # Check if free
+    if prompt_cost == 0 and completion_cost == 0:
+        return "Free"
+
+    # Convert from per-token to per-million-tokens for readability
+    prompt_per_million = prompt_cost * 1_000_000
+    completion_per_million = completion_cost * 1_000_000
+
+    # Format with appropriate precision
+    if prompt_per_million < 0.01:
+        prompt_str = f"${prompt_per_million:.4f}"
+    else:
+        prompt_str = f"${prompt_per_million:.2f}"
+
+    if completion_per_million < 0.01:
+        completion_str = f"${completion_per_million:.4f}"
+    else:
+        completion_str = f"${completion_per_million:.2f}"
+
+    return f"{prompt_str}/{completion_str} per 1M"
 
 def first_time_setup():
     """
