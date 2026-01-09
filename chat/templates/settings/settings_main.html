@@ -36,14 +36,19 @@
                     hx-include="this">
                 {% for p in personalities %}
                     <option value="{{ p }}" {% if p == selected_personality %}selected{% endif %}>
-                        {{ p|title }}
+                        {{ p|display_name }}
                     </option>
                 {% endfor %}
             </select>
         </div>
 
         <button type="submit" class="button-primary">Set as Default</button>
+        <button type="button" class="button-secondary" onclick="openEditPersonalityModal()">Edit Personality File</button>
     </form>
+
+    <script>
+        window.personalityRawContent = "{{ personality_preview|escapejs }}";
+    </script>
 
     {% if personality_preview %}
     <div class="settings-preview">

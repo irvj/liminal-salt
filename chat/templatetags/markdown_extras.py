@@ -10,3 +10,11 @@ def markdown_filter(value):
     if value:
         return mark_safe(markdown.markdown(value))
     return ''
+
+
+@register.filter(name='display_name')
+def display_name_filter(value):
+    """Convert folder name to display: 'bill_smith' -> 'Bill Smith'"""
+    if value:
+        return value.replace('_', ' ').title()
+    return ''
