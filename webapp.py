@@ -2,7 +2,8 @@ import streamlit as st
 import os
 import json
 from datetime import datetime
-from config_manager import load_config
+from collections import defaultdict
+from config_manager import load_config, save_config, fetch_available_models
 from context_manager import load_context, get_available_personalities
 from chat_core import ChatCore
 from summarizer import Summarizer
@@ -10,8 +11,133 @@ from summarizer import Summarizer
 # Page Config
 st.set_page_config(page_title="MVP Multi-Session Chatbot", page_icon="🤖", layout="wide")
 
+# Helper Functions for Setup
+def group_models_by_provider(models):
+    """Group models by provider (extracted from model ID)"""
+    groups = defaultdict(list)
+    for model in models:
+        provider = model["id"].split("/")[0] if "/" in model["id"] else "Other"
+        groups[provider].append(model)
+
+    # Sort providers alphabetically, sort models within each group
+    sorted_groups = {}
+    for provider in sorted(groups.keys()):
+        sorted_groups[provider] = sorted(groups[provider], key=lambda m: m["name"])
+
+    return sorted_groups
+
+def flatten_models_with_provider_prefix(grouped_models):
+    """Flatten grouped models for selectbox with provider prefixes"""
+    options = []
+    for provider, models in grouped_models.items():
+        for model in models:
+            options.append((model["id"], f"[{provider}] {model['name']}"))
+    return options
+
+def first_time_setup():
+    """
+    Display first-time setup wizard to create config.json
+    Returns False to stop app execution until setup is complete
+    """
+    st.title("Welcome to Liminal Salt")
+    st.write("Let's get you set up! This will only take a minute.")
+
+    # Initialize setup state
+    if "setup_step" not in st.session_state:
+        st.session_state.setup_step = 1
+        st.session_state.setup_api_key = ""
+        st.session_state.setup_models = []
+
+    # Step 1: API Key Input
+    if st.session_state.setup_step == 1:
+        st.subheader("Step 1: OpenRouter API Key")
+        st.write("Get your API key from [OpenRouter](https://openrouter.ai/keys)")
+
+        api_key = st.text_input(
+            "Enter your OpenRouter API key:",
+            type="password",
+            value=st.session_state.setup_api_key,
+            key="api_key_input"
+        )
+
+        if st.button("Validate & Continue", type="primary"):
+            if not api_key:
+                st.error("Please enter an API key")
+            else:
+                with st.spinner("Validating API key and fetching models..."):
+                    models = fetch_available_models(api_key)
+                    if models and len(models) > 0:
+                        st.session_state.setup_api_key = api_key
+                        st.session_state.setup_models = models
+                        st.session_state.setup_step = 2
+                        st.rerun()
+                    else:
+                        st.error("Invalid API key or connection error. Please try again.")
+
+        return False
+
+    # Step 2: Model Selection
+    elif st.session_state.setup_step == 2:
+        st.subheader("Step 2: Choose Your Model")
+        st.write(f"Found {len(st.session_state.setup_models)} available models")
+        st.caption("💡 Tip: Start typing to search for a specific model")
+
+        # Group models by provider
+        grouped_models = group_models_by_provider(st.session_state.setup_models)
+        model_options_flat = flatten_models_with_provider_prefix(grouped_models)
+
+        # Extract just the IDs for the selectbox options
+        model_ids = [model_id for model_id, _ in model_options_flat]
+        model_display_names = {model_id: display_name for model_id, display_name in model_options_flat}
+
+        selected_model = st.selectbox(
+            "Select a model:",
+            options=model_ids,
+            format_func=lambda x: model_display_names[x],
+            index=None,  # No default selection
+            placeholder="Choose a model or start typing to search...",
+            key="model_selector"
+        )
+
+        if selected_model:
+            st.info(f"**Selected:** {selected_model}")
+
+        if st.button("Complete Setup", type="primary", disabled=(selected_model is None)):
+            # Create config
+            config_data = {
+                "OPENROUTER_API_KEY": st.session_state.setup_api_key,
+                "MODEL": selected_model,
+                "SITE_URL": "https://liminalsalt.app",
+                "SITE_NAME": "Liminal Salt",
+                "DEFAULT_PERSONALITY": "assistant",
+                "PERSONALITIES_DIR": "personalities",
+                "MAX_HISTORY": 50,
+                "SESSIONS_DIR": "sessions",
+                "LTM_FILE": "long_term_memory.md"
+            }
+
+            save_config(config_data)
+
+            st.success("✅ Setup complete! Starting Liminal Salt...")
+
+            # Clean up setup state
+            del st.session_state.setup_step
+            del st.session_state.setup_api_key
+            del st.session_state.setup_models
+
+            st.rerun()
+
+        return False
+
+    return False
+
 # Load Configuration
 config = load_config()
+
+# First-time setup check
+if not config or not config.get("OPENROUTER_API_KEY"):
+    first_time_setup()
+    st.stop()  # Stop execution until setup is done
 api_key = config.get("OPENROUTER_API_KEY")
 model = config.get("MODEL", "google/gemini-2.0-flash-exp:free")
 max_history = config.get("MAX_HISTORY", 50)

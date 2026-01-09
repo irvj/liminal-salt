@@ -375,7 +375,7 @@ Access at `http://localhost:8501`
 {
     "OPENROUTER_API_KEY": "sk-or-v1-...",
     "MODEL": "anthropic/claude-haiku-4.5",
-    "SITE_URL": "http://localhost:3000",
+    "SITE_URL": "https://liminalsalt.app",
     "SITE_NAME": "Liminal Salt",
     "DEFAULT_PERSONALITY": "assistant",
     "PERSONALITIES_DIR": "personalities",
