@@ -655,20 +655,22 @@ def settings(request):
 
     # Read first personality file preview
     personality_preview = ""
+    selected_personality = default_personality
     if available_personalities:
-        selected_personality = request.GET.get('preview', default_personality)
+        selected_personality = request.GET.get('personality', request.GET.get('preview', default_personality))
         personality_path = os.path.join(personalities_dir, selected_personality)
         if os.path.exists(personality_path):
             md_files = [f for f in os.listdir(personality_path) if f.endswith(".md")]
             if md_files:
                 with open(os.path.join(personality_path, md_files[0]), 'r') as f:
                     content = f.read()
-                    personality_preview = content[:500] + ("..." if len(content) > 500 else "")
+                    personality_preview = content
 
     context = {
         'model': model,
         'personalities': available_personalities,
         'default_personality': default_personality,
+        'selected_personality': selected_personality,
         'personality_preview': personality_preview,
         'success': request.GET.get('success'),
     }
@@ -710,7 +712,7 @@ def save_settings(request):
                 if md_files:
                     with open(os.path.join(personality_path, md_files[0]), 'r') as f:
                         content = f.read()
-                        personality_preview = content[:500] + ("..." if len(content) > 500 else "")
+                        personality_preview = content
 
             context = {
                 'model': model,

@@ -1,6 +1,7 @@
+{% load markdown_extras %}
 <!-- Header -->
 <header class="header">
-    <h1>⚙️ Settings</h1>
+    <h1>Settings</h1>
     <div class="subtitle">Model: {{ model }}</div>
 </header>
 
@@ -27,9 +28,14 @@
         {% csrf_token %}
         <div class="form-group">
             <label for="personality">Select a personality:</label>
-            <select id="personality" name="personality" class="settings-select" required>
+            <select id="personality" name="personality" class="settings-select" required
+                    hx-get="{% url 'settings' %}"
+                    hx-target="#main-content"
+                    hx-swap="innerHTML"
+                    hx-trigger="change"
+                    hx-include="this">
                 {% for p in personalities %}
-                    <option value="{{ p }}" {% if p == default_personality %}selected{% endif %}>
+                    <option value="{{ p }}" {% if p == selected_personality %}selected{% endif %}>
                         {{ p|title }}
                     </option>
                 {% endfor %}
@@ -41,8 +47,7 @@
 
     {% if personality_preview %}
     <div class="settings-preview">
-        <strong>Personality Preview:</strong><br><br>
-        {{ personality_preview }}
+        {{ personality_preview|markdown }}
     </div>
     {% endif %}
 

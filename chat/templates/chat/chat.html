@@ -275,9 +275,22 @@
     padding: 16px;
     border-radius: 8px;
     margin-top: 20px;
-    white-space: pre-wrap;
     font-size: 14px;
     border-left: 4px solid #5E81AC;
+    line-height: 1.6;
+}
+.settings-preview p {
+    margin-bottom: 1em;
+}
+.settings-preview p:last-child {
+    margin-bottom: 0;
+}
+.settings-preview ul, .settings-preview ol {
+    margin-left: 1.5em;
+    margin-bottom: 1em;
+}
+.settings-preview li {
+    margin-bottom: 0.25em;
 }
 .main {
     flex: 1;
@@ -503,7 +516,7 @@
     <button hx-get="{% url 'settings' %}"
             hx-target="#main-content"
             hx-swap="innerHTML">
-        ⚙️ Settings
+        Settings
     </button>
 </aside>
 
