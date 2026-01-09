@@ -1,3 +1,4 @@
+{% load markdown_extras %}
 <!-- Header -->
 <header class="header">
     <h1>📝 User Memory</h1>
@@ -27,9 +28,7 @@
     </div>
 
     <div class="memory-content-box">
-        {% if memory_content %}
-            {{ memory_content|linebreaks }}
-        {% else %}
+        {% if memory_content %}{{ memory_content|markdown }}{% else %}
             <div class="empty-state">
                 <strong>No long-term memory found yet.</strong><br>
                 Memory will be created after your first update.

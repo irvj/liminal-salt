@@ -72,11 +72,17 @@
         }
         .content {
             background: #3B4252;
-            padding: 20px;
+            padding: 16px;
             border-radius: 8px;
             margin-top: 20px;
-            white-space: pre-wrap;
             line-height: 1.6;
+            border-left: 4px solid #5E81AC;
+        }
+        .content p {
+            margin-bottom: 1em;
+        }
+        .content p:last-child {
+            margin-bottom: 0;
         }
         .empty-state {
             text-align: center;
@@ -90,6 +96,7 @@
         }
     </style>
 </head>
+{% load markdown_extras %}
 <body>
     <a href="{% url 'chat' %}" class="button button-back">← Back to Chat</a>
 
@@ -129,7 +136,7 @@
     <div class="divider"></div>
 
     {% if memory_content %}
-    <div class="content">{{ memory_content }}</div>
+    <div class="content">{{ memory_content|markdown }}</div>
     {% else %}
     <div class="content empty-state">
         <strong>No long-term memory found yet.</strong><br>
