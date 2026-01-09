@@ -1,0 +1,515 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Liminal Salt{% endblock %}
+
+{% block body_style %}display: flex; height: 100vh;{% endblock %}
+
+{% block extra_styles %}
+.sidebar {
+    width: 300px;
+    background: #3B4252;
+    padding: 20px;
+    overflow-y: auto;
+    border-right: 1px solid #4C566A;
+}
+.sidebar h2 {
+    color: #88C0D0;
+    margin-bottom: 16px;
+    font-size: 20px;
+}
+.sidebar button, .sidebar a {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin: 4px 0;
+    background: #4C566A;
+    color: #ECEFF4;
+    border: none;
+    border-radius: 4px;
+    text-decoration: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 14px;
+}
+.sidebar button:hover, .sidebar a:hover {
+    background: #5E81AC;
+}
+.sidebar .current {
+    background: #5E81AC;
+    font-weight: bold;
+}
+.sidebar .personality-header {
+    background: #4C566A;
+    color: #88C0D0;
+    font-weight: 600;
+    margin-top: 12px;
+}
+.sidebar .session-item {
+    padding-left: 20px;
+    font-size: 13px;
+}
+.sidebar .session-row {
+    display: flex;
+    align-items: stretch;
+    margin: 4px 0;
+    gap: 2px;
+}
+.sidebar .session-row .session-item {
+    flex: 1;
+    margin: 0;
+    border-radius: 4px 0 0 4px;
+}
+.sidebar .session-row .delete-btn {
+    width: 32px;
+    padding: 0;
+    margin: 0;
+    background: #4C566A;
+    border-radius: 0 4px 4px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    opacity: 0.6;
+}
+.sidebar .session-row .delete-btn:hover {
+    background: #BF616A;
+    opacity: 1;
+}
+/* Modal styles */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.modal {
+    background: #3B4252;
+    border-radius: 8px;
+    padding: 24px;
+    max-width: 400px;
+    width: 90%;
+    border: 1px solid #4C566A;
+}
+.modal h3 {
+    color: #ECEFF4;
+    margin-bottom: 12px;
+}
+.modal p {
+    color: #D8DEE9;
+    margin-bottom: 20px;
+}
+.modal-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+.modal-buttons button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: 500;
+    width: auto;
+}
+.modal-buttons .cancel-btn {
+    background: #4C566A;
+}
+.modal-buttons .confirm-btn {
+    background: #BF616A;
+}
+.modal .form-group {
+    margin: 16px 0;
+}
+.modal .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #D8DEE9;
+}
+.modal-select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #4C566A;
+    border-radius: 4px;
+    background: #2E3440;
+    color: #ECEFF4;
+    font-size: 14px;
+}
+.modal-select:focus {
+    outline: none;
+    border-color: #88C0D0;
+}
+/* Hide Alpine elements until initialized */
+[x-cloak] {
+    display: none !important;
+}
+.main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+.header {
+    background: #3B4252;
+    padding: 16px 20px;
+    border-bottom: 1px solid #4C566A;
+}
+.header h1 {
+    font-size: 24px;
+    color: #88C0D0;
+}
+.header .subtitle {
+    font-size: 12px;
+    color: #D8DEE9;
+    margin-top: 4px;
+}
+.messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+.message {
+    margin: 16px 0;
+    padding: 12px 16px;
+    border-radius: 8px;
+    max-width: 80%;
+}
+.message.user {
+    background: #5E81AC;
+    margin-left: auto;
+    text-align: right;
+}
+.message.assistant {
+    background: #4C566A;
+}
+.message.error {
+    background: #BF616A;
+}
+.message pre {
+    background: #2E3440;
+    padding: 8px;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin-top: 8px;
+}
+.input-area {
+    background: #3B4252;
+    padding: 20px;
+    border-top: 1px solid #4C566A;
+}
+.input-area form {
+    display: flex;
+    gap: 12px;
+}
+.input-area input {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #4C566A;
+    border-radius: 4px;
+    background: #2E3440;
+    color: #ECEFF4;
+    font-size: 16px;
+}
+.input-area input:focus {
+    outline: none;
+    border-color: #88C0D0;
+}
+.input-area button {
+    padding: 12px 24px;
+    background: #5E81AC;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+}
+.input-area button:hover {
+    background: #81A1C1;
+}
+.divider {
+    height: 1px;
+    background: #4C566A;
+    margin: 12px 0;
+}
+.message.thinking {
+    opacity: 0.7;
+}
+.thinking-dots span {
+    animation: blink 1.4s infinite;
+}
+.thinking-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+.thinking-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+@keyframes blink {
+    0%, 60%, 100% { opacity: 1; }
+    30% { opacity: 0; }
+}
+{% endblock %}
+
+{% block body %}
+<!-- New Chat Modal (Alpine.js) -->
+<div x-data="newChatModal()" x-cloak>
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="modal-backdrop"
+         @click.self="showModal = false">
+        <div class="modal">
+            <h3>New Chat</h3>
+            <p>Choose a personality for this conversation:</p>
+            <form hx-post="{% url 'new_chat' %}" hx-swap="none">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="new-chat-personality">Personality:</label>
+                    <select id="new-chat-personality" name="personality" class="modal-select">
+                        {% for p in available_personalities %}
+                            <option value="{{ p }}" {% if p == default_personality %}selected{% endif %}>
+                                {{ p|title }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" @click="showModal = false" class="cancel-btn">Cancel</button>
+                    <button type="submit" class="confirm-btn" style="background: #A3BE8C;">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal (Alpine.js) -->
+<div x-data="deleteModal()" x-cloak>
+    <!-- Modal backdrop -->
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="modal-backdrop"
+         @click.self="showModal = false">
+        <div class="modal">
+            <h3>Delete Chat?</h3>
+            <p>Are you sure you want to delete "<span x-text="sessionTitle"></span>"? This cannot be undone.</p>
+            <div class="modal-buttons">
+                <button @click="showModal = false" class="cancel-btn">Cancel</button>
+                <button @click="confirmDelete()" class="confirm-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+    <h2>🧂 Liminal Salt</h2>
+
+    <button onclick="openNewChatModal()" style="background: #A3BE8C;">➕ New Chat</button>
+
+    <div class="divider"></div>
+
+    <!-- Sessions grouped by personality -->
+    {% for personality, personality_sessions in grouped_sessions.items %}
+        <!-- Using Alpine.js for collapsible groups -->
+        <div x-data="{ open: true }">
+            <button @click="open = !open" class="personality-header">
+                <span x-text="open ? '▼' : '▶'"></span>
+                {{ personality|title }} ({{ personality_sessions|length }})
+            </button>
+
+            <div x-show="open">
+                {% for session in personality_sessions %}
+                    <div class="session-row" data-session-id="{{ session.id }}">
+                        <button hx-post="{% url 'switch_session' %}"
+                                hx-vals='{"session_id": "{{ session.id }}"}'
+                                hx-target="#main-content"
+                                hx-swap="innerHTML"
+                                onclick="updateSidebarHighlight(this)"
+                                data-session-id="{{ session.id }}"
+                                class="session-item {% if session.id == current_session %}current{% endif %}">
+                            {{ session.title }}
+                        </button>
+                        <button class="delete-btn"
+                                onclick="openDeleteModal('{{ session.id }}', '{{ session.title|escapejs }}')"
+                                title="Delete chat">
+                            🗑️
+                        </button>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endfor %}
+
+    <div class="divider"></div>
+
+    <a href="{% url 'memory' %}">📝 User Memory</a>
+    <a href="{% url 'settings' %}">⚙️ Settings</a>
+</aside>
+
+<!-- Main Chat Area -->
+<div class="main" id="main-content">
+    {% include 'chat/chat_main.html' %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Auto-scroll to bottom on page load
+    const messagesDiv = document.getElementById('messages');
+    if (messagesDiv) {
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    // Add user message immediately and show thinking indicator
+    function addUserMessage(event) {
+        const input = document.getElementById('message-input');
+        const message = input.value.trim();
+
+        if (!message) return;
+
+        // Clear input immediately (don't wait for response)
+        input.value = '';
+
+        // Create and append user message
+        const messagesDiv = document.getElementById('messages');
+        const userDiv = document.createElement('div');
+        userDiv.className = 'message user';
+        userDiv.textContent = message;
+        messagesDiv.appendChild(userDiv);
+
+        // Create and append thinking indicator
+        const thinkingDiv = document.createElement('div');
+        thinkingDiv.id = 'thinking-indicator';
+        thinkingDiv.className = 'message assistant thinking';
+        thinkingDiv.innerHTML = '<span class="thinking-dots">Thinking<span>.</span><span>.</span><span>.</span></span>';
+        messagesDiv.appendChild(thinkingDiv);
+
+        // Scroll to bottom
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    // Remove thinking indicator after response arrives
+    function removeThinkingIndicator() {
+        const thinking = document.getElementById('thinking-indicator');
+        if (thinking) {
+            thinking.remove();
+        }
+    }
+
+    // Scroll to bottom helper
+    function scrollToBottom() {
+        const messagesDiv = document.getElementById('messages');
+        if (messagesDiv) {
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+    }
+
+    // Update sidebar highlight when switching sessions
+    function updateSidebarHighlight(clickedButton) {
+        // Remove 'current' class from all session items
+        document.querySelectorAll('.session-item').forEach(item => {
+            item.classList.remove('current');
+        });
+        // Add 'current' class to clicked button
+        clickedButton.classList.add('current');
+    }
+
+    // Delete modal state (shared with Alpine)
+    let deleteModalState = {
+        showModal: false,
+        sessionId: '',
+        sessionTitle: ''
+    };
+
+    // Alpine.js component for delete modal
+    function deleteModal() {
+        return {
+            showModal: false,
+            sessionId: '',
+            sessionTitle: '',
+            init() {
+                // Store reference so openDeleteModal can access this
+                window.deleteModalComponent = this;
+            },
+            confirmDelete() {
+                const sessionId = this.sessionId;
+                this.showModal = false;
+
+                // First switch to this session (so delete_chat deletes the right one)
+                // Then delete via HTMX
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+
+                // Switch to the session first, then delete
+                fetch('{% url "switch_session" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: `session_id=${sessionId}`
+                }).then(() => {
+                    // Now delete (current session)
+                    fetch('{% url "delete_chat" %}', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': csrfToken
+                        }
+                    }).then(() => {
+                        // Reload page to refresh sidebar and content
+                        window.location.reload();
+                    });
+                });
+            }
+        };
+    }
+
+    // Open delete modal (called from delete buttons)
+    function openDeleteModal(sessionId, sessionTitle) {
+        if (window.deleteModalComponent) {
+            window.deleteModalComponent.sessionId = sessionId;
+            window.deleteModalComponent.sessionTitle = sessionTitle;
+            window.deleteModalComponent.showModal = true;
+        }
+    }
+
+    // Alpine.js component for new chat modal
+    function newChatModal() {
+        return {
+            showModal: false,
+            init() {
+                window.newChatModalComponent = this;
+            }
+        };
+    }
+
+    // Open new chat modal
+    function openNewChatModal() {
+        if (window.newChatModalComponent) {
+            window.newChatModalComponent.showModal = true;
+        }
+    }
+
+    // Listen for HTMX responses to update title when it changes
+    document.body.addEventListener('htmx:afterRequest', function(event) {
+        const xhr = event.detail.xhr;
+        if (!xhr) return;
+
+        const newTitle = xhr.getResponseHeader('X-Chat-Title');
+        const sessionId = xhr.getResponseHeader('X-Chat-Session-Id');
+
+        if (newTitle && sessionId) {
+            // Update sidebar item
+            const sidebarItem = document.querySelector(`.session-row[data-session-id="${sessionId}"] .session-item`);
+            if (sidebarItem) {
+                sidebarItem.textContent = newTitle;
+            }
+
+            // Update header title
+            const headerTitle = document.querySelector('.header h1');
+            if (headerTitle) {
+                headerTitle.textContent = newTitle;
+            }
+        }
+    });
+</script>
+{% endblock %}

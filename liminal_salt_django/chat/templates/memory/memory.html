@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Memory - Liminal Salt</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #2E3440;
+            color: #ECEFF4;
+        }
+        h1 {
+            color: #88C0D0;
+        }
+        .subtitle {
+            color: #D8DEE9;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        .buttons {
+            display: flex;
+            gap: 12px;
+            margin: 20px 0;
+        }
+        button, .button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .button-primary {
+            background: #5E81AC;
+            color: white;
+        }
+        .button-primary:hover {
+            background: #81A1C1;
+        }
+        .button-secondary {
+            background: #4C566A;
+            color: #ECEFF4;
+        }
+        .button-secondary:hover {
+            background: #BF616A;
+        }
+        .button-back {
+            background: #4C566A;
+            color: #ECEFF4;
+        }
+        .button-back:hover {
+            background: #5E81AC;
+        }
+        .alert {
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin: 16px 0;
+        }
+        .alert-success {
+            background: #A3BE8C;
+            color: #2E3440;
+        }
+        .alert-error {
+            background: #BF616A;
+            color: white;
+        }
+        .content {
+            background: #3B4252;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #D8DEE9;
+        }
+        .divider {
+            height: 1px;
+            background: #4C566A;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <a href="{% url 'chat' %}" class="button button-back">← Back to Chat</a>
+
+    <h1>📝 User Memory</h1>
+    <div class="subtitle">Model: {{ model }}</div>
+
+    {% if success %}
+    <div class="alert alert-success">✅ {{ success }}</div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-error">⚠️ {{ error }}</div>
+    {% endif %}
+
+    <div class="buttons">
+        <form method="POST" action="{% url 'update_memory' %}" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="button-primary">Update User Memory</button>
+        </form>
+
+        <form method="POST" action="{% url 'wipe_memory' %}"
+              onsubmit="return confirm('Are you sure you want to wipe your entire long-term memory? This action cannot be undone.');"
+              style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="button-secondary">Wipe Memory</button>
+        </form>
+    </div>
+
+    {% if last_update %}
+    <div class="subtitle">
+        Last updated: {{ last_update|date:"M d, Y" }} at {{ last_update|time:"g:i A" }}
+    </div>
+    {% else %}
+    <div class="subtitle">Never updated from all sessions</div>
+    {% endif %}
+
+    <div class="divider"></div>
+
+    {% if memory_content %}
+    <div class="content">{{ memory_content }}</div>
+    {% else %}
+    <div class="content empty-state">
+        <strong>No long-term memory found yet.</strong><br>
+        Memory will be created after your first update.
+    </div>
+    {% endif %}
+</body>
+</html>

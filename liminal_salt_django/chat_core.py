@@ -1,0 +1,136 @@
+import requests
+import json
+import os
+import time
+
+class ChatCore:
+    def __init__(self, api_key, model, site_url=None, site_name=None, system_prompt="", max_history=50, history_file=None, personality="assistant"):
+        self.api_key = api_key
+        self.model = model
+        self.site_url = site_url
+        self.site_name = site_name
+        self.system_prompt = system_prompt
+        self.max_history = max_history
+        self.history_file = history_file
+        self.personality = personality
+        self.title = "New Chat"
+        self.messages = self._load_history()
+
+    def _load_history(self):
+        if self.history_file and os.path.exists(self.history_file):
+            try:
+                with open(self.history_file, 'r') as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        self.title = data.get("title", "New Chat")
+                        self.personality = data.get("personality", self.personality)
+                        return data.get("messages", [])
+                    return data
+            except Exception:
+                return []
+        return []
+
+    def _save_history(self):
+        if not self.history_file:
+            return
+        try:
+            window_size = self.max_history * 2
+            to_save = {
+                "title": self.title,
+                "personality": self.personality,
+                "messages": self.messages[-window_size:]
+            }
+            with open(self.history_file, 'w') as f:
+                json.dump(to_save, f, indent=4)
+        except Exception as e:
+            print(f"Error saving history: {e}")
+
+    def clear_history(self):
+        self.messages = []
+        if self.history_file and os.path.exists(self.history_file):
+            os.remove(self.history_file)
+
+    def _get_payload_messages(self):
+        payload = []
+        if self.system_prompt:
+            payload.append({"role": "system", "content": self.system_prompt})
+        
+        window_size = self.max_history * 2
+        recent_messages = self.messages[-window_size:]
+        
+        payload.extend(recent_messages)
+        return payload
+
+    def send_message(self, user_input):
+        self.messages.append({"role": "user", "content": user_input})
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        if self.site_url:
+            headers["HTTP-Referer"] = self.site_url
+        if self.site_name:
+            headers["X-Title"] = self.site_name
+
+        payload = {
+            "model": self.model,
+            "messages": self._get_payload_messages()
+        }
+
+        # Retry logic: Try up to 2 times if we get empty responses
+        max_retries = 2
+        assistant_message = None
+        last_error = None
+
+        for attempt in range(max_retries):
+            if attempt > 0:
+                print(f"[ChatCore] Retry attempt {attempt + 1}/{max_retries} due to empty response...")
+                # Add delay before retry to give the API time to process
+                time.sleep(2)
+
+            try:
+                response = requests.post(
+                    url="https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    data=json.dumps(payload),
+                    timeout=30
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                if 'choices' not in data or not data['choices']:
+                    last_error = "No response content from API."
+                    print(f"[ChatCore] Attempt {attempt + 1} failed: No choices in response")
+                    continue  # Retry
+
+                assistant_message = data['choices'][0]['message']['content']
+
+                # Clean up tokens
+                assistant_message = assistant_message.replace('<s>', '').replace('</s>', '').strip()
+
+                if assistant_message:
+                    # Success! We have a valid response
+                    if attempt > 0:
+                        print(f"[ChatCore] Retry successful on attempt {attempt + 1}")
+                    break
+                else:
+                    last_error = "The model returned an empty response."
+                    print(f"[ChatCore] Attempt {attempt + 1} failed: Empty response after cleanup")
+                    # Continue to retry if we have attempts left
+
+            except Exception as e:
+                last_error = str(e)
+                print(f"[ChatCore] Attempt {attempt + 1} failed with exception: {last_error}")
+                # Continue to retry if we have attempts left
+
+        # After all retries, check if we got a valid response
+        if not assistant_message:
+            error_msg = f"ERROR: {last_error}"
+            if max_retries > 1:
+                error_msg += f" (tried {max_retries} times)"
+            return error_msg
+
+        self.messages.append({"role": "assistant", "content": assistant_message})
+        self._save_history()
+        return assistant_message

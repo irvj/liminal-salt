@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup - Liminal Salt</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #2E3440;
+            color: #ECEFF4;
+        }
+        h1 {
+            color: #88C0D0;
+        }
+        .form-group {
+            margin: 20px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #4C566A;
+            border-radius: 4px;
+            background: #3B4252;
+            color: #ECEFF4;
+            font-size: 16px;
+        }
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #88C0D0;
+        }
+        button {
+            background: #5E81AC;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        button:hover {
+            background: #81A1C1;
+        }
+        .error {
+            background: #BF616A;
+            color: white;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 16px 0;
+        }
+        .info {
+            color: #D8DEE9;
+            margin-top: 8px;
+            font-size: 14px;
+        }
+        a {
+            color: #88C0D0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧂 Welcome to Liminal Salt</h1>
+    <p>Let's get you set up! This will only take a minute.</p>
+
+    <h2>Step 1: OpenRouter API Key</h2>
+    <p class="info">Get your API key from <a href="https://openrouter.ai/keys" target="_blank">OpenRouter</a></p>
+
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="api_key">Enter your OpenRouter API key:</label>
+            <input
+                type="password"
+                id="api_key"
+                name="api_key"
+                value="{{ api_key|default:'' }}"
+                placeholder="sk-or-v1-..."
+                required
+                autocomplete="off"
+            >
+        </div>
+        <button type="submit">Validate & Continue</button>
+    </form>
+</body>
+</html>

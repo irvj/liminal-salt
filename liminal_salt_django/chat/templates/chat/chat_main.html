@@ -1,0 +1,53 @@
+<!-- Header -->
+<header class="header">
+    <h1>{{ title }}</h1>
+    <div class="subtitle">
+        Personality: {{ personality }} | Model: {{ model }}
+    </div>
+</header>
+
+<!-- Messages -->
+<div class="messages" id="messages">
+    {% for message in messages %}
+        <div class="message {{ message.role }}">
+            {% if message.content|slice:":6" == "ERROR:" %}
+                <strong>⚠️ Error:</strong><br>
+                <pre>{{ message.content|slice:"6:" }}</pre>
+            {% else %}
+                {{ message.content|linebreaks }}
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+
+<!-- Input Area -->
+<div class="input-area">
+    <form method="POST"
+          hx-post="{% url 'send_message' %}"
+          hx-target="#messages"
+          hx-swap="beforeend"
+          hx-on::before-request="addUserMessage(event)"
+          hx-on::after-request="this.reset(); removeThinkingIndicator(); scrollToBottom();">
+        {% csrf_token %}
+        <input
+            type="text"
+            name="message"
+            id="message-input"
+            placeholder="What's on your mind?"
+            required
+            autocomplete="off"
+            autofocus
+        >
+        <button type="submit">Send</button>
+    </form>
+</div>
+
+<script>
+    // Auto-scroll to bottom when this partial loads
+    (function() {
+        const messagesDiv = document.getElementById('messages');
+        if (messagesDiv) {
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+    })();
+</script>

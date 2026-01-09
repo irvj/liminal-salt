@@ -1,0 +1,15 @@
+{% load static %}
+<!-- User message -->
+<div class="message user">
+    {{ user_message|linebreaks }}
+</div>
+
+<!-- Assistant response -->
+<div class="message assistant">
+    {% if assistant_message|slice:":6" == "ERROR:" %}
+        <strong>⚠️ Error:</strong><br>
+        <pre>{{ assistant_message|slice:"6:" }}</pre>
+    {% else %}
+        {{ assistant_message|linebreaks }}
+    {% endif %}
+</div>
