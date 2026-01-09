@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Chat - Liminal Salt</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #2E3440;
+            color: #ECEFF4;
+        }
+        h1 {
+            color: #88C0D0;
+        }
+        .form-group {
+            margin: 20px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #4C566A;
+            border-radius: 4px;
+            background: #3B4252;
+            color: #ECEFF4;
+            font-size: 16px;
+        }
+        select:focus {
+            outline: none;
+            border-color: #88C0D0;
+        }
+        .buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        button, .button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            text-align: center;
+            display: inline-block;
+        }
+        .button-primary {
+            background: #5E81AC;
+            color: white;
+        }
+        .button-primary:hover {
+            background: #81A1C1;
+        }
+        .button-secondary {
+            background: #4C566A;
+            color: #ECEFF4;
+        }
+        .button-secondary:hover {
+            background: #5E81AC;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧂 New Chat</h1>
+    <p>Choose a personality for this conversation:</p>
+
+    <form method="POST">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="personality">Personality:</label>
+            <select id="personality" name="personality" required>
+                {% for p in personalities %}
+                    <option value="{{ p }}" {% if p == default_personality %}selected{% endif %}>
+                        {{ p|title }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="buttons">
+            <a href="{% url 'chat' %}" class="button button-secondary">Cancel</a>
+            <button type="submit" class="button-primary">Create</button>
+        </div>
+    </form>
+</body>
+</html>

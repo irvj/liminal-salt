@@ -2,7 +2,7 @@
 
 **Last Updated:** January 9, 2026
 **Project:** Liminal Salt - Multi-Session LLM Chatbot with Personalities
-**Status:** Production-ready Streamlit application
+**Status:** Production-ready Django application
 
 ---
 
@@ -15,7 +15,6 @@
 6. [How to Run](#how-to-run)
 7. [Configuration](#configuration)
 8. [Development Notes](#development-notes)
-9. [Future Plans](#future-plans)
 
 ---
 
@@ -30,17 +29,20 @@
 - **Long-Term Memory**: Automatic user profile building across all conversations
 - **Grouped Sidebar**: Collapsible personality-based organization of chat threads
 - **Smart Titles**: Multi-tier auto-generation of session titles with artifact detection
-- **User Memory View**: Dedicated page for viewing and managing long-term memory
+- **User Memory View**: Dedicated pane for viewing and managing long-term memory
 - **Settings Management**: Configure default personality for new chats
 - **Nord Theme**: Custom dark theme for the interface
+- **Reactive UI**: HTMX-powered updates without full page reloads
 
 ### Technology Stack
 
 - **Language:** Python 3.x
-- **Web Framework:** Streamlit
+- **Web Framework:** Django 5.x (no database)
+- **Frontend:** HTMX + Alpine.js
 - **API:** OpenRouter (LLM gateway)
 - **HTTP Client:** requests
 - **Data Storage:** JSON files for sessions, Markdown for memory and personalities
+- **Sessions:** Django signed cookie sessions (no database required)
 - **UI Theme:** Nord color scheme
 
 ---
@@ -51,30 +53,32 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Streamlit Web UI                     │
+│                    Django Web UI                        │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │   Sidebar    │  │  Chat View   │  │   Settings   │  │
-│  │ - Grouped by │  │ - Messages   │  │ - Default    │  │
-│  │   personality│  │ - Input      │  │   personality│  │
-│  │ - Collapsible│  │ - Titles     │  │              │  │
+│  │   Sidebar    │  │  Main Pane   │  │   Modals     │  │
+│  │ - Sessions   │  │ - Chat       │  │ - New Chat   │  │
+│  │ - Navigation │  │ - Memory     │  │ - Delete     │  │
+│  │ - HTMX       │  │ - Settings   │  │ - Alpine.js  │  │
 │  └──────────────┘  └──────────────┘  └──────────────┘  │
 └────────────────────┬────────────────────────────────────┘
-                     │
+                     │ HTMX Requests
                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│                   ChatCore Logic                        │
-│  - Message history management                           │
-│  - API request/response handling                        │
-│  - Session persistence                                  │
-│  - Retry logic for failed requests                      │
+│                   Django Views                          │
+│  - chat() - Main chat view                              │
+│  - send_message() - HTMX message endpoint               │
+│  - switch_session() - Session switching                 │
+│  - memory() / update_memory() - Memory management       │
+│  - settings() / save_settings() - Settings management   │
 └────────────────────┬────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│              Context Assembly                           │
-│  - Load personality .md files                           │
-│  - Load long-term memory                                │
-│  - Assemble system prompt                               │
+│                 Business Logic (services/)              │
+│  - ChatCore: API calls, message history                 │
+│  - Summarizer: Title generation, memory updates         │
+│  - ContextManager: System prompt assembly               │
+│  - ConfigManager: Configuration handling                │
 └────────────────────┬────────────────────────────────────┘
                      │
                      ▼
@@ -88,7 +92,9 @@
 ### Data Flow
 
 ```
-User sends message
+User sends message (HTMX POST)
+    ↓
+Django view: send_message()
     ↓
 ChatCore.send_message()
     ↓
@@ -105,57 +111,85 @@ Response processing:
     ↓
 Update message history
     ↓
-Save to session JSON file:
-  - title
-  - personality
-  - messages
+Save to session JSON file
     ↓
-Display to user
+Return HTML fragment (HTMX swap)
 ```
 
-### Personality System
-
-Each chat session has an assigned personality that determines the assistant's communication style:
+### Request Flow
 
 ```
-personalities/
-├── assistant/
-│   └── identity.md      # Professional, helpful assistant
-└── custom/
-    └── identity.md      # Custom personality (user-defined)
+Browser                    Django                     Services
+   │                          │                          │
+   │──GET /chat/─────────────>│                          │
+   │                          │──load session────────────>│
+   │                          │<─session data────────────│
+   │<─Full HTML page──────────│                          │
+   │                          │                          │
+   │──POST /chat/send/ (HTMX)─>│                          │
+   │                          │──ChatCore.send_message()─>│
+   │                          │                          │──>OpenRouter API
+   │                          │                          │<──Response
+   │                          │<─response────────────────│
+   │<─HTML fragment (swap)────│                          │
 ```
-
-Personalities are:
-- **Per-session**: Each chat maintains its own personality
-- **Persistent**: Saved in session JSON files
-- **Selectable**: Chosen during new chat creation
-- **Expandable**: Add new personality folders with .md files
 
 ---
 
 ## File Structure
 
 ```
-chat-test/
-├── webapp.py                    # Streamlit web interface (main entry point)
-├── chat_core.py                 # Core chatbot logic & API calls
-├── context_manager.py           # System prompt assembly from personalities
-├── config_manager.py            # Configuration loader
-├── summarizer.py                # Title generation & memory updates
-├── config.json                  # API keys & settings
+liminal-salt/
+├── manage.py                    # Django entry point
+├── config.json                  # API keys & app settings
 ├── requirements.txt             # Python dependencies
-├── long_term_memory.md          # Persistent user profile (auto-generated)
-├── CLAUDE.md                    # This file - project documentation
-├── .gitignore                   # Git ignore rules
-├── .streamlit/
-│   └── config.toml              # Streamlit theme (Nord colors)
-├── personalities/
-│   ├── assistant/
-│   │   └── identity.md          # Professional assistant personality
-│   └── custom/
-│       └── identity.md          # Custom personality
-└── sessions/
-    └── session_*.json           # Individual chat sessions
+├── CLAUDE.md                    # This documentation
+│
+├── liminal_salt/                # Django project settings
+│   ├── __init__.py
+│   ├── settings.py              # Django configuration
+│   ├── urls.py                  # Root URL routing
+│   ├── wsgi.py                  # WSGI entry point
+│   └── asgi.py                  # ASGI entry point
+│
+├── chat/                        # Main Django app
+│   ├── __init__.py
+│   ├── apps.py                  # App configuration
+│   ├── urls.py                  # App URL routing
+│   ├── views.py                 # View functions
+│   ├── utils.py                 # Helper functions
+│   │
+│   ├── services/                # Business logic layer
+│   │   ├── __init__.py          # Exports all services
+│   │   ├── chat_core.py         # LLM API & message handling
+│   │   ├── config_manager.py    # Configuration management
+│   │   ├── context_manager.py   # System prompt assembly
+│   │   └── summarizer.py        # Title & memory generation
+│   │
+│   └── templates/               # Django templates
+│       ├── base.html            # Base template with HTMX/Alpine
+│       ├── chat/
+│       │   ├── chat.html        # Main chat page (full)
+│       │   ├── chat_main.html   # Chat content partial
+│       │   ├── assistant_fragment.html
+│       │   └── new_chat.html
+│       ├── memory/
+│       │   ├── memory.html      # Memory page (full)
+│       │   └── memory_main.html # Memory content partial
+│       ├── settings/
+│       │   ├── settings.html    # Settings page (full)
+│       │   └── settings_main.html
+│       └── setup/
+│           ├── step1.html       # API key setup
+│           └── step2.html       # Model selection
+│
+└── data/                        # User data (gitignored)
+    ├── sessions/                # Chat session JSON files
+    │   └── session_*.json
+    ├── personalities/           # Personality definitions
+    │   └── assistant/
+    │       └── identity.md
+    └── long_term_memory.md      # Persistent user profile
 ```
 
 ### Session File Format
@@ -175,60 +209,48 @@ chat-test/
 
 ## Key Components
 
-### 1. Web Interface (`webapp.py`)
+### 1. Django Views (`chat/views.py`)
 
-**Purpose:** Streamlit-based multi-session chat application with personality management.
+**Purpose:** Handle HTTP requests and coordinate between templates and services.
 
-**Main Sections:**
-- **Sidebar:**
-  - New chat button with personality selection dialog
-  - Personality-grouped collapsible chat thread list
-  - User Memory and Settings navigation buttons
+**Key Views:**
+- `index()` - Entry point, redirects to setup or chat
+- `setup_wizard()` - Two-step first-time setup (API key, model selection)
+- `chat()` - Main chat view, handles both GET and HTMX requests
+- `send_message()` - HTMX endpoint for sending messages
+- `switch_session()` - HTMX endpoint for session switching
+- `new_chat()` - Create new chat session
+- `delete_chat()` - Delete current session
+- `memory()` - User memory view
+- `update_memory()` - Trigger memory update from all sessions
+- `wipe_memory()` - Clear long-term memory
+- `settings()` - Settings view
+- `save_settings()` - Save settings changes
 
-- **Chat View:**
-  - Message display with error handling
-  - Chat input with real-time responses
-  - Session title displayed in caption with personality indicator
+**HTMX Pattern:**
+Views check `request.headers.get('HX-Request')` to return either:
+- Full HTML page (normal request)
+- HTML partial fragment (HTMX request for swap)
 
-- **User Memory View:**
-  - Display long-term memory content
-  - Update memory button (aggregates all sessions)
-  - Wipe memory button with confirmation
-  - Last updated timestamp
-
-- **Settings View:**
-  - Default personality selector
-  - Personality preview
-  - Set as default button
-
-**Key Functions:**
-- `get_sessions_with_titles()` - Loads all sessions with title, id, and personality
-- `group_sessions_by_personality()` - Groups sessions by personality for sidebar display
-- `toggle_personality_group()` - Handles collapse/expand state
-- `load_chat_core()` - Initializes ChatCore with appropriate personality context
-- `create_new_chat_dialog()` - Modal for new chat creation with personality selection
-- `confirm_delete_dialog()` - Confirmation modal for session deletion
-- `confirm_wipe_memory_dialog()` - Confirmation modal for memory wipe
-
-### 2. ChatCore (`chat_core.py`)
+### 2. ChatCore (`chat/services/chat_core.py`)
 
 **Purpose:** Handles all LLM API interactions and message history management.
 
 **Key Methods:**
-- `__init__(api_key, model, site_url, site_name, system_prompt, max_history, history_file, personality)`
+- `__init__(...)` - Initialize with API key, model, system prompt, etc.
 - `send_message(user_input)` - Sends message with retry logic, returns response
 - `clear_history()` - Wipes conversation history
-- `_get_payload_messages()` - Assembles messages for API (system + last 100 messages)
-- `_save_history()` - Persists session to JSON (title, personality, messages)
-- `_load_history()` - Loads session from JSON with personality fallback
+- `_get_payload_messages()` - Assembles messages for API
+- `_save_history()` - Persists session to JSON
+- `_load_history()` - Loads session from JSON
 
 **Features:**
 - **Retry Logic:** Up to 2 attempts for empty responses with 2-second delay
 - **Token Cleanup:** Removes `<s>` and `</s>` artifacts
-- **Sliding Window:** Maintains last 100 messages (50 exchanges) in API payload
+- **Sliding Window:** Maintains last 100 messages in API payload
 - **Error Handling:** Returns "ERROR: ..." string on failures
 
-### 3. Context Manager (`context_manager.py`)
+### 3. Context Manager (`chat/services/context_manager.py`)
 
 **Purpose:** Assembles the complete system prompt from personality and memory.
 
@@ -238,22 +260,9 @@ chat-test/
 
 **Assembly Order:**
 1. All `.md` files from personality directory (alphabetically)
-2. Long-term memory file with explicit disclaimer:
-   ```
-   --- USER PROFILE (BACKGROUND KNOWLEDGE) ---
-   The following information describes the USER (not you).
-   Use this to understand who you're talking to, but DO NOT let it
-   change your personality or communication style.
-   ```
+2. Long-term memory file with explicit disclaimer
 
-**Personality Structure:**
-Each personality folder can contain multiple `.md` files that define:
-- Identity and role
-- Communication style
-- Behavior guidelines
-- Capabilities and limitations
-
-### 4. Summarizer (`summarizer.py`)
+### 4. Summarizer (`chat/services/summarizer.py`)
 
 **Purpose:** Generates session titles and updates long-term memory.
 
@@ -261,18 +270,21 @@ Each personality folder can contain multiple `.md` files that define:
 - `generate_title(first_user_msg, first_assistant_msg)` - Creates 2-4 word title
 - `update_long_term_memory(messages, ltm_file)` - Updates user profile
 
-**Title Generation Features:**
-- **Tier 1:** Attempts on first message pair (if response is valid)
-- **Tier 2:** Retry after second response if title is still "New Chat"
-- **Tier 3:** Fix titles with artifacts (brackets, tags, special characters)
-- **Artifact Detection:** Identifies and regenerates malformed titles
+### 5. Templates
 
-**Memory Update Process:**
-1. Load existing long-term memory
-2. Format conversation messages
-3. Send to LLM with update instructions
-4. Safety check: Won't overwrite substantial content with suspiciously short updates
-5. Write updated profile back to file
+**Base Template (`base.html`):**
+- Loads HTMX and Alpine.js from CDN
+- Configures CSRF token for HTMX requests
+- Defines common styles (Nord theme)
+
+**Main Chat (`chat/chat.html`):**
+- Full page with sidebar + main content area
+- Alpine.js modals for new chat, delete confirmation, wipe memory
+- HTMX attributes for reactive session switching
+
+**Partials (`*_main.html`):**
+- Content fragments returned by HTMX requests
+- Swapped into `#main-content` div
 
 ---
 
@@ -283,21 +295,26 @@ Each personality folder can contain multiple `.md` files that define:
 Sessions are organized by personality with collapsible sections:
 
 ```
-▼ Custom (3)
-  Debugging Victory at Midnight  🗑️
-  Data Analysis Project         🗑️
-  Role-play Session             🗑️
+▼ Assistant (3)
+  Session Title 1          🗑️
+  Session Title 2          🗑️
+  Session Title 3          🗑️
 
-▶ Assistant (2)
+▶ Custom (2)
 ```
 
 - Click personality header to toggle collapse/expand
 - Arrow indicator (▼ expanded, ▶ collapsed)
 - Count badge shows number of sessions
-- Personalities ordered by most recent thread
-- Threads within groups sorted newest-first
 - Current session highlighted in bold
-- Delete button (🗑️) with confirmation dialog
+- Delete button with confirmation modal
+
+### HTMX-Powered Reactivity
+
+- **Session Switching:** Click session → HTMX swaps main content
+- **Send Message:** Form submit → HTMX appends response
+- **Memory/Settings:** Load in main pane without navigation
+- **Modals:** Alpine.js handles show/hide state
 
 ### Per-Session Personalities
 
@@ -305,40 +322,13 @@ Sessions are organized by personality with collapsible sections:
 - **Persistence:** Personality saved in session JSON
 - **Isolation:** Each session maintains its own personality
 - **Default:** Configurable default personality for new chats
-- **Fallback:** Sessions without personality default to "assistant"
 
-### Long-Term Memory Management
+### Long-Term Memory
 
-**User Memory View Features:**
-- Read-only display of memory content
-- "Update User Memory" button aggregates all sessions
-- "Wipe Memory" button with confirmation dialog
-- Last updated timestamp
-- Memory format: Markdown with user profile and knowledge base
-
-**Memory Update Trigger:**
-- Manual: Via button in User Memory view
-- Aggregates messages from ALL sessions (not just current)
-- Updates timestamp on success
-
-### Smart Session Management
-
-**Creation:**
-- Dialog-based with personality selector
-- Auto-generates session ID with timestamp
-- Defaults to configured personality
-
-**Deletion:**
-- Confirmation dialog prevents accidents
-- Auto-switches to another session if deleting current
-- Creates new session if last one deleted
-- Group disappears if last session in personality deleted
-
-**Switching:**
-- Click session title to switch
-- Reloads ChatCore with correct personality context
-- Highlights current session in bold
-- Maintains collapse states across switches
+- Read-only display in main pane
+- "Update User Memory" aggregates all sessions
+- "Wipe Memory" with confirmation
+- Status indicator shows update progress
 
 ---
 
@@ -347,23 +337,28 @@ Sessions are organized by personality with collapsible sections:
 ### Prerequisites
 
 ```bash
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
 ### Start Application
 
 ```bash
-streamlit run webapp.py
+python3 manage.py runserver
 ```
 
-Access at `http://localhost:8501`
+Access at `http://localhost:8000`
 
 ### First-Time Setup
 
-1. Edit `config.json` with your OpenRouter API key
-2. Configure default personality (defaults to "assistant")
-3. Launch application
-4. Create your first chat session
+1. Navigate to `http://localhost:8000`
+2. Enter your OpenRouter API key
+3. Select a model from the list
+4. Start chatting!
 
 ---
 
@@ -378,29 +373,22 @@ Access at `http://localhost:8501`
     "SITE_URL": "https://liminalsalt.app",
     "SITE_NAME": "Liminal Salt",
     "DEFAULT_PERSONALITY": "assistant",
-    "PERSONALITIES_DIR": "personalities",
-    "MAX_HISTORY": 50,
-    "SESSIONS_DIR": "sessions",
-    "LTM_FILE": "long_term_memory.md"
+    "MAX_HISTORY": 50
 }
 ```
 
 **Key Settings:**
 - `OPENROUTER_API_KEY`: Your API key from OpenRouter
-- `MODEL`: LLM model to use (e.g., "anthropic/claude-haiku-4.5")
-- `DEFAULT_PERSONALITY`: Default for new chats (must be valid personality folder name)
-- `MAX_HISTORY`: Number of message pairs to keep in context (50 = 100 messages)
-- `PERSONALITIES_DIR`: Folder containing personality definitions
-- `SESSIONS_DIR`: Folder for session JSON files
-- `LTM_FILE`: Filename for long-term memory
+- `MODEL`: LLM model to use
+- `DEFAULT_PERSONALITY`: Default for new chats
+- `MAX_HISTORY`: Number of message pairs to keep in context
 
-### Streamlit Theme (.streamlit/config.toml)
+### Django Settings (`liminal_salt/settings.py`)
 
-Nord-themed dark mode configuration:
-- Primary color: Nord blue (#5E81AC)
-- Background: Nord polar night (#2E3440)
-- Secondary background: #3B4252
-- Text: Nord snow storm (#ECEFF4)
+Key customizations:
+- `DATABASES = {}` - No database required
+- `SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'`
+- `DATA_DIR`, `SESSIONS_DIR`, `PERSONALITIES_DIR`, `LTM_FILE` - Data paths
 
 ---
 
@@ -408,12 +396,12 @@ Nord-themed dark mode configuration:
 
 ### Adding a New Personality
 
-1. Create a new folder in `personalities/`:
+1. Create a new folder in `data/personalities/`:
    ```bash
-   mkdir personalities/mybot
+   mkdir data/personalities/mybot
    ```
 
-2. Create `identity.md` (or multiple `.md` files):
+2. Create `identity.md`:
    ```markdown
    # My Bot Personality
 
@@ -422,313 +410,112 @@ Nord-themed dark mode configuration:
    ## Communication Style
    - Clear and concise
    - Professional tone
-
-   ## Capabilities
-   - Answer questions
-   - Provide examples
    ```
 
-3. Restart Streamlit (personality appears in dropdown automatically)
+3. Restart server (personality appears in dropdown automatically)
 
-### Modifying Existing Personalities
+### URL Routes
 
-Edit `.md` files in `personalities/<name>/` folder. Changes take effect on next chat load (may need to switch away and back to session).
-
-### Session State Management
-
-Streamlit session state tracks:
-- `current_session`: Active session ID
-- `view_mode`: "chat" | "profile" | "settings"
-- `chat`: ChatCore instance
-- `summarizer`: Summarizer instance
-- `collapsed_personalities`: Dict mapping personality → collapsed state
-- `session_personalities`: Dict mapping session_id → personality (transient)
-- `last_memory_update`: Timestamp of last memory update
-- `last_loaded_session`: Last loaded session ID (for reload detection)
-
-### API Headers
-
-```python
-{
-    "Authorization": f"Bearer {api_key}",
-    "Content-Type": "application/json",
-    "HTTP-Referer": site_url,
-    "X-Title": site_name
-}
+```
+/                  → index (redirect to /chat/ or /setup/)
+/setup/            → setup_wizard
+/chat/             → chat (main view)
+/chat/send/        → send_message (HTMX)
+/chat/switch/      → switch_session (HTMX)
+/chat/new/         → new_chat
+/chat/delete/      → delete_chat
+/memory/           → memory
+/memory/update/    → update_memory
+/memory/wipe/      → wipe_memory
+/settings/         → settings
+/settings/save/    → save_settings
 ```
 
-### Error Handling Patterns
+### HTMX Patterns Used
 
-**API Errors:**
-- Retry up to 2 times with 2-second delay
-- Return "ERROR: ..." string on failure
-- Error messages displayed with expandable details
+```html
+<!-- Session switching -->
+<button hx-post="/chat/switch/"
+        hx-vals='{"session_id": "..."}'
+        hx-target="#main-content"
+        hx-swap="innerHTML">
 
-**Empty Responses:**
-- Retry automatically
-- Log attempt failures
-- Show error after all retries exhausted
+<!-- Form submission -->
+<form hx-post="/chat/send/"
+      hx-target="#messages"
+      hx-swap="beforeend">
 
-**File Errors:**
-- Silent exception handling in most cases
-- Graceful fallbacks (e.g., "assistant" personality)
-- Default values for missing fields
-
----
-
-## Future Plans
-
-### Short-Term Improvements
-
-1. **Enhanced Error Handling:**
-   - Structured logging with Python `logging` module
-   - User-friendly error messages
-   - Debug mode toggle
-
-2. **UI Enhancements:**
-   - Search/filter threads
-   - Bulk session operations
-   - Export conversations
-   - Session tags/categories
-
-3. **Performance:**
-   - Lazy loading for large session lists
-   - Caching for repeated personality loads
-   - Async memory updates
-
-4. **Features:**
-   - Markdown rendering in chat
-   - Code syntax highlighting
-   - Image support in messages
-   - Conversation branching
-
-### Django Migration Plan (Future)
-
-**Current State:** Streamlit-based single-user application
-**Target State:** Django-based single-user application with flat files
-
-#### Migration Overview
-
-**Why Django?**
-- Better web framework for custom UI/UX
-- More control over routing and URL structure
-- Cleaner template system (Jinja2)
-- Easier to extend with custom features
-- Better development server than Streamlit
-- Standard Python web development patterns
-
-**Important: What's NOT Changing:**
-- **Still single-user** - No authentication or user management
-- **Still flat files** - JSON for sessions, Markdown for memory/personalities
-- **Still local-only** - Designed to run on user's own machine
-- **Still forkable** - Easy for users to download and run
-
-**Scope:**
-- Convert Streamlit UI to Django templates + HTMX/Alpine.js
-- **Keep** JSON file storage (no database)
-- **Keep** single-user model (no auth)
-- Improve UI/UX with better frontend control
-- Preserve all current features (personalities, memory, etc.)
-- Maintain simple setup (just `python manage.py runserver`)
-
-#### Key Changes Required
-
-1. **Storage: No Change**
-   ```
-   sessions/
-   ├── session_*.json    # Same format, same location
-   personalities/
-   ├── assistant/
-   └── custom/
-   long_term_memory.md   # Same format
-   ```
-
-2. **Architecture Shift:**
-   - **From:** Streamlit session state
-   - **To:** Django sessions (cookie-based, no database needed)
-   - **From:** Streamlit components
-   - **To:** Django templates + HTMX for reactivity
-   - **From:** st.rerun() pattern
-   - **To:** AJAX partial updates
-   - **Keep:** File-based storage
-   - **Keep:** Single-user local deployment
-
-3. **Core Components:**
-   - `ChatCore` → Keep as utility class, called from views
-   - `Summarizer` → Keep as utility class, no background tasks needed
-   - `context_manager` → Keep as utility module
-   - Session management → Django views reading/writing JSON files
-   - Settings → Django forms + JSON file updates
-
-4. **File Mapping:**
-   ```
-   webapp.py → views.py + templates/ + urls.py
-   chat_core.py → chat_core.py (minimal changes)
-   context_manager.py → context_manager.py (no changes)
-   summarizer.py → summarizer.py (no changes)
-   config.json → config.json (no changes, maybe add settings.py wrapper)
-   ```
-
-#### Migration Steps (High-Level)
-
-1. **Phase 1: Django Setup**
-   - Initialize Django project structure
-   - Configure Django to work without database (SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies')
-   - Create URL routing for chat, memory, settings views
-   - Set up static files and templates directory
-   - Keep ChatCore, Summarizer, context_manager as-is
-
-2. **Phase 2: Template Conversion**
-   - Convert Streamlit UI to Django templates
-   - Sidebar → Base template with includes
-   - Chat view → Template with message list
-   - Memory view → Simple display template
-   - Settings view → Form template
-   - Use Tailwind CSS for styling (similar to current Nord theme)
-
-3. **Phase 3: Interactivity**
-   - Implement HTMX for dynamic updates
-   - Chat message sending without page reload
-   - Sidebar session switching without page reload
-   - Collapsible personality groups with Alpine.js
-   - Delete confirmations with modals
-   - Title updates without page reload
-
-4. **Phase 4: Testing & Polish**
-   - Test all features work identically to Streamlit version
-   - Verify JSON file reading/writing works correctly
-   - Test personality system
-   - Polish UI/UX
-   - Update documentation
-
-#### Technical Stack (Proposed)
-
-- **Backend:** Django 5.x (no Django REST Framework needed)
-- **Database:** None - using signed cookie sessions
-- **Frontend:** Django templates, HTMX, Alpine.js, Tailwind CSS
-- **Storage:** JSON files + Markdown (same as current)
-- **Task Queue:** None needed (synchronous operations)
-- **Deployment:** `python manage.py runserver` (local development server)
-
-#### Simplified Django Settings
-
-```python
-# settings.py (key excerpts)
-INSTALLED_APPS = [
-    'django.contrib.sessions',     # For session management
-    'django.contrib.staticfiles',  # For CSS/JS
-    'chatbot',                     # Main app
-]
-
-# No database needed
-DATABASES = {}
-
-# Use signed cookie sessions (no DB required)
-SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
-
-# File storage paths (same as current)
-SESSIONS_DIR = 'sessions'
-PERSONALITIES_DIR = 'personalities'
-LTM_FILE = 'long_term_memory.md'
+<!-- Load content in pane -->
+<button hx-get="/memory/"
+        hx-target="#main-content"
+        hx-swap="innerHTML">
 ```
 
-#### Risks & Considerations
+### Alpine.js Patterns Used
 
-- **Learning Curve:** Django patterns differ from Streamlit (but simpler without DB/auth)
-- **More Boilerplate:** More files to manage (views, urls, templates)
-- **Manual Updates:** Need to write HTMX code for dynamic behavior (vs Streamlit's auto-rerun)
-- **Time:** Still 3 weeks of development work
+```html
+<!-- Modal component -->
+<div x-data="{ showModal: false }">
+    <button @click="showModal = true">Open</button>
+    <div x-show="showModal" class="modal">
+        <button @click="showModal = false">Close</button>
+    </div>
+</div>
 
-#### Benefits
+<!-- Collapsible group -->
+<div x-data="{ open: true }">
+    <button @click="open = !open">
+        <span x-text="open ? '▼' : '▶'"></span> Title
+    </button>
+    <div x-show="open">Content</div>
+</div>
+```
 
-- **Better UI Control:** Full control over HTML/CSS
-- **Standard Patterns:** Uses common web development patterns
-- **Easier Extensions:** Add features like export, search, tags more easily
-- **Better Routing:** Clean URLs (`/chat/`, `/memory/`, `/settings/`)
-- **Professional Feel:** More like a "real" web app vs Streamlit's generic look
-- **Still Simple:** No database, no auth, no deployment complexity
-- **Easy Fork:** Users still just `git clone` and `python manage.py runserver`
+### Testing Checklist
 
-**Status:** Planning phase - not starting until Streamlit version is feature-complete and tested.
-
----
-
-## Testing Checklist
-
-When making changes, test these scenarios:
-
-### Basic Operations
+**Basic Operations:**
 - [ ] Create new chat session with personality selection
 - [ ] Send messages and receive responses
-- [ ] Switch between sessions
+- [ ] Switch between sessions (HTMX)
 - [ ] Delete session with confirmation
-- [ ] View different personalities in sidebar groups
 
-### Personality System
-- [ ] Collapse/expand personality groups
-- [ ] Create chat with different personalities
-- [ ] Verify personality persists across app restarts
-- [ ] Change default personality in settings
-- [ ] Add new personality folder and verify it appears
-
-### Memory Management
-- [ ] Navigate to User Memory view
-- [ ] Update memory from all sessions
-- [ ] Verify timestamp updates
+**Memory & Settings:**
+- [ ] View User Memory in main pane
+- [ ] Update memory, see status indicator
 - [ ] Wipe memory with confirmation
-- [ ] Verify memory affects responses appropriately
+- [ ] Change default personality in Settings
 
-### Edge Cases
-- [ ] Empty session directory (first launch)
-- [ ] Corrupted session JSON file
-- [ ] Missing personality folder
-- [ ] API key invalid
-- [ ] Network timeout
-- [ ] Empty API responses
-- [ ] Very long messages
-- [ ] Special characters in messages
-- [ ] Rapid session switching
-
-### UI/UX
-- [ ] Current session highlighted in bold
-- [ ] Session counts accurate in headers
-- [ ] Delete button works from any group
-- [ ] Navigation between views preserves state
-- [ ] Collapse states persist during navigation
-- [ ] Error messages display properly
+**Edge Cases:**
+- [ ] First launch (no config.json)
+- [ ] Empty sessions directory
+- [ ] Invalid API key
 
 ---
 
 ## Quick Reference
 
-### Important Functions
+### Important Files
 
-**webapp.py:**
-- `get_sessions_with_titles()` - Load all sessions
-- `group_sessions_by_personality()` - Group for sidebar
-- `load_chat_core()` - Initialize chat with personality
-- `create_new_chat_dialog()` - New chat modal
-- `confirm_delete_dialog()` - Delete confirmation
-- `aggregate_all_sessions_messages()` - Collect for memory update
+| File | Purpose |
+|------|---------|
+| `chat/views.py` | All view logic |
+| `chat/services/chat_core.py` | LLM API calls |
+| `chat/templates/chat/chat.html` | Main UI template |
+| `liminal_salt/settings.py` | Django config |
+| `config.json` | App configuration |
 
-**chat_core.py:**
-- `send_message(user_input)` - Main chat method
-- `_get_payload_messages()` - Build API payload
-- `_save_history()` - Persist to JSON
+### Useful Commands
 
-**context_manager.py:**
-- `load_context(personality_dir, ltm_file)` - Assemble system prompt
-- `get_available_personalities()` - List valid personalities
+```bash
+# Start development server
+python3 manage.py runserver
 
-**summarizer.py:**
-- `generate_title(user_msg, assistant_msg)` - Create title
-- `update_long_term_memory(messages, ltm_file)` - Update profile
+# Check Django configuration
+python3 manage.py check
 
-### Important Constants
-
-- `MAX_HISTORY`: 50 (= 100 messages in context)
-- `DEFAULT_PERSONALITY`: "assistant" (or configurable)
-- Session ID format: `session_YYYYMMDD_HHMMSS.json`
+# Reset all data
+rm -rf data/sessions/*.json data/long_term_memory.md
+```
 
 ### API Endpoint
 
@@ -736,30 +523,15 @@ When making changes, test these scenarios:
 https://openrouter.ai/api/v1/chat/completions
 ```
 
-### Useful Commands
-
-```bash
-# Start app
-streamlit run webapp.py
-
-# Clear browser cache (if UI behaves strangely)
-# Settings → Clear Cache → Rerun
-
-# View logs
-# Terminal where streamlit is running
-
-# Reset all data
-rm -rf sessions/*.json long_term_memory.md
-```
-
 ---
 
 ## Resources
 
 - **OpenRouter API:** https://openrouter.ai/docs
-- **Streamlit Docs:** https://docs.streamlit.io
+- **Django Docs:** https://docs.djangoproject.com/
+- **HTMX Docs:** https://htmx.org/docs/
+- **Alpine.js Docs:** https://alpinejs.dev/
 - **Nord Theme:** https://www.nordtheme.com
-- **Project Repo:** (Add GitHub URL when available)
 
 ---
 

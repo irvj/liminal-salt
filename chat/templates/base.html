@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Liminal Salt{% endblock %}</title>
+
+    <!-- HTMX - Dynamic HTML updates without page reloads -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+    <!-- Django CSRF token for HTMX requests -->
+    <meta name="csrf-token" content="{{ csrf_token }}">
+
+    <!-- Configure HTMX to include Django CSRF token in all requests -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.body.addEventListener('htmx:configRequest', function(event) {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                if (csrfToken) {
+                    event.detail.headers['X-CSRFToken'] = csrfToken;
+                }
+            });
+        });
+    </script>
+
+    <!-- Alpine.js - Lightweight reactivity for UI state -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
+
+    {% block extra_head %}{% endblock %}
+
+    <style>
+        /* Nord Theme Base Styles */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #2E3440;
+            color: #ECEFF4;
+            {% block body_style %}{% endblock %}
+        }
+
+        /* Common button styles */
+        button, .button {
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        button:hover, .button:hover {
+            opacity: 0.9;
+        }
+
+        /* Common link styles */
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        {% block extra_styles %}{% endblock %}
+    </style>
+</head>
+<body>
+    {% block body %}{% endblock %}
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
