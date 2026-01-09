@@ -9,7 +9,7 @@ from chat_core import ChatCore
 from summarizer import Summarizer
 
 # Page Config
-st.set_page_config(page_title="MVP Multi-Session Chatbot", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="Liminal Salt", page_icon="🧂", layout="wide")
 
 # Helper Functions for Setup
 def group_models_by_provider(models):
@@ -521,7 +521,7 @@ elif st.session_state.view_mode == "settings":
     st.divider()
 
     # Personality Selection
-    st.subheader("Chatbot Personality")
+    st.subheader("Chat Personality")
 
     personalities_dir = config.get("PERSONALITIES_DIR", "personalities")
     available_personalities = get_available_personalities(personalities_dir)
@@ -572,7 +572,7 @@ elif st.session_state.view_mode == "settings":
 
 else:
     # Main Chat Interface
-    st.title("🤖 MVP Chatbot")
+    st.title("Liminal Salt")
     st.caption(f"Active Session: {st.session_state.chat.title} | Personality: {st.session_state.chat.personality} | Model: {model}")
 
     # Display Chat History
