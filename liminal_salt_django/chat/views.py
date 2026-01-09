@@ -635,18 +635,55 @@ def settings(request):
         'success': request.GET.get('success'),
     }
 
+    # Return partial for HTMX requests
+    if request.headers.get('HX-Request'):
+        return render(request, 'settings/settings_main.html', context)
+
     return render(request, 'settings/settings.html', context)
 
 
 def save_settings(request):
     """Save settings (POST)"""
+    from context_manager import get_available_personalities
+    from django.conf import settings as django_settings
+
     if request.method == 'POST':
         selected_personality = request.POST.get('personality')
         config = load_config()
+        success_msg = None
 
         if selected_personality and selected_personality != config.get("DEFAULT_PERSONALITY"):
             config["DEFAULT_PERSONALITY"] = selected_personality
             save_config(config)
-            return redirect('settings' + '?success=Default personality updated')
+            success_msg = "Default personality updated"
+
+        # For HTMX requests, return the partial directly
+        if request.headers.get('HX-Request'):
+            personalities_dir = str(django_settings.PERSONALITIES_DIR)
+            available_personalities = get_available_personalities(personalities_dir)
+            default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+            model = config.get("MODEL", "")
+
+            # Read personality preview
+            personality_preview = ""
+            personality_path = os.path.join(personalities_dir, default_personality)
+            if os.path.exists(personality_path):
+                md_files = [f for f in os.listdir(personality_path) if f.endswith(".md")]
+                if md_files:
+                    with open(os.path.join(personality_path, md_files[0]), 'r') as f:
+                        content = f.read()
+                        personality_preview = content[:500] + ("..." if len(content) > 500 else "")
+
+            context = {
+                'model': model,
+                'personalities': available_personalities,
+                'default_personality': default_personality,
+                'personality_preview': personality_preview,
+                'success': success_msg,
+            }
+            return render(request, 'settings/settings_main.html', context)
+
+        if success_msg:
+            return redirect('settings' + '?success=' + success_msg)
 
     return redirect('settings')

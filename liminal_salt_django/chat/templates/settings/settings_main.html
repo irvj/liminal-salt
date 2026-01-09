@@ -1,0 +1,50 @@
+<!-- Header -->
+<header class="header">
+    <h1>⚙️ Settings</h1>
+    <div class="subtitle">Model: {{ model }}</div>
+</header>
+
+<!-- Settings Content -->
+<div class="settings-area">
+    {% if success %}
+    <div class="alert alert-success">✅ {{ success }}</div>
+    {% endif %}
+
+    <h2>Chat Personality</h2>
+
+    {% if not personalities %}
+    <div class="alert alert-error">
+        No personalities found in 'personalities/' directory.
+        Create personality folders with .md files to define chatbot personalities.
+    </div>
+    {% else %}
+
+    <p class="settings-info"><strong>Default personality for new chats:</strong> {{ default_personality }}</p>
+
+    <form hx-post="{% url 'save_settings' %}"
+          hx-target="#main-content"
+          hx-swap="innerHTML">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="personality">Select a personality:</label>
+            <select id="personality" name="personality" class="settings-select" required>
+                {% for p in personalities %}
+                    <option value="{{ p }}" {% if p == default_personality %}selected{% endif %}>
+                        {{ p|title }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <button type="submit" class="button-primary">Set as Default</button>
+    </form>
+
+    {% if personality_preview %}
+    <div class="settings-preview">
+        <strong>Personality Preview:</strong><br><br>
+        {{ personality_preview }}
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
