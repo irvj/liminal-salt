@@ -506,12 +506,18 @@ def memory(request):
         'error': request.GET.get('error'),
     }
 
+    # Return partial for HTMX requests
+    if request.headers.get('HX-Request'):
+        return render(request, 'memory/memory_main.html', context)
+
     return render(request, 'memory/memory.html', context)
 
 
 def update_memory(request):
     """Update long-term memory (POST)"""
     from django.conf import settings
+    from django.urls import reverse
+    from datetime import datetime
     from summarizer import Summarizer
     from .utils import aggregate_all_sessions_messages
 
@@ -521,21 +527,48 @@ def update_memory(request):
         api_key = config.get("OPENROUTER_API_KEY")
         model = config.get("MODEL")
 
+        success_msg = None
+        error_msg = None
+
         try:
             # Aggregate messages from all sessions
             all_messages = aggregate_all_sessions_messages()
 
             if not all_messages:
-                return redirect('memory' + '?error=No messages found in any session')
-
-            # Update memory
-            summarizer = Summarizer(api_key, model)
-            summarizer.update_long_term_memory(all_messages, ltm_file)
-
-            return redirect('memory' + '?success=Memory updated successfully')
+                error_msg = "No messages found in any session"
+            else:
+                # Update memory
+                summarizer = Summarizer(api_key, model)
+                summarizer.update_long_term_memory(all_messages, str(ltm_file))
+                success_msg = "Memory updated successfully"
 
         except Exception as e:
-            return redirect('memory' + f'?error=Memory update failed: {str(e)}')
+            error_msg = f"Memory update failed: {str(e)}"
+
+        # For HTMX requests, return the partial directly
+        if request.headers.get('HX-Request'):
+            # Re-read the memory content
+            memory_content = ""
+            last_update = None
+            if os.path.exists(ltm_file):
+                with open(ltm_file, 'r') as f:
+                    memory_content = f.read()
+                last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
+
+            context = {
+                'model': model,
+                'memory_content': memory_content,
+                'last_update': last_update,
+                'success': success_msg,
+                'error': error_msg,
+                'just_updated': True if success_msg else False,
+            }
+            return render(request, 'memory/memory_main.html', context)
+
+        # For regular requests, redirect with query params
+        if error_msg:
+            return redirect(f"{reverse('memory')}?error={error_msg}")
+        return redirect(f"{reverse('memory')}?success={success_msg}")
 
     return redirect('memory')
 
@@ -543,12 +576,27 @@ def update_memory(request):
 def wipe_memory(request):
     """Wipe long-term memory (POST)"""
     from django.conf import settings
+    from django.urls import reverse
 
     if request.method == 'POST':
+        config = load_config()
         ltm_file = settings.LTM_FILE
         if os.path.exists(ltm_file):
             os.remove(ltm_file)
-        return redirect('memory' + '?success=Memory wiped successfully')
+
+        # For HTMX requests, return the partial directly
+        if request.headers.get('HX-Request'):
+            context = {
+                'model': config.get("MODEL", ""),
+                'memory_content': "",
+                'last_update': None,
+                'success': "Memory wiped successfully",
+                'error': None,
+                'just_updated': True,
+            }
+            return render(request, 'memory/memory_main.html', context)
+
+        return redirect(f"{reverse('memory')}?success=Memory wiped successfully")
 
     return redirect('memory')
 
