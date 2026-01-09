@@ -689,9 +689,23 @@
         const btn = document.getElementById('update-memory-btn');
         if (status) {
             status.style.display = 'inline';
-            status.innerHTML = ' · Updating memory from all sessions<span class="updating-dots"><span>.</span><span>.</span><span>.</span></span>';
+            status.innerHTML = ' · Updating Memory<span class="updating-dots"><span>.</span><span>.</span><span>.</span></span>';
         }
         if (btn) btn.disabled = true;
+    }
+
+    // Show memory modifying indicator and clear input (called via HTMX hx-on::before-request)
+    function showMemoryModifying(event) {
+        // Clear input immediately
+        const input = document.getElementById('memory-command-input');
+        if (input) input.value = '';
+
+        // Show updating status
+        const status = document.getElementById('memory-status');
+        if (status) {
+            status.style.display = 'inline';
+            status.innerHTML = ' · Updating Memory<span class="updating-dots"><span>.</span><span>.</span><span>.</span></span>';
+        }
     }
 
     // Listen for HTMX responses to update title when it changes

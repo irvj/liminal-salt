@@ -290,3 +290,77 @@ class Summarizer:
             
         except Exception as e:
             print(f"Error updating long term memory: {e}")
+
+    def modify_memory_with_command(self, command, ltm_file="long_term_memory.md"):
+        """
+        Modify the long-term memory based on a user command.
+
+        Args:
+            command: User's instruction (e.g., "Forget my brother Tom's name")
+            ltm_file: Path to the long-term memory file
+
+        Returns:
+            The updated memory content, or None on error
+        """
+        # Load existing memory
+        existing_ltm = ""
+        if os.path.exists(ltm_file):
+            with open(ltm_file, 'r') as f:
+                existing_ltm = f.read()
+
+        if not existing_ltm:
+            return None
+
+        prompt = (
+            "You are a memory management system. The user has requested a modification to their stored memory profile.\n\n"
+            f"USER'S COMMAND: {command}\n\n"
+            "CURRENT MEMORY:\n"
+            f"{existing_ltm}\n\n"
+            "INSTRUCTIONS:\n"
+            "Apply the user's command to modify the memory. Return the complete updated memory.\n"
+            "- If asked to 'forget' something, remove that information entirely\n"
+            "- If asked to 'update' or 'change' something, modify that information\n"
+            "- If asked to 'add' something, include the new information in the appropriate section\n"
+            "- Preserve all other information that wasn't explicitly mentioned\n"
+            "- Maintain the same markdown format and section structure (# User Profile, # Critical Personal Facts, # Living Interests & Knowledge)\n"
+            "- Write in natural narrative prose, not bullet lists\n\n"
+            "Return ONLY the updated memory content, no explanations or commentary."
+        )
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}]
+        }
+
+        try:
+            response = requests.post(
+                url="https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                data=json.dumps(payload),
+                timeout=30
+            )
+            response.raise_for_status()
+            data = response.json()
+            updated_ltm = data['choices'][0]['message']['content'].strip()
+
+            # Clean up tokens
+            updated_ltm = updated_ltm.replace('<s>', '').replace('</s>', '').strip()
+
+            # Safety check - don't accept empty or too-short responses
+            if len(updated_ltm) < 10:
+                return None
+
+            # Write back to file
+            with open(ltm_file, 'w') as f:
+                f.write(updated_ltm)
+
+            return updated_ltm
+
+        except Exception as e:
+            print(f"Error modifying memory: {e}")
+            return None
