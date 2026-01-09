@@ -136,7 +136,7 @@
 <body>
     <a href="{% url 'chat' %}" class="button button-back">← Back to Chat</a>
 
-    <h1>📝 User Memory</h1>
+    <h1>User Memory</h1>
     <div class="subtitle">Model: {{ model }}</div>
 
     {% if success %}
@@ -195,7 +195,7 @@
             {% csrf_token %}
             <input type="text"
                    name="command"
-                   placeholder="Tell the AI to update your memory..."
+                   placeholder="Update your memory..."
                    required
                    autocomplete="off">
             <button type="submit">Update</button>
