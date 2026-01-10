@@ -1,9 +1,14 @@
 {% load markdown_extras %}
-<div class="message assistant">
-    {% if assistant_message|slice:":6" == "ERROR:" %}
-        <strong>⚠️ Error:</strong><br>
-        <pre>{{ assistant_message|slice:"6:" }}</pre>
-    {% else %}
-        {{ assistant_message|markdown }}
+<div class="message-container assistant">
+    <div class="message assistant">
+        {% if assistant_message|slice:":6" == "ERROR:" %}
+            <strong>⚠️ Error:</strong><br>
+            <pre>{{ assistant_message|slice:"6:" }}</pre>
+        {% else %}
+            {{ assistant_message|markdown }}
+        {% endif %}
+    </div>
+    {% if assistant_timestamp %}
+    <span class="timestamp" data-utc="{{ assistant_timestamp }}"></span>
     {% endif %}
 </div>

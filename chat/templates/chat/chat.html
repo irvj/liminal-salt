@@ -672,15 +672,12 @@ input:checked + .toggle-slider:hover {
     padding: 20px;
 }
 .message {
-    margin: 16px 0;
     padding: 12px 16px;
     border-radius: 8px;
-    max-width: 80%;
     width: fit-content;
 }
 .message.user {
     background: #5E81AC;
-    margin-left: auto;
     position: relative;
 }
 .message.user::after {
@@ -817,6 +814,58 @@ input:checked + .toggle-slider:hover {
 .fade-in-chunk.visible {
     opacity: 1;
     transform: translateY(0);
+}
+/* Message container styles */
+.message-container {
+    margin: 16px 0;
+    max-width: 80%;
+    width: fit-content;
+}
+.message-container.user {
+    margin-left: auto;
+}
+.message-container.assistant {
+    margin-right: auto;
+}
+.message-container .message {
+    margin: 0;
+}
+/* Timestamp styles */
+.timestamp {
+    display: block;
+    font-size: 11px;
+    color: #8a93a3;
+    margin-top: 14px;
+    padding: 0 4px;
+}
+.message-container.user .timestamp {
+    text-align: right;
+}
+.message-container.assistant .timestamp {
+    text-align: left;
+}
+/* Date separator styles */
+.date-separator {
+    text-align: center;
+    color: #8a93a3;
+    font-size: 12px;
+    margin: 24px 0 16px 0;
+    position: relative;
+}
+.date-separator::before,
+.date-separator::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 30%;
+    height: 1px;
+    background: #4C566A;
+}
+.date-separator::before {
+    left: 0;
+}
+.date-separator::after {
+    right: 0;
 }
 {% endblock %}
 
@@ -1093,12 +1142,51 @@ input:checked + .toggle-slider:hover {
         // Clear input immediately (don't wait for response)
         input.value = '';
 
-        // Create and append user message
+        // Create and append user message with container
         const messagesDiv = document.getElementById('messages');
+        const now = new Date();
+
+        // Check if we need a date separator for today
+        const lastContainer = messagesDiv.querySelector('.message-container:last-of-type');
+        let needsSeparator = true;
+
+        if (lastContainer) {
+            const lastTimestamp = lastContainer.querySelector('.timestamp[data-utc]');
+            if (lastTimestamp) {
+                const lastDate = new Date(lastTimestamp.getAttribute('data-utc'));
+                if (lastDate.toDateString() === now.toDateString()) {
+                    needsSeparator = false;
+                }
+            }
+        } else {
+            // No messages yet, check if there's already a separator
+            const existingSeparator = messagesDiv.querySelector('.date-separator');
+            if (existingSeparator) needsSeparator = false;
+        }
+
+        if (needsSeparator) {
+            const separator = document.createElement('div');
+            separator.className = 'date-separator';
+            separator.textContent = formatDateSeparator(now);
+            messagesDiv.appendChild(separator);
+        }
+
+        const container = document.createElement('div');
+        container.className = 'message-container user';
+
         const userDiv = document.createElement('div');
         userDiv.className = 'message user';
         userDiv.textContent = message;
-        messagesDiv.appendChild(userDiv);
+        container.appendChild(userDiv);
+
+        // Add timestamp outside the bubble
+        const timestamp = document.createElement('span');
+        timestamp.className = 'timestamp';
+        timestamp.setAttribute('data-utc', now.toISOString());
+        timestamp.textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        container.appendChild(timestamp);
+
+        messagesDiv.appendChild(container);
 
         // Create and append thinking indicator
         const thinkingDiv = document.createElement('div');
@@ -1640,6 +1728,105 @@ input:checked + .toggle-slider:hover {
                 headerTitle.textContent = newTitle;
             }
         }
+
+        // Convert timestamps and add date separators after HTMX swap
+        convertTimestamps();
+        insertDateSeparators();
+    });
+
+    // Set timezone hidden input value
+    function setTimezoneInput() {
+        const input = document.getElementById('timezone-input');
+        if (input) {
+            input.value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        }
+    }
+
+    // Convert UTC timestamps to local time (always show time)
+    function convertTimestamps() {
+        const timestamps = document.querySelectorAll('.timestamp[data-utc]');
+
+        timestamps.forEach(el => {
+            const utc = el.getAttribute('data-utc');
+            if (!utc || el.textContent) return; // Skip if already converted
+
+            try {
+                const date = new Date(utc);
+                if (isNaN(date.getTime())) return;
+
+                // Always show time
+                el.textContent = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+            } catch (e) {
+                // Silently fail for invalid timestamps
+            }
+        });
+    }
+
+    // Format date for separator (Today, Yesterday, or full date)
+    function formatDateSeparator(date) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+        if (messageDate.getTime() === today.getTime()) {
+            return 'Today';
+        } else if (messageDate.getTime() === yesterday.getTime()) {
+            return 'Yesterday';
+        } else {
+            return date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
+        }
+    }
+
+    // Insert date separators above first message of each date
+    function insertDateSeparators() {
+        const messagesDiv = document.getElementById('messages');
+        if (!messagesDiv) return;
+
+        const containers = messagesDiv.querySelectorAll('.message-container');
+        let lastDateStr = null;
+
+        containers.forEach(container => {
+            const timestamp = container.querySelector('.timestamp[data-utc]');
+            if (!timestamp) return;
+
+            const utc = timestamp.getAttribute('data-utc');
+            if (!utc) return;
+
+            try {
+                const date = new Date(utc);
+                if (isNaN(date.getTime())) return;
+
+                const dateStr = date.toDateString();
+
+                if (dateStr !== lastDateStr) {
+                    // Check if separator already exists
+                    const prevSibling = container.previousElementSibling;
+                    if (prevSibling && prevSibling.classList.contains('date-separator')) {
+                        lastDateStr = dateStr;
+                        return;
+                    }
+
+                    // Insert new date separator
+                    const separator = document.createElement('div');
+                    separator.className = 'date-separator';
+                    separator.textContent = formatDateSeparator(date);
+                    container.parentNode.insertBefore(separator, container);
+
+                    lastDateStr = dateStr;
+                }
+            } catch (e) {
+                // Silently fail
+            }
+        });
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimezoneInput();
+        convertTimestamps();
+        insertDateSeparators();
     });
 </script>
 {% endblock %}

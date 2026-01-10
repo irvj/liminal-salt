@@ -2,9 +2,11 @@ import requests
 import json
 import os
 import time
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 class ChatCore:
-    def __init__(self, api_key, model, site_url=None, site_name=None, system_prompt="", max_history=50, history_file=None, personality="assistant"):
+    def __init__(self, api_key, model, site_url=None, site_name=None, system_prompt="", max_history=50, history_file=None, personality="assistant", user_timezone="UTC", assistant_timezone=None):
         self.api_key = api_key
         self.model = model
         self.site_url = site_url
@@ -13,6 +15,8 @@ class ChatCore:
         self.max_history = max_history
         self.history_file = history_file
         self.personality = personality
+        self.user_timezone = user_timezone
+        self.assistant_timezone = assistant_timezone
         self.title = "New Chat"
         self.messages = self._load_history()
 
@@ -52,17 +56,45 @@ class ChatCore:
 
     def _get_payload_messages(self):
         payload = []
+
+        # Build system prompt with current local time appended
         if self.system_prompt:
-            payload.append({"role": "system", "content": self.system_prompt})
-        
+            now_utc = datetime.now(timezone.utc)
+
+            # User's local time
+            try:
+                user_tz = ZoneInfo(self.user_timezone)
+                user_local = now_utc.astimezone(user_tz)
+                user_time_str = user_local.strftime("%A, %B %d, %Y at %I:%M %p")
+            except Exception:
+                user_time_str = now_utc.strftime("%A, %B %d, %Y at %I:%M %p UTC")
+
+            time_context = f"\n\n[User's local time: {user_time_str}]"
+
+            # Assistant's local time (if different timezone specified)
+            if self.assistant_timezone and self.assistant_timezone != self.user_timezone:
+                try:
+                    asst_tz = ZoneInfo(self.assistant_timezone)
+                    asst_local = now_utc.astimezone(asst_tz)
+                    asst_time_str = asst_local.strftime("%A, %B %d, %Y at %I:%M %p")
+                    time_context += f"\n[Your local time: {asst_time_str}]"
+                except Exception:
+                    pass  # Skip if invalid timezone
+
+            payload.append({"role": "system", "content": self.system_prompt + time_context})
+
         window_size = self.max_history * 2
         recent_messages = self.messages[-window_size:]
-        
-        payload.extend(recent_messages)
+
+        # Add messages without timestamp prefixes (timestamps stored separately for UI)
+        for msg in recent_messages:
+            payload.append({"role": msg["role"], "content": msg["content"]})
+
         return payload
 
     def send_message(self, user_input):
-        self.messages.append({"role": "user", "content": user_input})
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.messages.append({"role": "user", "content": user_input, "timestamp": timestamp})
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -131,6 +163,7 @@ class ChatCore:
                 error_msg += f" (tried {max_retries} times)"
             return error_msg
 
-        self.messages.append({"role": "assistant", "content": assistant_message})
+        assistant_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.messages.append({"role": "assistant", "content": assistant_message, "timestamp": assistant_timestamp})
         self._save_history()
         return assistant_message
