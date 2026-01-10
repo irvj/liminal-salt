@@ -344,17 +344,24 @@ def new_chat(request):
 
 
 def delete_chat(request):
-    """Delete current chat session (POST)"""
+    """Delete chat session (POST) - supports HTMX for reactive updates"""
     from django.conf import settings
-    from .utils import get_sessions_with_titles, set_current_session, get_current_session
+    from .services import load_context, get_available_personalities, ChatCore
+    from .utils import (
+        get_sessions_with_titles, set_current_session, get_current_session,
+        group_sessions_by_personality
+    )
     from datetime import datetime
 
     if request.method == 'POST':
-        # Get current session from storage
-        session_id = get_current_session(request)
+        # Get session_id from POST data or fall back to current session
+        session_id = request.POST.get('session_id')
+        if not session_id:
+            session_id = get_current_session(request)
         if not session_id:
             return redirect('chat')
 
+        # Delete the session file
         session_path = settings.SESSIONS_DIR / session_id
         if os.path.exists(session_path):
             os.remove(session_path)
@@ -362,11 +369,71 @@ def delete_chat(request):
         # Switch to another session
         remaining = [s for s in get_sessions_with_titles() if s["id"] != session_id]
         if remaining:
-            set_current_session(request, remaining[0]["id"])
+            new_session_id = remaining[0]["id"]
         else:
             # Create new session
-            new_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            set_current_session(request, new_id)
+            new_session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+        set_current_session(request, new_session_id)
+
+        # For HTMX requests, return updated main content + sidebar OOB
+        if request.headers.get('HX-Request'):
+            config = load_config()
+            personalities_dir = str(settings.PERSONALITIES_DIR)
+            ltm_file = str(settings.LTM_FILE)
+            api_key = config.get("OPENROUTER_API_KEY")
+            model = config.get("MODEL", "anthropic/claude-haiku-4.5")
+            max_history = config.get("MAX_HISTORY", 50)
+
+            # Load new session's personality
+            new_session_path = settings.SESSIONS_DIR / new_session_id
+            session_personality = None
+            if os.path.exists(new_session_path):
+                try:
+                    with open(new_session_path, 'r') as f:
+                        data = json.load(f)
+                        if isinstance(data, dict):
+                            session_personality = data.get("personality")
+                except:
+                    pass
+
+            if not session_personality:
+                session_personality = config.get("DEFAULT_PERSONALITY", "") or "assistant"
+
+            # Load context and create ChatCore for new session
+            personality_path = os.path.join(personalities_dir, session_personality)
+            system_prompt = load_context(personality_path, ltm_file=ltm_file)
+            user_timezone = request.session.get('user_timezone', 'UTC')
+
+            chat_core = ChatCore(
+                api_key=api_key,
+                model=model,
+                system_prompt=system_prompt,
+                max_history=max_history,
+                history_file=str(new_session_path),
+                personality=session_personality,
+                user_timezone=user_timezone
+            )
+
+            # Build context for template
+            sessions = get_sessions_with_titles()
+            grouped_sessions = group_sessions_by_personality(sessions)
+            available_personalities = get_available_personalities(personalities_dir)
+            default_personality = config.get("DEFAULT_PERSONALITY", "")
+
+            context = {
+                'session_id': new_session_id,
+                'title': chat_core.title,
+                'personality': chat_core.personality,
+                'model': model,
+                'messages': chat_core.messages,
+                'grouped_sessions': grouped_sessions,
+                'current_session': new_session_id,
+                'available_personalities': available_personalities,
+                'default_personality': default_personality,
+            }
+
+            return render(request, 'chat/chat_main.html', context)
 
         return redirect('chat')
 
