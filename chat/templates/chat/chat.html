@@ -141,6 +141,229 @@
     outline: none;
     border-color: #88C0D0;
 }
+
+/* Context Files Modal */
+.context-files-modal {
+    max-width: 500px;
+    width: 90%;
+}
+.context-files-modal h2 {
+    color: #ECEFF4;
+    margin-bottom: 8px;
+}
+.modal-help {
+    color: #D8DEE9;
+    font-size: 14px;
+    margin-bottom: 20px;
+}
+.drop-zone {
+    border: 2px dashed #4C566A;
+    border-radius: 8px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 20px;
+}
+.drop-zone:hover {
+    border-color: #5E81AC;
+    background: rgba(94, 129, 172, 0.1);
+}
+.drop-zone.drag-over {
+    border-color: #88C0D0;
+    background: rgba(136, 192, 208, 0.15);
+}
+.drop-zone-content {
+    pointer-events: none;
+}
+.drop-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+.drop-zone p {
+    margin: 8px 0;
+    color: #ECEFF4;
+}
+.drop-zone .file-types {
+    font-size: 12px;
+    color: #D8DEE9;
+}
+.upload-status {
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+.upload-status.success {
+    background: rgba(163, 190, 140, 0.2);
+    color: #A3BE8C;
+}
+.upload-status.error {
+    background: rgba(191, 97, 106, 0.2);
+    color: #BF616A;
+}
+.context-modal-file-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+.context-modal-file-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #3B4252;
+}
+.context-modal-file-item:last-child {
+    border-bottom: none;
+}
+.context-modal-file-item .filename {
+    flex: 1;
+    color: #ECEFF4;
+    cursor: pointer;
+}
+.context-modal-file-item .filename:hover {
+    color: #88C0D0;
+}
+.context-modal-file-item .delete-btn {
+    background: transparent;
+    border: none;
+    color: #BF616A;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px 8px;
+}
+.context-modal-file-item .delete-btn:hover {
+    color: #D08770;
+}
+
+/* Custom Toggle Switch */
+.toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #4C566A;
+    transition: 0.2s;
+    border-radius: 24px;
+}
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: #D8DEE9;
+    transition: 0.2s;
+    border-radius: 50%;
+}
+input:checked + .toggle-slider {
+    background-color: #5E81AC;
+}
+input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+.toggle-slider:hover {
+    background-color: #434C5E;
+}
+input:checked + .toggle-slider:hover {
+    background-color: #81A1C1;
+}
+
+/* File Edit Modal */
+.file-edit-modal {
+    max-width: 600px;
+    width: 90%;
+}
+.modal-filename {
+    color: #88C0D0;
+    font-family: monospace;
+    margin-bottom: 16px;
+}
+.file-edit-textarea {
+    width: 100%;
+    height: 300px;
+    background: #2E3440;
+    border: 1px solid #4C566A;
+    border-radius: 4px;
+    color: #ECEFF4;
+    font-family: monospace;
+    font-size: 14px;
+    padding: 12px;
+    resize: vertical;
+    margin-bottom: 16px;
+    box-sizing: border-box;
+}
+.file-edit-textarea:focus {
+    outline: none;
+    border-color: #88C0D0;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+.modal-actions .button-secondary {
+    padding: 10px 24px;
+    background: #4C566A;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+}
+.modal-actions .button-secondary:hover {
+    background: #5E81AC;
+}
+.modal-actions .button-primary {
+    padding: 10px 24px;
+    background: #5E81AC;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+}
+.modal-actions .button-primary:hover {
+    background: #81A1C1;
+}
+.no-files {
+    color: #4C566A;
+    font-style: italic;
+    text-align: center;
+    padding: 20px 0;
+}
+
+/* Context Files Button */
+.context-files-btn {
+    position: relative;
+}
+.context-files-btn .badge {
+    background: #5E81AC;
+    color: white;
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
 /* Hide Alpine elements until initialized */
 [x-cloak] {
     display: none !important;
@@ -197,6 +420,76 @@
     text-align: center;
     color: #D8DEE9;
     padding: 40px 20px;
+}
+/* Context Files Section */
+.context-files-section {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid #4C566A;
+}
+.context-files-section h3 {
+    margin: 0 0 8px 0;
+    color: #ECEFF4;
+    font-size: 18px;
+}
+.context-files-section .help-text {
+    color: #D8DEE9;
+    font-size: 14px;
+    margin-bottom: 16px;
+}
+.context-file-list {
+    margin-bottom: 16px;
+}
+.context-file-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid #3B4252;
+}
+.context-file-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+.context-file-item .filename {
+    flex: 1;
+    color: #ECEFF4;
+}
+.context-file-item .delete-btn {
+    background: transparent;
+    border: none;
+    color: #BF616A;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px 8px;
+}
+.context-file-item .delete-btn:hover {
+    color: #D08770;
+}
+.no-files {
+    color: #4C566A;
+    font-style: italic;
+}
+.upload-form {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.upload-form input[type="file"] {
+    flex: 1;
+    color: #ECEFF4;
+}
+.upload-form button {
+    padding: 8px 16px;
+    background: #5E81AC;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.upload-form button:hover {
+    background: #81A1C1;
 }
 .alert {
     padding: 12px 16px;
@@ -637,6 +930,87 @@
     </div>
 </div>
 
+<!-- Context Files Modal (Alpine.js) -->
+<div x-data="contextFilesModal()" x-cloak>
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="modal-backdrop"
+         @click.self="showModal = false">
+        <div class="modal context-files-modal">
+            <h2>Context Files</h2>
+            <p class="modal-help">Upload files to provide additional context to the assistant. These are included in every conversation but not used for memory generation.</p>
+
+            <!-- Drop Zone -->
+            <div class="drop-zone"
+                 :class="{ 'drag-over': isDragging }"
+                 @dragover.prevent="isDragging = true"
+                 @dragleave.prevent="isDragging = false"
+                 @drop.prevent="handleDrop($event)"
+                 @click="$refs.fileInput.click()">
+                <div class="drop-zone-content">
+                    <div class="drop-icon">📁</div>
+                    <p x-show="!isDragging">Drag & drop files here, or click to browse</p>
+                    <p x-show="isDragging">Drop files to upload</p>
+                    <p class="file-types">Accepts .md and .txt files</p>
+                </div>
+                <input type="file"
+                       x-ref="fileInput"
+                       @change="handleFileSelect($event)"
+                       accept=".md,.txt"
+                       multiple
+                       style="display: none;">
+            </div>
+
+            <!-- Upload Status -->
+            <div x-show="uploadStatus" x-transition class="upload-status" :class="uploadStatusType">
+                <span x-text="uploadStatus"></span>
+            </div>
+
+            <!-- File List -->
+            <div class="context-modal-file-list">
+                <template x-for="file in files" :key="file.name">
+                    <div class="context-modal-file-item">
+                        <label class="toggle-switch">
+                            <input type="checkbox" :checked="file.enabled" @change="toggleFile(file.name)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="filename" x-text="file.name" @click="openEditFile(file.name)"></span>
+                        <button class="delete-btn" @click="deleteFile(file.name)">×</button>
+                    </div>
+                </template>
+                <p x-show="files.length === 0" class="no-files">No context files uploaded.</p>
+            </div>
+
+            <!-- Close Button -->
+            <div class="modal-actions">
+                <button @click="showModal = false" class="button-primary">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Edit Modal (nested) -->
+    <div x-show="editModal.show"
+         class="modal-backdrop"
+         @click.self="editModal.show = false"
+         style="z-index: 1001;">
+        <div class="modal file-edit-modal">
+            <h2>Edit File</h2>
+            <p class="modal-filename" x-text="editModal.filename"></p>
+            <textarea x-model="editModal.content"
+                      class="file-edit-textarea"
+                      placeholder="File content..."></textarea>
+            <div x-show="editModal.status" class="upload-status" :class="editModal.statusType">
+                <span x-text="editModal.status"></span>
+            </div>
+            <div class="modal-actions">
+                <button @click="editModal.show = false" class="button-secondary">Cancel</button>
+                <button @click="saveEditFile()" class="button-primary">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Sidebar -->
 <aside class="sidebar">
     <h2>🧂 Liminal Salt</h2>
@@ -1039,6 +1413,184 @@
             window.deletePersonalityModalComponent.personality = personality;
             window.deletePersonalityModalComponent.displayName = displayName;
             window.deletePersonalityModalComponent.showModal = true;
+        }
+    }
+
+    // Context Files Modal
+    function contextFilesModal() {
+        return {
+            showModal: false,
+            isDragging: false,
+            files: [],
+            uploadStatus: '',
+            uploadStatusType: '',
+            editModal: {
+                show: false,
+                filename: '',
+                content: '',
+                status: '',
+                statusType: ''
+            },
+
+            init() {
+                window.contextFilesModalComponent = this;
+                this.loadFiles();
+            },
+
+            loadFiles() {
+                this.files = window.contextFilesData || [];
+            },
+
+            handleDrop(event) {
+                this.isDragging = false;
+                const files = event.dataTransfer.files;
+                this.uploadFiles(files);
+            },
+
+            handleFileSelect(event) {
+                const files = event.target.files;
+                this.uploadFiles(files);
+                event.target.value = '';
+            },
+
+            async uploadFiles(fileList) {
+                for (const file of fileList) {
+                    if (!file.name.endsWith('.md') && !file.name.endsWith('.txt')) {
+                        this.showStatus(`${file.name}: Invalid file type`, 'error');
+                        continue;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+                    try {
+                        const response = await fetch('/memory/context/upload/', {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.files = data.files;
+                            window.contextFilesData = data.files;
+                            this.showStatus(`Uploaded ${file.name}`, 'success');
+                            this.updateBadge();
+                        } else {
+                            this.showStatus(`Failed to upload ${file.name}`, 'error');
+                        }
+                    } catch (err) {
+                        this.showStatus(`Error uploading ${file.name}`, 'error');
+                    }
+                }
+            },
+
+            async toggleFile(filename) {
+                const formData = new FormData();
+                formData.append('filename', filename);
+                formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+                const response = await fetch('/memory/context/toggle/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.files = data.files;
+                    window.contextFilesData = data.files;
+                }
+            },
+
+            async deleteFile(filename) {
+                if (!confirm(`Delete ${filename}?`)) return;
+
+                const formData = new FormData();
+                formData.append('filename', filename);
+                formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+                const response = await fetch('/memory/context/delete/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.files = data.files;
+                    window.contextFilesData = data.files;
+                    this.showStatus(`Deleted ${filename}`, 'success');
+                    this.updateBadge();
+                }
+            },
+
+            showStatus(message, type) {
+                this.uploadStatus = message;
+                this.uploadStatusType = type;
+                setTimeout(() => {
+                    this.uploadStatus = '';
+                }, 3000);
+            },
+
+            updateBadge() {
+                const badge = document.querySelector('.context-files-btn .badge');
+                if (badge) {
+                    badge.textContent = this.files.length;
+                    badge.style.display = this.files.length > 0 ? 'inline' : 'none';
+                }
+            },
+
+            async openEditFile(filename) {
+                this.editModal.filename = filename;
+                this.editModal.status = '';
+
+                const response = await fetch(`/memory/context/content/?filename=${encodeURIComponent(filename)}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.editModal.content = data.content;
+                    this.editModal.show = true;
+                } else {
+                    this.showStatus(`Failed to load ${filename}`, 'error');
+                }
+            },
+
+            async saveEditFile() {
+                const formData = new FormData();
+                formData.append('filename', this.editModal.filename);
+                formData.append('content', this.editModal.content);
+                formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+                const response = await fetch('/memory/context/save/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                if (response.ok) {
+                    this.editModal.status = 'Saved successfully';
+                    this.editModal.statusType = 'success';
+                    setTimeout(() => {
+                        this.editModal.show = false;
+                    }, 1000);
+                } else {
+                    this.editModal.status = 'Failed to save';
+                    this.editModal.statusType = 'error';
+                }
+            }
+        };
+    }
+
+    function openContextFilesModal() {
+        if (window.contextFilesModalComponent) {
+            window.contextFilesModalComponent.loadFiles();
+            window.contextFilesModalComponent.showModal = true;
         }
     }
 

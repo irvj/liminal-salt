@@ -9,9 +9,14 @@ sessions/
 long_term_memory.md
 chat_history.json
 
+# User uploaded context files
+user_context/
+
 # API keys and secrets
 config.json
 
+# Beta personalities
+data/personalities/lottie/
 
 # =============================================================================
 # Python
@@ -152,15 +157,6 @@ $RECYCLE.BIN/
 .directory
 .Trash-*
 .nfs*
-
-
-# =============================================================================
-# Streamlit
-# =============================================================================
-
-# Streamlit cache (but keep config.toml for theme)
-.streamlit/cache/
-.streamlit/credentials.toml
 
 
 # =============================================================================

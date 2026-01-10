@@ -21,6 +21,10 @@
             <button type="submit" class="button-primary" id="update-memory-btn">Update User Memory</button>
         </form>
 
+        <button onclick="openContextFilesModal()" class="button-secondary context-files-btn">
+            Context Files{% if context_files %}<span class="badge">{{ context_files|length }}</span>{% endif %}
+        </button>
+
         <button onclick="openWipeMemoryModal()" class="button-danger">Wipe Memory</button>
     </div>
 
@@ -62,4 +66,13 @@
             <button type="submit">Update</button>
         </form>
     </div>
+
+    <!-- Pass context files data to Alpine.js -->
+    <script>
+        window.contextFilesData = [
+            {% for file in context_files %}
+            { name: "{{ file.name }}", enabled: {{ file.enabled|yesno:"true,false" }} }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+    </script>
 </div>
