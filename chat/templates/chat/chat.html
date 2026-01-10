@@ -798,6 +798,9 @@
 
     // Listen for HTMX responses to update title when it changes
     document.body.addEventListener('htmx:afterRequest', function(event) {
+        // Re-set timezone input after HTMX swaps (input may have been replaced)
+        setTimezoneInput();
+
         const xhr = event.detail.xhr;
         if (!xhr) return;
 

@@ -142,6 +142,7 @@ Browser                    Django                     Services
 
 ```
 liminal-salt/
+├── run.py                       # Simple launcher (auto-setup)
 ├── manage.py                    # Django entry point
 ├── config.json                  # API keys & app settings
 ├── requirements.txt             # Python dependencies
@@ -347,7 +348,17 @@ Sessions are organized by personality with collapsible sections:
 
 ## How to Run
 
-### Prerequisites
+### Quick Start (Users)
+
+```bash
+python run.py
+```
+
+The launcher automatically creates a virtual environment and installs dependencies on first run. Access at `http://localhost:8000`
+
+### Developer Setup
+
+For development with Tailwind CSS hot-reloading:
 
 ```bash
 # Create virtual environment
@@ -359,23 +370,12 @@ pip install -r requirements.txt
 
 # Install Node dependencies (for Tailwind CSS)
 npm install
-```
 
-### Start Application
-
-```bash
+# Run with Tailwind watcher
 npm run dev
 ```
 
 This runs both the Tailwind CSS watcher and Django server concurrently.
-
-For production or one-time build:
-```bash
-npm run build:css
-python3 manage.py runserver
-```
-
-Access at `http://localhost:8000`
 
 ### First-Time Setup
 
