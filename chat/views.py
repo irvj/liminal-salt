@@ -269,6 +269,7 @@ def chat(request):
         'current_session': session_id,
         'available_personalities': available_personalities,
         'default_personality': default_personality,
+        'is_htmx': request.headers.get('HX-Request') == 'true',
     }
 
     # Check if HTMX request - return partial template for sidebar session switching
@@ -431,6 +432,7 @@ def delete_chat(request):
                 'current_session': new_session_id,
                 'available_personalities': available_personalities,
                 'default_personality': default_personality,
+                'is_htmx': True,
             }
 
             return render(request, 'chat/chat_main.html', context)
