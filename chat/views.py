@@ -196,7 +196,7 @@ def chat(request):
 
     # Fallback to default
     if not session_personality:
-        session_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+        session_personality = config.get("DEFAULT_PERSONALITY", "")
 
     # Capture user timezone from POST or session
     user_timezone = request.POST.get('timezone') or request.session.get('user_timezone', 'UTC')
@@ -255,7 +255,7 @@ def chat(request):
 
     # Get available personalities for new chat modal
     available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
-    default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+    default_personality = config.get("DEFAULT_PERSONALITY", "")
 
     context = {
         'session_id': session_id,
@@ -303,7 +303,7 @@ def new_chat(request):
 
     # Use Django settings for absolute path instead of config's relative path
     available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
-    default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+    default_personality = config.get("DEFAULT_PERSONALITY", "")
 
     if request.method == 'POST':
         from .utils import set_current_session
@@ -419,7 +419,7 @@ def send_message(request):
             pass
 
     if not session_personality:
-        session_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+        session_personality = config.get("DEFAULT_PERSONALITY", "")
 
     # Capture user timezone from POST or session
     user_timezone = request.POST.get('timezone') or request.session.get('user_timezone', 'UTC')
@@ -861,7 +861,7 @@ def settings(request):
 
     personalities_dir = str(django_settings.PERSONALITIES_DIR)
     available_personalities = get_available_personalities(personalities_dir)
-    default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+    default_personality = config.get("DEFAULT_PERSONALITY", "")
     model = config.get("MODEL", "")
 
     # Read first personality file preview
@@ -869,13 +869,15 @@ def settings(request):
     selected_personality = default_personality
     if available_personalities:
         selected_personality = request.GET.get('personality', request.GET.get('preview', default_personality))
-        personality_path = os.path.join(personalities_dir, selected_personality)
-        if os.path.exists(personality_path):
-            md_files = [f for f in os.listdir(personality_path) if f.endswith(".md")]
-            if md_files:
-                with open(os.path.join(personality_path, md_files[0]), 'r') as f:
-                    content = f.read()
-                    personality_preview = content
+        # Only load preview if a personality is actually selected
+        if selected_personality:
+            personality_path = os.path.join(personalities_dir, selected_personality)
+            if os.path.exists(personality_path):
+                md_files = [f for f in os.listdir(personality_path) if f.endswith(".md")]
+                if md_files:
+                    with open(os.path.join(personality_path, md_files[0]), 'r') as f:
+                        content = f.read()
+                        personality_preview = content
 
     context = {
         'model': model,
@@ -899,31 +901,36 @@ def save_settings(request):
     from django.conf import settings as django_settings
 
     if request.method == 'POST':
-        selected_personality = request.POST.get('personality')
+        selected_personality = request.POST.get('personality', '')
         config = load_config()
         success_msg = None
 
-        if selected_personality and selected_personality != config.get("DEFAULT_PERSONALITY"):
+        # Allow empty string for "none" - update if different from current
+        if selected_personality != config.get("DEFAULT_PERSONALITY", ""):
             config["DEFAULT_PERSONALITY"] = selected_personality
             save_config(config)
-            success_msg = "Default personality updated"
+            if selected_personality:
+                success_msg = "Default personality updated"
+            else:
+                success_msg = "Default personality cleared"
 
         # For HTMX requests, return the partial directly
         if request.headers.get('HX-Request'):
             personalities_dir = str(django_settings.PERSONALITIES_DIR)
             available_personalities = get_available_personalities(personalities_dir)
-            default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+            default_personality = config.get("DEFAULT_PERSONALITY", "")
             model = config.get("MODEL", "")
 
-            # Read personality preview for the newly set default
+            # Read personality preview for the newly set default (if set)
             personality_preview = ""
-            personality_path = os.path.join(personalities_dir, default_personality)
-            if os.path.exists(personality_path):
-                md_files = [f for f in os.listdir(personality_path) if f.endswith(".md")]
-                if md_files:
-                    with open(os.path.join(personality_path, md_files[0]), 'r') as f:
-                        content = f.read()
-                        personality_preview = content
+            if default_personality:
+                personality_path = os.path.join(personalities_dir, default_personality)
+                if os.path.exists(personality_path):
+                    md_files = [f for f in os.listdir(personality_path) if f.endswith(".md")]
+                    if md_files:
+                        with open(os.path.join(personality_path, md_files[0]), 'r') as f:
+                            content = f.read()
+                            personality_preview = content
 
             context = {
                 'model': model,
@@ -1008,7 +1015,7 @@ def save_personality_file(request):
 
     # Return updated settings partial
     available_personalities = get_available_personalities(personalities_dir)
-    default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+    default_personality = config.get("DEFAULT_PERSONALITY", "")
     model = config.get("MODEL", "")
 
     context = {
@@ -1080,7 +1087,7 @@ def create_personality(request):
 
     # Return updated settings partial with new personality selected
     available_personalities = get_available_personalities(personalities_dir)
-    default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+    default_personality = config.get("DEFAULT_PERSONALITY", "")
     model = config.get("MODEL", "")
 
     context = {
@@ -1126,7 +1133,7 @@ def delete_personality(request):
     shutil.rmtree(personality_path)
 
     # Update config if this was the default personality
-    default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+    default_personality = config.get("DEFAULT_PERSONALITY", "")
     if default_personality == personality:
         # Set a new default
         available_personalities = get_available_personalities(personalities_dir)

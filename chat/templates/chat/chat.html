@@ -1064,7 +1064,9 @@ input:checked + .toggle-slider:hover {
 <aside class="sidebar">
     <h2>🧂 Liminal Salt</h2>
 
-    <button onclick="openNewChatModal()" style="background: #A3BE8C;">➕ New Chat</button>
+    <div id="new-chat-button">
+    {% include "chat/new_chat_button.html" %}
+    </div>
 
     <div class="divider"></div>
 

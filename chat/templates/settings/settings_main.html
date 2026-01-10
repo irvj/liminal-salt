@@ -20,7 +20,7 @@
     </div>
     {% else %}
 
-    <p class="settings-info"><strong>Default personality for new chats:</strong> {{ default_personality }}</p>
+    <p class="settings-info"><strong>Default personality for new chats:</strong> {% if default_personality %}{{ default_personality|display_name }}{% else %}none{% endif %}</p>
 
     <form hx-post="{% url 'save_settings' %}"
           hx-target="#main-content"
@@ -28,12 +28,15 @@
         {% csrf_token %}
         <div class="form-group">
             <label for="personality">Select a personality:</label>
-            <select id="personality" name="personality" class="settings-select" required
+            <select id="personality" name="personality" class="settings-select"
                     hx-get="{% url 'settings' %}"
                     hx-target="#main-content"
                     hx-swap="innerHTML"
                     hx-trigger="change"
                     hx-include="this">
+                <option value="" {% if not selected_personality %}selected{% endif %}>
+                    none (always prompt)
+                </option>
                 {% for p in personalities %}
                     <option value="{{ p }}" {% if p == selected_personality %}selected{% endif %}>
                         {{ p|display_name }}
@@ -59,4 +62,9 @@
     {% endif %}
 
     {% endif %}
+</div>
+
+<!-- Out-of-band swap: Update New Chat button in sidebar -->
+<div id="new-chat-button" hx-swap-oob="true">
+{% include "chat/new_chat_button.html" %}
 </div>
