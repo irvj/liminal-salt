@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load markdown_extras %}
 
 {% block title %}{{ title }} - Liminal Salt{% endblock %}
 
@@ -275,9 +276,83 @@
     padding: 16px;
     border-radius: 8px;
     margin-top: 20px;
-    white-space: pre-wrap;
     font-size: 14px;
     border-left: 4px solid #5E81AC;
+    line-height: 1.6;
+}
+.settings-preview p {
+    margin-bottom: 1em;
+}
+.settings-preview p:last-child {
+    margin-bottom: 0;
+}
+.settings-preview ul, .settings-preview ol {
+    margin-left: 1.5em;
+    margin-bottom: 1em;
+}
+.settings-preview li {
+    margin-bottom: 0.25em;
+}
+.personality-editor {
+    width: 100%;
+    height: 400px;
+    background: #2E3440;
+    color: #ECEFF4;
+    border: 1px solid #4C566A;
+    border-radius: 4px;
+    padding: 12px;
+    font-family: monospace;
+    font-size: 14px;
+    resize: vertical;
+    margin-bottom: 16px;
+    box-sizing: border-box;
+}
+.personality-editor:focus {
+    outline: none;
+    border-color: #88C0D0;
+}
+.modal-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #4C566A;
+    border-radius: 4px;
+    background: #2E3440;
+    color: #ECEFF4;
+    font-size: 14px;
+    margin-bottom: 8px;
+    box-sizing: border-box;
+}
+.modal-input:focus {
+    outline: none;
+    border-color: #88C0D0;
+}
+.button-secondary {
+    background: #4C566A;
+    color: #ECEFF4;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    font-weight: 500;
+    margin-left: 8px;
+}
+.button-secondary:hover {
+    background: #5E81AC;
+}
+.button-danger {
+    background: #BF616A;
+    color: #ECEFF4;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    font-weight: 500;
+    margin-left: 8px;
+}
+.button-danger:hover {
+    background: #d08088;
 }
 .main {
     flex: 1;
@@ -402,7 +477,7 @@
                     <select id="new-chat-personality" name="personality" class="modal-select">
                         {% for p in available_personalities %}
                             <option value="{{ p }}" {% if p == default_personality %}selected{% endif %}>
-                                {{ p|title }}
+                                {{ p|display_name }}
                             </option>
                         {% endfor %}
                     </select>
@@ -453,6 +528,47 @@
     </div>
 </div>
 
+<!-- Edit/New Personality Modal (Alpine.js) -->
+<div x-data="editPersonalityModal()" x-cloak>
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="modal-backdrop"
+         @click.self="showModal = false">
+        <div class="modal" style="max-width: 700px;">
+            <h3 x-text="isNew ? 'New Personality' : 'Edit Personality'"></h3>
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label for="personality-name" style="display: block; margin-bottom: 8px; font-weight: 500; color: #D8DEE9;">Display Name:</label>
+                <input type="text" id="personality-name" x-model="displayName" class="modal-input" @input="displayName = displayName.replace(/[^a-zA-Z0-9 ]/g, '')">
+            </div>
+            <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #D8DEE9;">Personality File:</label>
+            <textarea x-model="content" class="personality-editor"></textarea>
+            <div class="modal-buttons">
+                <button @click="showModal = false" class="cancel-btn">Cancel</button>
+                <button @click="savePersonality()" class="confirm-btn" style="background: #A3BE8C;">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Personality Modal (Alpine.js) -->
+<div x-data="deletePersonalityModal()" x-cloak>
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="modal-backdrop"
+         @click.self="showModal = false">
+        <div class="modal">
+            <h3>Delete Personality?</h3>
+            <p>Are you sure you want to delete "<span x-text="displayName"></span>"? This cannot be undone.</p>
+            <div class="modal-buttons">
+                <button @click="showModal = false" class="cancel-btn">Cancel</button>
+                <button @click="confirmDelete()" class="confirm-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Sidebar -->
 <aside class="sidebar">
     <h2>🧂 Liminal Salt</h2>
@@ -467,7 +583,7 @@
         <div x-data="{ open: true }">
             <button @click="open = !open" class="personality-header">
                 <span x-text="open ? '▼' : '▶'"></span>
-                {{ personality|title }} ({{ personality_sessions|length }})
+                {{ personality|display_name }} ({{ personality_sessions|length }})
             </button>
 
             <div x-show="open">
@@ -503,7 +619,7 @@
     <button hx-get="{% url 'settings' %}"
             hx-target="#main-content"
             hx-swap="innerHTML">
-        ⚙️ Settings
+        Settings
     </button>
 </aside>
 
@@ -680,6 +796,125 @@
     function openWipeMemoryModal() {
         if (window.wipeMemoryModalComponent) {
             window.wipeMemoryModalComponent.showModal = true;
+        }
+    }
+
+    // Alpine.js component for edit/new personality modal
+    function editPersonalityModal() {
+        return {
+            showModal: false,
+            isNew: false,         // true for new personality, false for edit
+            personality: '',      // Original folder name (empty for new)
+            displayName: '',      // User-editable display name
+            content: '',
+            init() {
+                window.editPersonalityModalComponent = this;
+            },
+            savePersonality() {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+
+                // Convert display name to folder name format
+                const newFolderName = this.displayName
+                    .toLowerCase()
+                    .replace(/\s+/g, '_')
+                    .replace(/[^a-z0-9_]/g, '');
+
+                const url = this.isNew ? '{% url "create_personality" %}' : '{% url "save_personality_file" %}';
+                const body = this.isNew
+                    ? `name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`
+                    : `personality=${encodeURIComponent(this.personality)}&new_name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`;
+
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': csrfToken,
+                        'HX-Request': 'true'
+                    },
+                    body: body
+                })
+                .then(response => response.text())
+                .then(html => {
+                    const mainContent = document.getElementById('main-content');
+                    mainContent.innerHTML = html;
+                    htmx.process(mainContent);  // Re-initialize HTMX on new content
+                    this.showModal = false;
+                });
+            }
+        };
+    }
+
+    // Open edit personality modal (called from settings page)
+    function openEditPersonalityModal() {
+        if (window.editPersonalityModalComponent) {
+            const select = document.getElementById('personality');
+            const personality = select ? select.value : '';
+            const content = window.personalityRawContent || '';
+
+            // Convert folder name to display name for editing
+            const displayName = personality.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+            window.editPersonalityModalComponent.isNew = false;
+            window.editPersonalityModalComponent.personality = personality;
+            window.editPersonalityModalComponent.displayName = displayName;
+            window.editPersonalityModalComponent.content = content;
+            window.editPersonalityModalComponent.showModal = true;
+        }
+    }
+
+    // Open new personality modal (called from settings page)
+    function openNewPersonalityModal() {
+        if (window.editPersonalityModalComponent) {
+            window.editPersonalityModalComponent.isNew = true;
+            window.editPersonalityModalComponent.personality = '';
+            window.editPersonalityModalComponent.displayName = '';
+            window.editPersonalityModalComponent.content = '';
+            window.editPersonalityModalComponent.showModal = true;
+        }
+    }
+
+    // Alpine.js component for delete personality modal
+    function deletePersonalityModal() {
+        return {
+            showModal: false,
+            personality: '',
+            displayName: '',
+            init() {
+                window.deletePersonalityModalComponent = this;
+            },
+            confirmDelete() {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+
+                fetch('{% url "delete_personality" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': csrfToken,
+                        'HX-Request': 'true'
+                    },
+                    body: `personality=${encodeURIComponent(this.personality)}`
+                })
+                .then(response => response.text())
+                .then(html => {
+                    const mainContent = document.getElementById('main-content');
+                    mainContent.innerHTML = html;
+                    htmx.process(mainContent);
+                    this.showModal = false;
+                });
+            }
+        };
+    }
+
+    // Open delete personality modal (called from settings page)
+    function openDeletePersonalityModal() {
+        if (window.deletePersonalityModalComponent) {
+            const select = document.getElementById('personality');
+            const personality = select ? select.value : '';
+            const displayName = personality.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+            window.deletePersonalityModalComponent.personality = personality;
+            window.deletePersonalityModalComponent.displayName = displayName;
+            window.deletePersonalityModalComponent.showModal = true;
         }
     }
 

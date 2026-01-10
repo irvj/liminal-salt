@@ -3,6 +3,7 @@ from django.http import HttpResponse
 import os
 import json
 import logging
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -332,11 +333,8 @@ def new_chat(request):
 
         return redirect('chat')
 
-    # GET request - show form (will be modal in Phase 4)
-    return render(request, 'chat/new_chat.html', {
-        'personalities': available_personalities,
-        'default_personality': default_personality
-    })
+    # GET request - redirect to chat (new chat is now a modal)
+    return redirect('chat')
 
 
 def delete_chat(request):
@@ -502,11 +500,11 @@ def memory(request):
         'error': request.GET.get('error'),
     }
 
-    # Return partial for HTMX requests
+    # Return partial for HTMX requests, redirect others to chat
     if request.headers.get('HX-Request'):
         return render(request, 'memory/memory_main.html', context)
 
-    return render(request, 'memory/memory.html', context)
+    return redirect('chat')
 
 
 def update_memory(request):
@@ -655,29 +653,31 @@ def settings(request):
 
     # Read first personality file preview
     personality_preview = ""
+    selected_personality = default_personality
     if available_personalities:
-        selected_personality = request.GET.get('preview', default_personality)
+        selected_personality = request.GET.get('personality', request.GET.get('preview', default_personality))
         personality_path = os.path.join(personalities_dir, selected_personality)
         if os.path.exists(personality_path):
             md_files = [f for f in os.listdir(personality_path) if f.endswith(".md")]
             if md_files:
                 with open(os.path.join(personality_path, md_files[0]), 'r') as f:
                     content = f.read()
-                    personality_preview = content[:500] + ("..." if len(content) > 500 else "")
+                    personality_preview = content
 
     context = {
         'model': model,
         'personalities': available_personalities,
         'default_personality': default_personality,
+        'selected_personality': selected_personality,
         'personality_preview': personality_preview,
         'success': request.GET.get('success'),
     }
 
-    # Return partial for HTMX requests
+    # Return partial for HTMX requests, redirect others to chat
     if request.headers.get('HX-Request'):
         return render(request, 'settings/settings_main.html', context)
 
-    return render(request, 'settings/settings.html', context)
+    return redirect('chat')
 
 
 def save_settings(request):
@@ -702,7 +702,7 @@ def save_settings(request):
             default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
             model = config.get("MODEL", "")
 
-            # Read personality preview
+            # Read personality preview for the newly set default
             personality_preview = ""
             personality_path = os.path.join(personalities_dir, default_personality)
             if os.path.exists(personality_path):
@@ -710,12 +710,13 @@ def save_settings(request):
                 if md_files:
                     with open(os.path.join(personality_path, md_files[0]), 'r') as f:
                         content = f.read()
-                        personality_preview = content[:500] + ("..." if len(content) > 500 else "")
+                        personality_preview = content
 
             context = {
                 'model': model,
                 'personalities': available_personalities,
                 'default_personality': default_personality,
+                'selected_personality': default_personality,
                 'personality_preview': personality_preview,
                 'success': success_msg,
             }
@@ -725,3 +726,224 @@ def save_settings(request):
             return redirect('settings' + '?success=' + success_msg)
 
     return redirect('settings')
+
+
+def save_personality_file(request):
+    """Save edited personality file content and optionally rename personality"""
+    from django.conf import settings as django_settings
+    from .services import get_available_personalities
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    personality = request.POST.get('personality', '').strip()
+    new_name = request.POST.get('new_name', '').strip()
+    content = request.POST.get('content', '')
+
+    if not personality:
+        return HttpResponse("Personality name required", status=400)
+
+    config = load_config()
+    personalities_dir = str(django_settings.PERSONALITIES_DIR)
+    old_path = os.path.join(personalities_dir, personality)
+
+    # Determine if we're renaming
+    is_rename = new_name and new_name != personality
+
+    if is_rename:
+        new_path = os.path.join(personalities_dir, new_name)
+
+        # Validate new name (only alphanumeric and underscores)
+        if not all(c.isalnum() or c == '_' for c in new_name):
+            return HttpResponse("Invalid personality name. Use only letters, numbers, and underscores.", status=400)
+
+        # Check if new name already exists
+        if os.path.exists(new_path):
+            return HttpResponse(f"A personality named '{new_name}' already exists.", status=400)
+
+        # Rename the folder
+        if os.path.exists(old_path):
+            shutil.move(old_path, new_path)
+
+            # Update all session files that reference the old personality
+            _update_sessions_personality(personality, new_name)
+
+            # Update config.json if DEFAULT_PERSONALITY matches old name
+            if config.get("DEFAULT_PERSONALITY") == personality:
+                config["DEFAULT_PERSONALITY"] = new_name
+                save_config(config)
+
+            # Use new path for writing content
+            personality_path = new_path
+            final_personality = new_name
+        else:
+            return HttpResponse("Original personality not found", status=404)
+    else:
+        personality_path = old_path
+        final_personality = personality
+
+    # Write content to file
+    if os.path.exists(personality_path):
+        md_files = [f for f in os.listdir(personality_path) if f.endswith(".md")]
+        if md_files:
+            filepath = os.path.join(personality_path, md_files[0])
+            with open(filepath, 'w') as f:
+                f.write(content)
+
+    # Reload config in case it was updated
+    config = load_config()
+
+    # Return updated settings partial
+    available_personalities = get_available_personalities(personalities_dir)
+    default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+    model = config.get("MODEL", "")
+
+    context = {
+        'model': model,
+        'personalities': available_personalities,
+        'default_personality': default_personality,
+        'selected_personality': final_personality,
+        'personality_preview': content,
+        'success': "Personality saved" + (" and renamed" if is_rename else ""),
+    }
+    return render(request, 'settings/settings_main.html', context)
+
+
+def _update_sessions_personality(old_name, new_name):
+    """Update all session files that reference the old personality name"""
+    from django.conf import settings as django_settings
+
+    sessions_dir = django_settings.SESSIONS_DIR
+    if not os.path.exists(sessions_dir):
+        return
+
+    for filename in os.listdir(sessions_dir):
+        if filename.endswith('.json'):
+            filepath = os.path.join(sessions_dir, filename)
+            try:
+                with open(filepath, 'r') as f:
+                    data = json.load(f)
+
+                if isinstance(data, dict) and data.get('personality') == old_name:
+                    data['personality'] = new_name
+                    with open(filepath, 'w') as f:
+                        json.dump(data, f, indent=4)
+            except Exception as e:
+                logger.error(f"Error updating session {filename}: {e}")
+                continue
+
+
+def create_personality(request):
+    """Create a new personality"""
+    from django.conf import settings as django_settings
+    from .services import get_available_personalities
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    name = request.POST.get('name', '').strip()
+    content = request.POST.get('content', '')
+
+    if not name:
+        return HttpResponse("Personality name required", status=400)
+
+    # Validate name (only alphanumeric and underscores)
+    if not all(c.isalnum() or c == '_' for c in name):
+        return HttpResponse("Invalid personality name. Use only letters, numbers, and underscores.", status=400)
+
+    config = load_config()
+    personalities_dir = str(django_settings.PERSONALITIES_DIR)
+    personality_path = os.path.join(personalities_dir, name)
+
+    # Check if already exists
+    if os.path.exists(personality_path):
+        return HttpResponse(f"A personality named '{name}' already exists.", status=400)
+
+    # Create the folder and identity.md file
+    os.makedirs(personality_path)
+    filepath = os.path.join(personality_path, 'identity.md')
+    with open(filepath, 'w') as f:
+        f.write(content)
+
+    # Return updated settings partial with new personality selected
+    available_personalities = get_available_personalities(personalities_dir)
+    default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+    model = config.get("MODEL", "")
+
+    context = {
+        'model': model,
+        'personalities': available_personalities,
+        'default_personality': default_personality,
+        'selected_personality': name,
+        'personality_preview': content,
+        'success': "Personality created",
+    }
+    return render(request, 'settings/settings_main.html', context)
+
+
+def delete_personality(request):
+    """Delete a personality"""
+    from django.conf import settings as django_settings
+    from .services import get_available_personalities
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    personality = request.POST.get('personality', '').strip()
+
+    if not personality:
+        return HttpResponse("Personality name required", status=400)
+
+    config = load_config()
+    personalities_dir = str(django_settings.PERSONALITIES_DIR)
+    personality_path = os.path.join(personalities_dir, personality)
+
+    # Check if personality exists
+    if not os.path.exists(personality_path):
+        return HttpResponse("Personality not found", status=404)
+
+    # Get available personalities
+    available_personalities = get_available_personalities(personalities_dir)
+
+    # Can't delete if it's the only personality
+    if len(available_personalities) <= 1:
+        return HttpResponse("Cannot delete the only personality", status=400)
+
+    # Delete the folder
+    shutil.rmtree(personality_path)
+
+    # Update config if this was the default personality
+    default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+    if default_personality == personality:
+        # Set a new default
+        available_personalities = get_available_personalities(personalities_dir)
+        if available_personalities:
+            config["DEFAULT_PERSONALITY"] = available_personalities[0]
+            save_config(config)
+            default_personality = available_personalities[0]
+
+    # Update sessions that used this personality to use the default
+    _update_sessions_personality(personality, default_personality)
+
+    # Reload available personalities after deletion
+    available_personalities = get_available_personalities(personalities_dir)
+    model = config.get("MODEL", "")
+
+    # Read preview for default personality
+    personality_preview = ""
+    preview_path = os.path.join(personalities_dir, default_personality)
+    if os.path.exists(preview_path):
+        md_files = [f for f in os.listdir(preview_path) if f.endswith(".md")]
+        if md_files:
+            with open(os.path.join(preview_path, md_files[0]), 'r') as f:
+                personality_preview = f.read()
+
+    context = {
+        'model': model,
+        'personalities': available_personalities,
+        'default_personality': default_personality,
+        'selected_personality': default_personality,
+        'personality_preview': personality_preview,
+        'success': "Personality deleted",
+    }
+    return render(request, 'settings/settings_main.html', context)
