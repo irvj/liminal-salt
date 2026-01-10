@@ -28,7 +28,7 @@
           hx-target="#messages"
           hx-swap="beforeend"
           hx-on::before-request="addUserMessage(event)"
-          hx-on::after-request="this.reset(); removeThinkingIndicator(); scrollToBottom();">
+          hx-on::after-request="this.reset(); removeThinkingIndicator(); animateAssistantResponse();">
         {% csrf_token %}
         <input
             type="text"

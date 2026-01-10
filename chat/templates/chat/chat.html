@@ -505,6 +505,16 @@
     0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
     30% { transform: translateY(-6px); opacity: 1; }
 }
+/* Staggered fade-in for assistant responses */
+.fade-in-chunk {
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.9s ease, transform 0.9s ease;
+}
+.fade-in-chunk.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
 {% endblock %}
 
 {% block body %}
@@ -731,6 +741,42 @@
         if (messagesDiv) {
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
+    }
+
+    // Animate assistant response with staggered fade-in
+    function animateAssistantResponse() {
+        const messagesDiv = document.getElementById('messages');
+        if (!messagesDiv) return;
+
+        // Get the last assistant message (the newly inserted one)
+        const assistantMessages = messagesDiv.querySelectorAll('.message.assistant:not(.thinking)');
+        const lastMessage = assistantMessages[assistantMessages.length - 1];
+        if (!lastMessage) return;
+
+        // Get all block-level children
+        const blocks = lastMessage.querySelectorAll('p, ul, ol, pre, h1, h2, h3, h4, h5, h6, blockquote, table, hr');
+
+        // If no blocks found, treat the whole content as one block
+        if (blocks.length === 0) {
+            lastMessage.classList.add('fade-in-chunk');
+            requestAnimationFrame(() => {
+                lastMessage.classList.add('visible');
+            });
+            return;
+        }
+
+        // Add fade-in class to each block
+        blocks.forEach(block => {
+            block.classList.add('fade-in-chunk');
+        });
+
+        // Stagger the visibility with 300ms delay
+        blocks.forEach((block, index) => {
+            setTimeout(() => {
+                block.classList.add('visible');
+                scrollToBottom();
+            }, index * 900);
+        });
     }
 
     // Update sidebar highlight when switching sessions
