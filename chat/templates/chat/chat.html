@@ -613,12 +613,16 @@
 
     <button hx-get="{% url 'memory' %}"
             hx-target="#main-content"
-            hx-swap="innerHTML">
+            hx-swap="innerHTML"
+            onclick="updateSidebarHighlight(this)"
+            class="session-item">
         User Memory
     </button>
     <button hx-get="{% url 'settings' %}"
             hx-target="#main-content"
-            hx-swap="innerHTML">
+            hx-swap="innerHTML"
+            onclick="updateSidebarHighlight(this)"
+            class="session-item">
         Settings
     </button>
 </aside>
