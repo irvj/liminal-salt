@@ -1,6 +1,6 @@
 # CLAUDE.md - Project Overview & Developer Guide
 
-**Last Updated:** January 9, 2026
+**Last Updated:** January 10, 2026
 **Project:** Liminal Salt - Multi-Session LLM Chatbot with Personalities
 **Status:** Production-ready Django application
 
@@ -39,11 +39,13 @@
 - **Language:** Python 3.x
 - **Web Framework:** Django 5.x (no database)
 - **Frontend:** HTMX + Alpine.js
+- **CSS Framework:** Tailwind CSS v4 with @tailwindcss/typography
+- **Build Tools:** Node.js / npm for CSS compilation
 - **API:** OpenRouter (LLM gateway)
 - **HTTP Client:** requests
 - **Data Storage:** JSON files for sessions, Markdown for memory and personalities
 - **Sessions:** Django signed cookie sessions (no database required)
-- **UI Theme:** Nord color scheme
+- **UI Theme:** Nord color scheme (dark and light modes)
 
 ---
 
@@ -143,10 +145,15 @@ liminal-salt/
 ├── manage.py                    # Django entry point
 ├── config.json                  # API keys & app settings
 ├── requirements.txt             # Python dependencies
+├── package.json                 # Node/Tailwind dependencies & scripts
+├── package-lock.json            # npm lockfile
 ├── CLAUDE.md                    # This documentation
 │
+├── scripts/                     # Utility scripts
+│   └── bump_version.py          # Version management & changelog
+│
 ├── liminal_salt/                # Django project settings
-│   ├── __init__.py
+│   ├── __init__.py              # Package version defined here
 │   ├── settings.py              # Django configuration
 │   ├── urls.py                  # Root URL routing
 │   ├── wsgi.py                  # WSGI entry point
@@ -165,6 +172,11 @@ liminal-salt/
 │   │   ├── config_manager.py    # Configuration management
 │   │   ├── context_manager.py   # System prompt assembly
 │   │   └── summarizer.py        # Title & memory generation
+│   │
+│   ├── static/                  # Static assets
+│   │   └── css/
+│   │       ├── input.css        # Tailwind source & theme config
+│   │       └── output.css       # Compiled CSS (minified)
 │   │
 │   └── templates/               # Django templates
 │       ├── base.html            # Base template with HTMX/Alpine
@@ -274,8 +286,9 @@ Views check `request.headers.get('HX-Request')` to return either:
 
 **Base Template (`base.html`):**
 - Loads HTMX and Alpine.js from CDN
+- Loads compiled Tailwind CSS from `static/css/output.css`
 - Configures CSRF token for HTMX requests
-- Defines common styles (Nord theme)
+- Uses semantic Tailwind classes (bg-surface, text-foreground, etc.)
 
 **Main Chat (`chat/chat.html`):**
 - Full page with sidebar + main content area
@@ -341,13 +354,24 @@ Sessions are organized by personality with collapsible sections:
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install dependencies
+# Install Python dependencies
 pip install -r requirements.txt
+
+# Install Node dependencies (for Tailwind CSS)
+npm install
 ```
 
 ### Start Application
 
 ```bash
+npm run dev
+```
+
+This runs both the Tailwind CSS watcher and Django server concurrently.
+
+For production or one-time build:
+```bash
+npm run build:css
 python3 manage.py runserver
 ```
 
@@ -501,17 +525,29 @@ Key customizations:
 | `chat/views.py` | All view logic |
 | `chat/services/chat_core.py` | LLM API calls |
 | `chat/templates/chat/chat.html` | Main UI template |
+| `chat/static/css/input.css` | Tailwind source & theme config |
 | `liminal_salt/settings.py` | Django config |
 | `config.json` | App configuration |
 
 ### Useful Commands
 
 ```bash
-# Start development server
+# Development (Tailwind watcher + Django server)
+npm run dev
+
+# Build CSS only
+npm run build:css
+
+# Django server only (after CSS is built)
 python3 manage.py runserver
 
 # Check Django configuration
 python3 manage.py check
+
+# Version management
+npm run version:patch   # 0.1.3 → 0.1.4
+npm run version:minor   # 0.1.3 → 0.2.0
+npm run version:major   # 0.1.3 → 1.0.0
 
 # Reset all data
 rm -rf data/sessions/*.json data/long_term_memory.md
@@ -529,6 +565,7 @@ https://openrouter.ai/api/v1/chat/completions
 
 - **OpenRouter API:** https://openrouter.ai/docs
 - **Django Docs:** https://docs.djangoproject.com/
+- **Tailwind CSS:** https://tailwindcss.com/docs
 - **HTMX Docs:** https://htmx.org/docs/
 - **Alpine.js Docs:** https://alpinejs.dev/
 - **Nord Theme:** https://www.nordtheme.com
