@@ -901,7 +901,7 @@ input:checked + .toggle-slider:hover {
     </div>
 </div>
 
-<!-- Delete Confirmation Modal (Alpine.js) -->
+<!-- Delete Confirmation Modal (Alpine.js + HTMX) -->
 <div x-data="deleteModal()" x-cloak>
     <!-- Modal backdrop -->
     <div x-show="showModal"
@@ -912,10 +912,17 @@ input:checked + .toggle-slider:hover {
         <div class="modal">
             <h3>Delete Chat?</h3>
             <p>Are you sure you want to delete "<span x-text="sessionTitle"></span>"? This cannot be undone.</p>
-            <div class="modal-buttons">
-                <button @click="showModal = false" class="cancel-btn">Cancel</button>
-                <button @click="confirmDelete()" class="confirm-btn">Delete</button>
-            </div>
+            <form hx-post="{% url 'delete_chat' %}"
+                  hx-target="#main-content"
+                  hx-swap="innerHTML"
+                  @htmx:after-request="showModal = false">
+                {% csrf_token %}
+                <input type="hidden" name="session_id" x-bind:value="sessionId">
+                <div class="modal-buttons">
+                    <button type="button" @click="showModal = false" class="cancel-btn">Cancel</button>
+                    <button type="submit" class="confirm-btn">Delete</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -1071,36 +1078,9 @@ input:checked + .toggle-slider:hover {
     <div class="divider"></div>
 
     <!-- Sessions grouped by personality -->
-    {% for personality, personality_sessions in grouped_sessions.items %}
-        <!-- Using Alpine.js for collapsible groups -->
-        <div x-data="{ open: true }">
-            <button @click="open = !open" class="personality-header">
-                <span x-text="open ? '▼' : '▶'"></span>
-                {{ personality|display_name }} ({{ personality_sessions|length }})
-            </button>
-
-            <div x-show="open">
-                {% for session in personality_sessions %}
-                    <div class="session-row" data-session-id="{{ session.id }}">
-                        <button hx-post="{% url 'switch_session' %}"
-                                hx-vals='{"session_id": "{{ session.id }}"}'
-                                hx-target="#main-content"
-                                hx-swap="innerHTML"
-                                onclick="updateSidebarHighlight(this)"
-                                data-session-id="{{ session.id }}"
-                                class="session-item {% if session.id == current_session %}current{% endif %}">
-                            {{ session.title }}
-                        </button>
-                        <button class="delete-btn"
-                                onclick="openDeleteModal('{{ session.id }}', '{{ session.title|escapejs }}')"
-                                title="Delete chat">
-                            🗑️
-                        </button>
-                    </div>
-                {% endfor %}
-            </div>
-        </div>
-    {% endfor %}
+    <div id="sidebar-sessions">
+    {% include "chat/sidebar_sessions.html" %}
+    </div>
 
     <div class="divider"></div>
 
@@ -1293,35 +1273,6 @@ input:checked + .toggle-slider:hover {
             init() {
                 // Store reference so openDeleteModal can access this
                 window.deleteModalComponent = this;
-            },
-            confirmDelete() {
-                const sessionId = this.sessionId;
-                this.showModal = false;
-
-                // First switch to this session (so delete_chat deletes the right one)
-                // Then delete via HTMX
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-
-                // Switch to the session first, then delete
-                fetch('{% url "switch_session" %}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: `session_id=${sessionId}`
-                }).then(() => {
-                    // Now delete (current session)
-                    fetch('{% url "delete_chat" %}', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRFToken': csrfToken
-                        }
-                    }).then(() => {
-                        // Reload page to refresh sidebar and content
-                        window.location.reload();
-                    });
-                });
             }
         };
     }
