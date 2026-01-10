@@ -879,3 +879,71 @@ def create_personality(request):
         'success': "Personality created",
     }
     return render(request, 'settings/settings_main.html', context)
+
+
+def delete_personality(request):
+    """Delete a personality"""
+    from django.conf import settings as django_settings
+    from .services import get_available_personalities
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    personality = request.POST.get('personality', '').strip()
+
+    if not personality:
+        return HttpResponse("Personality name required", status=400)
+
+    config = load_config()
+    personalities_dir = str(django_settings.PERSONALITIES_DIR)
+    personality_path = os.path.join(personalities_dir, personality)
+
+    # Check if personality exists
+    if not os.path.exists(personality_path):
+        return HttpResponse("Personality not found", status=404)
+
+    # Get available personalities
+    available_personalities = get_available_personalities(personalities_dir)
+
+    # Can't delete if it's the only personality
+    if len(available_personalities) <= 1:
+        return HttpResponse("Cannot delete the only personality", status=400)
+
+    # Delete the folder
+    shutil.rmtree(personality_path)
+
+    # Update config if this was the default personality
+    default_personality = config.get("DEFAULT_PERSONALITY", "assistant")
+    if default_personality == personality:
+        # Set a new default
+        available_personalities = get_available_personalities(personalities_dir)
+        if available_personalities:
+            config["DEFAULT_PERSONALITY"] = available_personalities[0]
+            save_config(config)
+            default_personality = available_personalities[0]
+
+    # Update sessions that used this personality to use the default
+    _update_sessions_personality(personality, default_personality)
+
+    # Reload available personalities after deletion
+    available_personalities = get_available_personalities(personalities_dir)
+    model = config.get("MODEL", "")
+
+    # Read preview for default personality
+    personality_preview = ""
+    preview_path = os.path.join(personalities_dir, default_personality)
+    if os.path.exists(preview_path):
+        md_files = [f for f in os.listdir(preview_path) if f.endswith(".md")]
+        if md_files:
+            with open(os.path.join(preview_path, md_files[0]), 'r') as f:
+                personality_preview = f.read()
+
+    context = {
+        'model': model,
+        'personalities': available_personalities,
+        'default_personality': default_personality,
+        'selected_personality': default_personality,
+        'personality_preview': personality_preview,
+        'success': "Personality deleted",
+    }
+    return render(request, 'settings/settings_main.html', context)
