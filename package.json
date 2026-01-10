@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "concurrently -n tailwind,django -c blue,green \"npm run watch:css\" \"python3 manage.py runserver\"",
-    "watch:css": "npx @tailwindcss/cli -i ./chat/static/css/input.css -o ./chat/static/css/output.css --watch",
+    "watch:css": "npx @tailwindcss/cli -i ./chat/static/css/input.css -o ./chat/static/css/output.css --watch --minify",
     "build:css": "npx @tailwindcss/cli -i ./chat/static/css/input.css -o ./chat/static/css/output.css --minify",
     "version:patch": "python3 scripts/bump_version.py patch",
     "version:minor": "python3 scripts/bump_version.py minor",
