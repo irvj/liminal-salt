@@ -57,7 +57,7 @@ class ChatCore:
     def _get_payload_messages(self):
         payload = []
 
-        # Build system prompt with current local time appended
+        # Build system prompt with current local time PREPENDED for highest attention
         if self.system_prompt:
             now_utc = datetime.now(timezone.utc)
 
@@ -69,19 +69,20 @@ class ChatCore:
             except Exception:
                 user_time_str = now_utc.strftime("%A, %B %d, %Y at %I:%M %p UTC")
 
-            time_context = f"\n\n[User's local time: {user_time_str}]"
-
-            # Assistant's local time (if different timezone specified)
+            # Build time context with strong imperative at BEGINNING of prompt
             if self.assistant_timezone and self.assistant_timezone != self.user_timezone:
                 try:
                     asst_tz = ZoneInfo(self.assistant_timezone)
                     asst_local = now_utc.astimezone(asst_tz)
                     asst_time_str = asst_local.strftime("%A, %B %d, %Y at %I:%M %p")
-                    time_context += f"\n[Your local time: {asst_time_str}]"
+                    time_context = f"*** CURRENT TIME — Do not infer time from conversation history. ***\nUser's time: {user_time_str}\nYour time: {asst_time_str}\n\n"
                 except Exception:
-                    pass  # Skip if invalid timezone
+                    time_context = f"*** CURRENT TIME — Do not infer time from conversation history. ***\n{user_time_str}\n\n"
+            else:
+                time_context = f"*** CURRENT TIME — Do not infer time from conversation history. ***\n{user_time_str}\n\n"
 
-            payload.append({"role": "system", "content": self.system_prompt + time_context})
+            # PREPEND time context for highest transformer attention
+            payload.append({"role": "system", "content": time_context + self.system_prompt})
 
         window_size = self.max_history * 2
         recent_messages = self.messages[-window_size:]
