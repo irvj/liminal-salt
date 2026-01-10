@@ -43,17 +43,6 @@ python3 manage.py runserver
 
 Open http://localhost:8000 in your browser.
 
-## Adding Personalities
-
-Create a new folder in `data/personalities/` with an `identity.md` file:
-
-```
-data/personalities/mybot/
-└── identity.md
-```
-
-The personality will appear in the dropdown when creating new chats.
-
 ## License
 
 MIT
