@@ -307,7 +307,7 @@
         // Create and append thinking indicator
         const thinkingDiv = document.createElement('div');
         thinkingDiv.id = 'thinking-indicator';
-        thinkingDiv.className = 'message assistant p-3 px-4 rounded-lg bg-assistant-bubble opacity-70';
+        thinkingDiv.className = 'message assistant p-3 px-4 rounded-lg bg-assistant-bubble opacity-70 w-fit max-w-[80%] mr-auto my-4';
         thinkingDiv.innerHTML = '<span class="typing-indicator flex gap-1 py-1"><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot"></span><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.2s;"></span><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.4s;"></span></span>';
         messagesDiv.appendChild(thinkingDiv);
 

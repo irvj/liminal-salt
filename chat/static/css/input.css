@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /* ===== Tell Tailwind where to find template files ===== */
 @source "../../templates/**/*.html";

@@ -43,7 +43,7 @@
 
     <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent">
         {% if memory_content %}
-        <div class="prose prose-invert">{{ memory_content|markdown }}</div>
+        <div class="prose prose-invert max-w-none">{{ memory_content|markdown }}</div>
         {% else %}
             <div class="text-center text-foreground-secondary py-10 px-5">
                 <strong>No long-term memory found yet.</strong><br>
