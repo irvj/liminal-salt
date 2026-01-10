@@ -10,12 +10,17 @@
 <!-- Messages -->
 <div class="messages" id="messages">
     {% for message in messages %}
-        <div class="message {{ message.role }}">
-            {% if message.content|slice:":6" == "ERROR:" %}
-                <strong>⚠️ Error:</strong><br>
-                <pre>{{ message.content|slice:"6:" }}</pre>
-            {% else %}
-                {{ message.content|markdown }}
+        <div class="message-container {{ message.role }}">
+            <div class="message {{ message.role }}">
+                {% if message.content|slice:":6" == "ERROR:" %}
+                    <strong>⚠️ Error:</strong><br>
+                    <pre>{{ message.content|slice:"6:" }}</pre>
+                {% else %}
+                    {{ message.content|markdown }}
+                {% endif %}
+            </div>
+            {% if message.timestamp %}
+            <span class="timestamp" data-utc="{{ message.timestamp }}"></span>
             {% endif %}
         </div>
     {% endfor %}
@@ -30,6 +35,7 @@
           hx-on::before-request="addUserMessage(event)"
           hx-on::after-request="this.reset(); removeThinkingIndicator(); animateAssistantResponse();">
         {% csrf_token %}
+        <input type="hidden" name="timezone" id="timezone-input" value="">
         <textarea
             name="message"
             id="message-input"

@@ -198,6 +198,11 @@ def chat(request):
     if not session_personality:
         session_personality = config.get("DEFAULT_PERSONALITY", "assistant")
 
+    # Capture user timezone from POST or session
+    user_timezone = request.POST.get('timezone') or request.session.get('user_timezone', 'UTC')
+    if request.method == 'POST' and request.POST.get('timezone'):
+        request.session['user_timezone'] = user_timezone
+
     # Load context and create ChatCore
     personality_path = os.path.join(personalities_dir, session_personality)
     system_prompt = load_context(personality_path, ltm_file=ltm_file)
@@ -208,7 +213,8 @@ def chat(request):
         system_prompt=system_prompt,
         max_history=max_history,
         history_file=str(session_path),
-        personality=session_personality
+        personality=session_personality,
+        user_timezone=user_timezone
     )
 
     # Handle message sending
@@ -415,6 +421,11 @@ def send_message(request):
     if not session_personality:
         session_personality = config.get("DEFAULT_PERSONALITY", "assistant")
 
+    # Capture user timezone from POST or session
+    user_timezone = request.POST.get('timezone') or request.session.get('user_timezone', 'UTC')
+    if request.POST.get('timezone'):
+        request.session['user_timezone'] = user_timezone
+
     # Load context and create ChatCore
     personality_path = os.path.join(personalities_dir, session_personality)
     system_prompt = load_context(personality_path, ltm_file=ltm_file)
@@ -425,7 +436,8 @@ def send_message(request):
         system_prompt=system_prompt,
         max_history=max_history,
         history_file=str(session_path),
-        personality=session_personality
+        personality=session_personality,
+        user_timezone=user_timezone
     )
 
     # Send message and get response
@@ -455,9 +467,13 @@ def send_message(request):
         chat_core._save_history()
         title_changed = True
 
+    # Get assistant timestamp from the last message
+    assistant_timestamp = chat_core.messages[-1].get('timestamp', '') if chat_core.messages else ''
+
     # Return HTML fragment for HTMX (only assistant message, user already shown)
     response = render(request, 'chat/assistant_fragment.html', {
-        'assistant_message': assistant_message
+        'assistant_message': assistant_message,
+        'assistant_timestamp': assistant_timestamp
     })
 
     # Add headers for title update if changed
