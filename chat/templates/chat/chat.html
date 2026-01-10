@@ -447,6 +447,7 @@
     gap: 12px;
     align-items: flex-end;
 }
+.input-area input,
 .input-area textarea {
     flex: 1;
     padding: 12px;
@@ -456,11 +457,14 @@
     color: #ECEFF4;
     font-size: 16px;
     font-family: inherit;
+}
+.input-area textarea {
     resize: none;
     min-height: 24px;
     max-height: 200px;
     overflow-y: auto;
 }
+.input-area input:focus,
 .input-area textarea:focus {
     outline: none;
     border-color: #88C0D0;
