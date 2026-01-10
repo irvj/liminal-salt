@@ -19,8 +19,6 @@ A multi-session LLM chatbot with persistent memory and customizable personalitie
 
 **Roadmap:** Continuous, frequent releases focused on quality-of-life improvements, new settings, and features. Development is driven by necessity and interest rather than a rigid schedule, with the aim of rapidly improving the application. Future releases will also include unique, in-depth characters ready to chat with.
 
-**Version:** Version number is getting manually bumped right now, as updates are swift and iterative, so it's not always accurate. By version 0.2.0 the application should be on a tagging system for better organization and version control.
-
 ## Requirements
 
 - Python 3.10+
