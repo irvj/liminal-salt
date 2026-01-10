@@ -1,35 +1,35 @@
 {% load markdown_extras %}
 <script>document.title = 'User Memory - Liminal Salt';</script>
 <!-- Header -->
-<header class="header">
-    <h1>User Memory</h1>
-    <div class="subtitle">Model: {{ model }}</div>
+<header class="bg-surface-secondary px-5 py-4 border-b border-border">
+    <h1 class="text-2xl text-accent-cyan">User Memory</h1>
+    <div class="text-xs text-foreground-secondary mt-1">Model: {{ model }}</div>
 </header>
 
 <!-- Memory Content -->
-<div class="memory-area">
+<div class="flex-1 overflow-y-auto p-5">
     {% if error %}
-    <div class="alert alert-error">⚠️ {{ error }}</div>
+    <div class="p-3 px-4 rounded mb-4 bg-danger text-white">⚠️ {{ error }}</div>
     {% endif %}
 
-    <div class="memory-buttons">
+    <div class="flex gap-3 my-5">
         <form hx-post="{% url 'update_memory' %}"
               hx-target="#main-content"
               hx-swap="innerHTML"
               hx-on::before-request="showMemoryUpdating()">
             {% csrf_token %}
-            <button type="submit" class="button-primary" id="update-memory-btn">Update User Memory</button>
+            <button type="submit" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover" id="update-memory-btn">Update User Memory</button>
         </form>
 
-        <button onclick="openContextFilesModal()" class="button-secondary context-files-btn">
-            Context Files{% if context_files %}<span class="badge">{{ context_files|length }}</span>{% endif %}
+        <button onclick="openContextFilesModal()" class="context-files-btn px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent">
+            Context Files{% if context_files %}<span class="badge bg-accent text-white rounded-xl px-2 py-0.5 text-xs ml-2">{{ context_files|length }}</span>{% endif %}
         </button>
 
-        <button onclick="openWipeMemoryModal()" class="button-danger">Wipe Memory</button>
+        <button onclick="openWipeMemoryModal()" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-danger">Wipe Memory</button>
     </div>
 
-    <div class="memory-timestamp">
-        {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update|date:'U' }}"></span>{% else %}Never updated from all sessions{% endif %}<span id="memory-status" {% if not just_updated %}style="display: none;"{% endif %}> · {% if just_updated %}✅ {{ success }}{% else %}Updating memory from all sessions<span class="updating-dots"><span>.</span><span>.</span><span>.</span></span>{% endif %}</span>
+    <div class="text-xs text-foreground-secondary mb-4">
+        {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update|date:'U' }}"></span>{% else %}Never updated from all sessions{% endif %}<span id="memory-status" {% if not just_updated %}style="display: none;"{% endif %}> · {% if just_updated %}✅ {{ success }}{% else %}Updating memory from all sessions<span class="updating-dots"><span class="animate-blink">.</span><span class="animate-blink" style="animation-delay: 0.2s;">.</span><span class="animate-blink" style="animation-delay: 0.4s;">.</span></span>{% endif %}</span>
     </div>
     <script>
         (function() {
@@ -41,9 +41,11 @@
         })();
     </script>
 
-    <div class="memory-content-box">
-        {% if memory_content %}{{ memory_content|markdown }}{% else %}
-            <div class="empty-state">
+    <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent">
+        {% if memory_content %}
+        <div class="prose prose-invert">{{ memory_content|markdown }}</div>
+        {% else %}
+            <div class="text-center text-foreground-secondary py-10 px-5">
                 <strong>No long-term memory found yet.</strong><br>
                 Memory will be created after your first update.
             </div>
@@ -51,19 +53,21 @@
     </div>
 
     <!-- Memory Modification Input -->
-    <div class="input-area" style="margin-top: 20px;">
+    <div class="bg-surface-secondary p-5 border-t border-border mt-5">
         <form hx-post="{% url 'modify_memory' %}"
               hx-target="#main-content"
               hx-swap="innerHTML"
-              hx-on::before-request="showMemoryModifying(event)">
+              hx-on::before-request="showMemoryModifying(event)"
+              class="flex gap-3 items-end">
             {% csrf_token %}
             <input type="text"
                    name="command"
                    id="memory-command-input"
                    placeholder="Update your memory..."
                    required
-                   autocomplete="off">
-            <button type="submit">Update</button>
+                   autocomplete="off"
+                   class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-cyan">
+            <button type="submit" class="px-6 py-3 bg-accent text-white border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Update</button>
         </form>
     </div>
 

@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+/* ===== Tell Tailwind where to find template files ===== */
+@source "../../templates/**/*.html";
+
+/* ===== Custom Theme Extensions ===== */
+@theme {
+  /* Semantic colors referencing CSS variables */
+  --color-surface: var(--surface);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-elevated: var(--surface-elevated);
+
+  --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-muted: var(--foreground-muted);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-cyan: var(--accent-cyan);
+
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-user-bubble: var(--user-bubble);
+  --color-assistant-bubble: var(--assistant-bubble);
+
+  /* Custom widths */
+  --width-sidebar: 300px;
+
+  /* Custom max-widths */
+  --max-width-modal: 400px;
+  --max-width-modal-lg: 600px;
+  --max-width-modal-xl: 700px;
+
+  /* Custom z-index */
+  --z-index-modal: 1000;
+  --z-index-modal-nested: 1001;
+
+  /* Custom animations */
+  --animate-bounce-dot: bounce-dot 1.4s infinite ease-in-out;
+  --animate-blink: blink 1.4s infinite;
+
+  @keyframes bounce-dot {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+}
+
+/* ===== DARK THEME (Nord) - Default ===== */
+:root {
+  /* Surfaces/Backgrounds */
+  --surface: #2E3440;
+  --surface-secondary: #3B4252;
+  --surface-elevated: #4C566A;
+
+  /* Text/Foreground */
+  --foreground: #ECEFF4;
+  --foreground-secondary: #D8DEE9;
+  --foreground-muted: #8a93a3;
+
+  /* Accent colors */
+  --accent: #5E81AC;
+  --accent-hover: #81A1C1;
+  --accent-cyan: #88C0D0;
+
+  /* Status colors */
+  --success: #A3BE8C;
+  --danger: #BF616A;
+  --danger-hover: #d08088;
+  --warning: #D08770;
+
+  /* Borders */
+  --border: #4C566A;
+
+  /* Message bubbles */
+  --user-bubble: #5E81AC;
+  --assistant-bubble: #4C566A;
+}
+
+/* ===== LIGHT THEME ===== */
+[data-theme="light"] {
+  --surface: #ECEFF4;
+  --surface-secondary: #E5E9F0;
+  --surface-elevated: #D8DEE9;
+
+  --foreground: #2E3440;
+  --foreground-secondary: #4C566A;
+  --foreground-muted: #6b7280;
+
+  --accent: #5E81AC;
+  --accent-hover: #4C6A94;
+  --accent-cyan: #88C0D0;
+
+  --success: #A3BE8C;
+  --danger: #BF616A;
+  --danger-hover: #a8525a;
+  --warning: #D08770;
+
+  --border: #D8DEE9;
+
+  --user-bubble: #5E81AC;
+  --assistant-bubble: #D8DEE9;
+}
+
+/* ===== Custom Component Classes ===== */
+@utility message-tail-user {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    right: 4px;
+    bottom: -10px;
+    width: 16px;
+    height: 12px;
+    background: var(--user-bubble);
+    border-radius: 0 6px 1px 16px;
+  }
+}
+
+@utility message-tail-assistant {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    bottom: -10px;
+    width: 16px;
+    height: 12px;
+    background: var(--assistant-bubble);
+    border-radius: 6px 0 16px 1px;
+  }
+}
+
+/* Alpine.js cloak */
+[x-cloak] {
+  display: none !important;
+}
