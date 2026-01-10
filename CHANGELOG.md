@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.1] - 2026-01-10
+
+### Changes
+- add launcher script, use waitress and whitenoise for server, fix timezone issue, update instructions
+
 ## [0.2.0] - 2026-01-10
 
 ### Changes

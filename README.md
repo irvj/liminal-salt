@@ -1,6 +1,6 @@
 # Liminal Salt
 
-**v0.2.0**
+**v0.2.1**
 
 A multi-session LLM chatbot with persistent memory and customizable personalities. Connects to OpenRouter's API for LLM-powered conversations.
 
