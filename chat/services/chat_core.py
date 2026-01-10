@@ -69,17 +69,20 @@ class ChatCore:
             except Exception:
                 user_time_str = now_utc.strftime("%A, %B %d, %Y at %I:%M %p UTC")
 
-            # Build time context with strong imperative at BEGINNING of prompt
+            # Build time context with explicit instructions to USE the provided time
+            time_instruction = "When asked about or considering the time, use the time above. This time is accurate and updated with each message. Do not guess, assume, or make up times. Do not say you lack real-time access — you are being given the current time."
+
             if self.assistant_timezone and self.assistant_timezone != self.user_timezone:
                 try:
                     asst_tz = ZoneInfo(self.assistant_timezone)
                     asst_local = now_utc.astimezone(asst_tz)
                     asst_time_str = asst_local.strftime("%A, %B %d, %Y at %I:%M %p")
-                    time_context = f"*** CURRENT TIME — Do not infer time from conversation history. ***\nUser's time: {user_time_str}\nYour time: {asst_time_str}\n\n"
+                    time_instruction = "When asked about or considering the time, use the times above. These are accurate and updated with each message. Do not guess, assume, or make up times. Do not say you lack real-time access — you are being given the current time."
+                    time_context = f"*** CURRENT TIME ***\nUser's time: {user_time_str}\nYour time: {asst_time_str}\n\n{time_instruction}\n\n"
                 except Exception:
-                    time_context = f"*** CURRENT TIME — Do not infer time from conversation history. ***\n{user_time_str}\n\n"
+                    time_context = f"*** CURRENT TIME: {user_time_str} ***\n{time_instruction}\n\n"
             else:
-                time_context = f"*** CURRENT TIME — Do not infer time from conversation history. ***\n{user_time_str}\n\n"
+                time_context = f"*** CURRENT TIME: {user_time_str} ***\n{time_instruction}\n\n"
 
             # PREPEND time context for highest transformer attention
             payload.append({"role": "system", "content": time_context + self.system_prompt})
