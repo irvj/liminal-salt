@@ -472,6 +472,7 @@ def memory(request):
     from datetime import datetime
     from django.conf import settings
     from .utils import aggregate_all_sessions_messages
+    from .services import list_context_files
 
     config = load_config()
     if not config:
@@ -492,12 +493,16 @@ def memory(request):
         with open(ltm_file, 'r') as f:
             memory_content = f.read()
 
+    # Get user context files
+    context_files = list_context_files()
+
     context = {
         'model': model,
         'memory_content': memory_content,
         'last_update': last_update,
         'success': request.GET.get('success'),
         'error': request.GET.get('error'),
+        'context_files': context_files,
     }
 
     # Return partial for HTMX requests, redirect others to chat
@@ -512,7 +517,7 @@ def update_memory(request):
     from django.conf import settings
     from django.urls import reverse
     from datetime import datetime
-    from .services import Summarizer
+    from .services import Summarizer, list_context_files
     from .utils import aggregate_all_sessions_messages
 
     if request.method == 'POST':
@@ -556,6 +561,7 @@ def update_memory(request):
                 'success': success_msg,
                 'error': error_msg,
                 'just_updated': True if success_msg else False,
+                'context_files': list_context_files(),
             }
             return render(request, 'memory/memory_main.html', context)
 
@@ -571,6 +577,7 @@ def wipe_memory(request):
     """Wipe long-term memory (POST)"""
     from django.conf import settings
     from django.urls import reverse
+    from .services import list_context_files
 
     if request.method == 'POST':
         config = load_config()
@@ -587,6 +594,7 @@ def wipe_memory(request):
                 'success': "Memory wiped successfully",
                 'error': None,
                 'just_updated': True,
+                'context_files': list_context_files(),
             }
             return render(request, 'memory/memory_main.html', context)
 
@@ -599,7 +607,7 @@ def modify_memory(request):
     """Modify memory based on user command (HTMX endpoint)"""
     from django.conf import settings
     from datetime import datetime
-    from .services import Summarizer
+    from .services import Summarizer, list_context_files
 
     if request.method != 'POST':
         return HttpResponse(status=405)
@@ -633,8 +641,197 @@ def modify_memory(request):
         'success': "Memory Updated" if updated_memory else None,
         'error': "Failed to update memory" if not updated_memory else None,
         'just_updated': True,
+        'context_files': list_context_files(),
     }
     return render(request, 'memory/memory_main.html', context)
+
+
+def upload_context_file(request):
+    """Upload a user context file (HTMX/AJAX endpoint)"""
+    from datetime import datetime
+    from django.conf import settings as django_settings
+    from django.http import JsonResponse
+    from .services import upload_context_file as do_upload, list_context_files
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    uploaded_file = request.FILES.get('file')
+    if not uploaded_file:
+        return HttpResponse("No file provided", status=400)
+
+    # Upload the file
+    filename = do_upload(uploaded_file)
+
+    # For AJAX requests (from modal), return JSON
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'success': bool(filename),
+            'filename': filename,
+            'files': list_context_files()
+        })
+
+    # For HTMX requests, return HTML partial
+    config = load_config()
+    ltm_file = django_settings.LTM_FILE
+    model = config.get("MODEL", "") if config else ""
+
+    last_update = None
+    if os.path.exists(ltm_file):
+        last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
+
+    memory_content = ""
+    if os.path.exists(ltm_file):
+        with open(ltm_file, 'r') as f:
+            memory_content = f.read()
+
+    context = {
+        'model': model,
+        'memory_content': memory_content,
+        'last_update': last_update,
+        'context_files': list_context_files(),
+        'success': f"Uploaded {filename}" if filename else None,
+        'error': "Invalid file type. Only .md and .txt files allowed." if not filename else None,
+    }
+    return render(request, 'memory/memory_main.html', context)
+
+
+def delete_context_file(request):
+    """Delete a user context file (HTMX/AJAX endpoint)"""
+    from datetime import datetime
+    from django.conf import settings as django_settings
+    from django.http import JsonResponse
+    from .services import delete_context_file as do_delete, list_context_files
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    filename = request.POST.get('filename', '')
+    if not filename:
+        return HttpResponse("No filename provided", status=400)
+
+    # Delete the file
+    deleted = do_delete(filename)
+
+    # For AJAX requests (from modal), return JSON
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'success': deleted,
+            'filename': filename,
+            'files': list_context_files()
+        })
+
+    # For HTMX requests, return HTML partial
+    config = load_config()
+    ltm_file = django_settings.LTM_FILE
+    model = config.get("MODEL", "") if config else ""
+
+    last_update = None
+    if os.path.exists(ltm_file):
+        last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
+
+    memory_content = ""
+    if os.path.exists(ltm_file):
+        with open(ltm_file, 'r') as f:
+            memory_content = f.read()
+
+    context = {
+        'model': model,
+        'memory_content': memory_content,
+        'last_update': last_update,
+        'context_files': list_context_files(),
+        'success': f"Deleted {filename}" if deleted else None,
+        'error': f"File not found: {filename}" if not deleted else None,
+    }
+    return render(request, 'memory/memory_main.html', context)
+
+
+def toggle_context_file(request):
+    """Toggle enabled status of a user context file (HTMX/AJAX endpoint)"""
+    from datetime import datetime
+    from django.conf import settings as django_settings
+    from django.http import JsonResponse
+    from .services import toggle_context_file as do_toggle, list_context_files
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    filename = request.POST.get('filename', '')
+    if not filename:
+        return HttpResponse("No filename provided", status=400)
+
+    # Toggle the file
+    new_status = do_toggle(filename)
+
+    # For AJAX requests (from modal), return JSON
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'success': True,
+            'filename': filename,
+            'enabled': new_status,
+            'files': list_context_files()
+        })
+
+    # For HTMX requests, return HTML partial
+    config = load_config()
+    ltm_file = django_settings.LTM_FILE
+    model = config.get("MODEL", "") if config else ""
+
+    last_update = None
+    if os.path.exists(ltm_file):
+        last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
+
+    memory_content = ""
+    if os.path.exists(ltm_file):
+        with open(ltm_file, 'r') as f:
+            memory_content = f.read()
+
+    context = {
+        'model': model,
+        'memory_content': memory_content,
+        'last_update': last_update,
+        'context_files': list_context_files(),
+    }
+    return render(request, 'memory/memory_main.html', context)
+
+
+def get_context_file_content(request):
+    """GET endpoint to retrieve context file content for editing"""
+    from django.http import JsonResponse
+    from .services import get_user_context_dir
+
+    filename = request.GET.get('filename')
+    if not filename:
+        return JsonResponse({'error': 'No filename provided'}, status=400)
+
+    file_path = get_user_context_dir() / filename
+    if not file_path.exists():
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    content = file_path.read_text()
+    return JsonResponse({'filename': filename, 'content': content})
+
+
+def save_context_file_content(request):
+    """POST endpoint to save edited context file content"""
+    from django.http import JsonResponse
+    from .services import get_user_context_dir
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    filename = request.POST.get('filename')
+    content = request.POST.get('content', '')
+
+    if not filename:
+        return JsonResponse({'error': 'No filename provided'}, status=400)
+
+    file_path = get_user_context_dir() / filename
+    if not file_path.exists():
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    file_path.write_text(content)
+    return JsonResponse({'success': True, 'filename': filename})
 
 
 def settings(request):

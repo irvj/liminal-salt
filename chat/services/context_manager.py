@@ -1,4 +1,5 @@
 import os
+from .user_context import load_enabled_context
 
 def load_context(personality_dir, ltm_file="long_term_memory.md"):
     """
@@ -25,6 +26,11 @@ def load_context(personality_dir, ltm_file="long_term_memory.md"):
         # Fallback warning if personality not found
         context_str = "--- WARNING: Personality not found ---\n"
         context_str += f"Expected directory: {personality_dir}\n\n"
+
+    # Append user context files (if any are enabled)
+    user_context = load_enabled_context()
+    if user_context:
+        context_str += user_context + "\n\n"
 
     # Append long-term memory (optional, reference-only)
     if os.path.exists(ltm_file):
