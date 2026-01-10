@@ -445,8 +445,9 @@
 .input-area form {
     display: flex;
     gap: 12px;
+    align-items: flex-end;
 }
-.input-area input {
+.input-area textarea {
     flex: 1;
     padding: 12px;
     border: 1px solid #4C566A;
@@ -454,8 +455,13 @@
     background: #2E3440;
     color: #ECEFF4;
     font-size: 16px;
+    font-family: inherit;
+    resize: none;
+    min-height: 24px;
+    max-height: 200px;
+    overflow-y: auto;
 }
-.input-area input:focus {
+.input-area textarea:focus {
     outline: none;
     border-color: #88C0D0;
 }
@@ -463,10 +469,11 @@
     padding: 12px 24px;
     background: #5E81AC;
     color: white;
-    border: none;
+    border: 1px solid #5E81AC;
     border-radius: 4px;
     cursor: pointer;
     font-weight: 500;
+    font-size: 16px;
 }
 .input-area button:hover {
     background: #81A1C1;
@@ -740,6 +747,20 @@
         if (messagesDiv) {
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
+    }
+
+    // Handle textarea keydown: Enter submits, Shift+Enter adds new line
+    function handleTextareaKeydown(event) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            event.target.form.requestSubmit();
+        }
+    }
+
+    // Auto-resize textarea (called on input, handles typing and paste)
+    function autoResizeTextarea(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
     }
 
     // Animate assistant response with staggered fade-in

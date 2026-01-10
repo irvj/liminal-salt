@@ -30,15 +30,17 @@
           hx-on::before-request="addUserMessage(event)"
           hx-on::after-request="this.reset(); removeThinkingIndicator(); animateAssistantResponse();">
         {% csrf_token %}
-        <input
-            type="text"
+        <textarea
             name="message"
             id="message-input"
             placeholder="What's on your mind?"
             required
             autocomplete="off"
             autofocus
-        >
+            rows="1"
+            onkeydown="handleTextareaKeydown(event)"
+            oninput="autoResizeTextarea(this)"
+        ></textarea>
         <button type="submit">Send</button>
     </form>
 </div>
