@@ -1,0 +1,9 @@
+{% if default_personality %}
+<form hx-post="{% url 'new_chat' %}" hx-swap="none" style="display:inline; width:100%;">
+    {% csrf_token %}
+    <input type="hidden" name="personality" value="{{ default_personality }}">
+    <button type="submit" style="background: #A3BE8C; width:100%;">➕ New Chat</button>
+</form>
+{% else %}
+<button onclick="openNewChatModal()" style="background: #A3BE8C;">➕ New Chat</button>
+{% endif %}
