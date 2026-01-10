@@ -383,14 +383,37 @@
     padding: 12px 16px;
     border-radius: 8px;
     max-width: 80%;
+    width: fit-content;
 }
 .message.user {
     background: #5E81AC;
     margin-left: auto;
     text-align: right;
+    position: relative;
+}
+.message.user::after {
+    content: '';
+    position: absolute;
+    right: 4px;
+    bottom: -10px;
+    width: 16px;
+    height: 12px;
+    background: #5E81AC;
+    border-radius: 0 6px 1px 16px;
 }
 .message.assistant {
     background: #4C566A;
+    position: relative;
+}
+.message.assistant::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    bottom: -10px;
+    width: 16px;
+    height: 12px;
+    background: #4C566A;
+    border-radius: 6px 0 16px 1px;
 }
 .message.error {
     background: #BF616A;
@@ -401,6 +424,19 @@
     border-radius: 4px;
     overflow-x: auto;
     margin-top: 8px;
+}
+.message p {
+    margin-bottom: 1em;
+}
+.message p:last-child {
+    margin-bottom: 0;
+}
+.message ul, .message ol {
+    margin-left: 1.5em;
+    margin-bottom: 1em;
+}
+.message li {
+    margin-bottom: 0.25em;
 }
 .input-area {
     background: #3B4252;
@@ -444,18 +480,30 @@
 .message.thinking {
     opacity: 0.7;
 }
-.thinking-dots span {
-    animation: blink 1.4s infinite;
+.typing-indicator {
+    display: flex;
+    gap: 4px;
+    padding: 4px 0;
 }
-.thinking-dots span:nth-child(2) {
+.typing-indicator span {
+    width: 8px;
+    height: 8px;
+    background: #D8DEE9;
+    border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out;
+}
+.typing-indicator span:nth-child(1) {
+    animation-delay: 0s;
+}
+.typing-indicator span:nth-child(2) {
     animation-delay: 0.2s;
 }
-.thinking-dots span:nth-child(3) {
+.typing-indicator span:nth-child(3) {
     animation-delay: 0.4s;
 }
-@keyframes blink {
-    0%, 60%, 100% { opacity: 1; }
-    30% { opacity: 0; }
+@keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-6px); opacity: 1; }
 }
 {% endblock %}
 
@@ -662,7 +710,7 @@
         const thinkingDiv = document.createElement('div');
         thinkingDiv.id = 'thinking-indicator';
         thinkingDiv.className = 'message assistant thinking';
-        thinkingDiv.innerHTML = '<span class="thinking-dots">Thinking<span>.</span><span>.</span><span>.</span></span>';
+        thinkingDiv.innerHTML = '<span class="typing-indicator"><span></span><span></span><span></span></span>';
         messagesDiv.appendChild(thinkingDiv);
 
         // Scroll to bottom

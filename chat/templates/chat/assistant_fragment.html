@@ -1,8 +1,9 @@
+{% load markdown_extras %}
 <div class="message assistant">
     {% if assistant_message|slice:":6" == "ERROR:" %}
         <strong>⚠️ Error:</strong><br>
         <pre>{{ assistant_message|slice:"6:" }}</pre>
     {% else %}
-        {{ assistant_message|linebreaks }}
+        {{ assistant_message|markdown }}
     {% endif %}
 </div>

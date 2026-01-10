@@ -15,7 +15,7 @@
                 <strong>⚠️ Error:</strong><br>
                 <pre>{{ message.content|slice:"6:" }}</pre>
             {% else %}
-                {{ message.content|linebreaks }}
+                {{ message.content|markdown }}
             {% endif %}
         </div>
     {% endfor %}
