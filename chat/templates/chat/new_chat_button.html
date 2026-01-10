@@ -1,9 +1,9 @@
 {% if default_personality %}
-<form hx-post="{% url 'new_chat' %}" hx-swap="none" style="display:inline; width:100%;">
+<form hx-post="{% url 'new_chat' %}" hx-swap="none" class="inline w-full">
     {% csrf_token %}
     <input type="hidden" name="personality" value="{{ default_personality }}">
-    <button type="submit" style="background: #A3BE8C; width:100%;">➕ New Chat</button>
+    <button type="submit" class="w-full p-2.5 bg-success text-surface rounded font-medium cursor-pointer hover:opacity-90">➕ New Chat</button>
 </form>
 {% else %}
-<button onclick="openNewChatModal()" style="background: #A3BE8C;">➕ New Chat</button>
+<button onclick="openNewChatModal()" class="w-full p-2.5 bg-success text-surface rounded font-medium cursor-pointer hover:opacity-90">➕ New Chat</button>
 {% endif %}

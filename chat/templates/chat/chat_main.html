@@ -1,39 +1,40 @@
 {% load markdown_extras %}
 <!-- Header -->
-<header class="header">
-    <h1>{{ title }}</h1>
-    <div class="subtitle">
+<header class="bg-surface-secondary px-5 py-4 border-b border-border">
+    <h1 class="text-2xl text-accent-cyan">{{ title }}</h1>
+    <div class="text-xs text-foreground-secondary mt-1">
         Personality: {{ personality|display_name }} | Model: {{ model }}
     </div>
 </header>
 
 <!-- Messages -->
-<div class="messages" id="messages">
+<div class="flex-1 overflow-y-auto p-5" id="messages">
     {% for message in messages %}
-        <div class="message-container {{ message.role }}">
-            <div class="message {{ message.role }}">
+        <div class="message-container {{ message.role }} my-4 max-w-[80%] w-fit {% if message.role == 'user' %}ml-auto{% else %}mr-auto{% endif %}">
+            <div class="message {{ message.role }} {% if message.role == 'user' %}message-tail-user bg-user-bubble{% else %}message-tail-assistant bg-assistant-bubble{% endif %} p-3 px-4 rounded-lg text-foreground">
                 {% if message.content|slice:":6" == "ERROR:" %}
                     <strong>⚠️ Error:</strong><br>
-                    <pre>{{ message.content|slice:"6:" }}</pre>
+                    <pre class="bg-surface p-2 rounded overflow-x-auto mt-2">{{ message.content|slice:"6:" }}</pre>
                 {% else %}
-                    {{ message.content|markdown }}
+                    <div class="prose prose-invert">{{ message.content|markdown }}</div>
                 {% endif %}
             </div>
             {% if message.timestamp %}
-            <span class="timestamp" data-utc="{{ message.timestamp }}"></span>
+            <span class="timestamp block text-xs text-foreground-muted mt-3.5 px-1 {% if message.role == 'user' %}text-right{% else %}text-left{% endif %}" data-utc="{{ message.timestamp }}"></span>
             {% endif %}
         </div>
     {% endfor %}
 </div>
 
 <!-- Input Area -->
-<div class="input-area">
+<div class="bg-surface-secondary p-5 border-t border-border">
     <form method="POST"
           hx-post="{% url 'send_message' %}"
           hx-target="#messages"
           hx-swap="beforeend"
           hx-on::before-request="addUserMessage(event)"
-          hx-on::after-request="this.reset(); removeThinkingIndicator(); animateAssistantResponse();">
+          hx-on::after-request="this.reset(); removeThinkingIndicator(); animateAssistantResponse();"
+          class="flex gap-3 items-end">
         {% csrf_token %}
         <input type="hidden" name="timezone" id="timezone-input" value="">
         <textarea
@@ -46,8 +47,9 @@
             rows="1"
             onkeydown="handleTextareaKeydown(event)"
             oninput="autoResizeTextarea(this)"
+            class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base font-sans resize-none min-h-[24px] max-h-[200px] overflow-y-auto focus:outline-none focus:border-accent-cyan"
         ></textarea>
-        <button type="submit">Send</button>
+        <button type="submit" class="px-6 py-3 bg-accent text-white border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Send</button>
     </form>
 </div>
 
@@ -61,7 +63,9 @@
     })();
 </script>
 
+{% if is_htmx %}
 <!-- OOB: Update sidebar sessions -->
 <div id="sidebar-sessions" hx-swap-oob="true">
 {% include "chat/sidebar_sessions.html" %}
 </div>
+{% endif %}

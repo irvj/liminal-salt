@@ -1,14 +1,14 @@
 {% load markdown_extras %}
-<div class="message-container assistant">
-    <div class="message assistant">
+<div class="message-container assistant my-4 max-w-[80%] w-fit mr-auto">
+    <div class="message assistant message-tail-assistant p-3 px-4 rounded-lg bg-assistant-bubble text-foreground">
         {% if assistant_message|slice:":6" == "ERROR:" %}
             <strong>⚠️ Error:</strong><br>
-            <pre>{{ assistant_message|slice:"6:" }}</pre>
+            <pre class="bg-surface p-2 rounded overflow-x-auto mt-2">{{ assistant_message|slice:"6:" }}</pre>
         {% else %}
-            {{ assistant_message|markdown }}
+            <div class="prose prose-invert">{{ assistant_message|markdown }}</div>
         {% endif %}
     </div>
     {% if assistant_timestamp %}
-    <span class="timestamp" data-utc="{{ assistant_timestamp }}"></span>
+    <span class="timestamp block text-xs text-foreground-muted mt-3.5 px-1 text-left" data-utc="{{ assistant_timestamp }}"></span>
     {% endif %}
 </div>

@@ -2,24 +2,24 @@
 {% for personality, personality_sessions in grouped_sessions.items %}
     <!-- Using Alpine.js for collapsible groups -->
     <div x-data="{ open: true }">
-        <button @click="open = !open" class="personality-header">
+        <button @click="open = !open" class="block w-full p-2.5 mt-3 bg-surface-elevated text-accent-cyan font-semibold rounded text-left text-sm cursor-pointer">
             <span x-text="open ? '▼' : '▶'"></span>
             {{ personality|display_name }} ({{ personality_sessions|length }})
         </button>
 
         <div x-show="open">
             {% for session in personality_sessions %}
-                <div class="session-row" data-session-id="{{ session.id }}">
+                <div class="session-row flex items-stretch my-1 gap-0.5" data-session-id="{{ session.id }}">
                     <button hx-post="{% url 'switch_session' %}"
                             hx-vals='{"session_id": "{{ session.id }}"}'
                             hx-target="#main-content"
                             hx-swap="innerHTML"
                             onclick="updateSidebarHighlight(this)"
                             data-session-id="{{ session.id }}"
-                            class="session-item {% if session.id == current_session %}current{% endif %}">
+                            class="session-item flex-1 m-0 pl-5 p-2.5 text-sm rounded-l text-left cursor-pointer {% if session.id == current_session %}bg-accent font-bold{% else %}bg-surface-elevated{% endif %} text-foreground hover:bg-accent">
                         {{ session.title }}
                     </button>
-                    <button class="delete-btn"
+                    <button class="w-8 p-0 m-0 bg-surface-elevated rounded-r flex items-center justify-center text-xs opacity-60 hover:bg-danger hover:opacity-100 cursor-pointer"
                             onclick="openDeleteModal('{{ session.id }}', '{{ session.title|escapejs }}')"
                             title="Delete chat">
                         🗑️

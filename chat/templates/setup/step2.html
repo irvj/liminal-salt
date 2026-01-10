@@ -1,131 +1,75 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Setup - Liminal Salt</title>
-    <style>
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            max-width: 600px;
-            margin: 50px auto;
-            padding: 20px;
-            background: #2E3440;
-            color: #ECEFF4;
-        }
-        h1 {
-            color: #88C0D0;
-        }
-        .form-group {
-            margin: 20px 0;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-        select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #4C566A;
-            border-radius: 4px;
-            background: #3B4252;
-            color: #ECEFF4;
-            font-size: 16px;
-        }
-        select:focus {
-            outline: none;
-            border-color: #88C0D0;
-        }
-        button {
-            background: #5E81AC;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 4px;
-            font-size: 16px;
-            cursor: pointer;
-            font-weight: 500;
-        }
-        button:hover {
-            background: #81A1C1;
-        }
-        button:disabled {
-            background: #4C566A;
-            cursor: not-allowed;
-        }
-        .error {
-            background: #BF616A;
-            color: white;
-            padding: 12px;
-            border-radius: 4px;
-            margin: 16px 0;
-        }
-        .info {
-            background: #5E81AC;
-            color: white;
-            padding: 12px;
-            border-radius: 4px;
-            margin: 16px 0;
-        }
-        .hint {
-            color: #D8DEE9;
-            margin-top: 8px;
-            font-size: 14px;
-        }
-    </style>
-</head>
-<body>
-    <h1>🧂 Welcome to Liminal Salt</h1>
-
-    <h2>Step 2: Choose Your Model</h2>
-    <p class="hint">Found {{ model_count }} available models</p>
-    <p class="hint">💡 Tip: Use Ctrl+F / Cmd+F to search for a specific model</p>
-
-    {% if error %}
-    <div class="error">{{ error }}</div>
-    {% endif %}
-
-    <form method="POST" id="modelForm">
-        {% csrf_token %}
-        <div class="form-group">
-            <label for="model">Select a model:</label>
-            <select id="model" name="model" required onchange="updateButton()">
-                <option value="">Choose a model...</option>
-                {% for model_id, display_name in model_options %}
-                <option value="{{ model_id }}" {% if selected_model == model_id %}selected{% endif %}>
-                    {{ display_name }}
-                </option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div id="selectedInfo" class="info" style="display: none;">
-            <strong>Selected:</strong> <span id="selectedModelText"></span>
-        </div>
-
-        <button type="submit" id="submitBtn" disabled>Complete Setup</button>
-    </form>
-
     <script>
-        function updateButton() {
-            const select = document.getElementById('model');
-            const btn = document.getElementById('submitBtn');
-            const info = document.getElementById('selectedInfo');
-            const selectedText = document.getElementById('selectedModelText');
-
-            if (select.value) {
-                btn.disabled = false;
-                info.style.display = 'block';
-                selectedText.textContent = select.options[select.selectedIndex].text;
-            } else {
-                btn.disabled = true;
-                info.style.display = 'none';
-            }
-        }
-
-        // Check on page load if there's a selected value
-        document.addEventListener('DOMContentLoaded', updateButton);
+        (function() {
+            const theme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
     </script>
+    <link rel="stylesheet" href="{% static 'css/output.css' %}">
+</head>
+<body class="font-sans bg-surface text-foreground">
+    <div class="max-w-xl mx-auto mt-12 p-5">
+        <h1 class="text-accent-cyan text-2xl mb-4">🧂 Welcome to Liminal Salt</h1>
+
+        <h2 class="text-xl text-foreground mb-2">Step 2: Choose Your Model</h2>
+        <p class="text-foreground-secondary text-sm mb-1">Found {{ model_count }} available models</p>
+        <p class="text-foreground-secondary text-sm mb-4">💡 Tip: Use Ctrl+F / Cmd+F to search for a specific model</p>
+
+        {% if error %}
+        <div class="p-3 px-4 rounded mb-4 bg-danger text-white">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" id="modelForm">
+            {% csrf_token %}
+            <div class="mb-5">
+                <label for="model" class="block mb-2 font-medium">Select a model:</label>
+                <select id="model" name="model" required onchange="updateButton()"
+                        class="w-full p-3 border border-border rounded bg-surface-secondary text-foreground text-base focus:outline-none focus:border-accent-cyan">
+                    <option value="">Choose a model...</option>
+                    {% for model_id, display_name in model_options %}
+                    <option value="{{ model_id }}" {% if selected_model == model_id %}selected{% endif %}>
+                        {{ display_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div id="selectedInfo" class="p-3 px-4 rounded mb-4 bg-accent text-white hidden">
+                <strong>Selected:</strong> <span id="selectedModelText"></span>
+            </div>
+
+            <button type="submit" id="submitBtn" disabled
+                    class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover disabled:bg-surface-elevated disabled:cursor-not-allowed">
+                Complete Setup
+            </button>
+        </form>
+
+        <script>
+            function updateButton() {
+                const select = document.getElementById('model');
+                const btn = document.getElementById('submitBtn');
+                const info = document.getElementById('selectedInfo');
+                const selectedText = document.getElementById('selectedModelText');
+
+                if (select.value) {
+                    btn.disabled = false;
+                    info.classList.remove('hidden');
+                    selectedText.textContent = select.options[select.selectedIndex].text;
+                } else {
+                    btn.disabled = true;
+                    info.classList.add('hidden');
+                }
+            }
+
+            // Check on page load if there's a selected value
+            document.addEventListener('DOMContentLoaded', updateButton);
+        </script>
+    </div>
 </body>
 </html>

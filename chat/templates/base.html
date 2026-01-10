@@ -1,9 +1,21 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Liminal Salt{% endblock %}</title>
+
+    <!-- Apply saved theme immediately to prevent flash -->
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+
+    <!-- Tailwind CSS -->
+    <link rel="stylesheet" href="{% static 'css/output.css' %}">
 
     <!-- HTMX - Dynamic HTML updates without page reloads -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
@@ -28,39 +40,9 @@
 
     {% block extra_head %}{% endblock %}
 
-    <style>
-        /* Nord Theme Base Styles */
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background: #2E3440;
-            color: #ECEFF4;
-            {% block body_style %}{% endblock %}
-        }
-
-        /* Common button styles */
-        button, .button {
-            cursor: pointer;
-            border: none;
-            border-radius: 4px;
-            font-weight: 500;
-        }
-
-        button:hover, .button:hover {
-            opacity: 0.9;
-        }
-
-        /* Common link styles */
-        a {
-            text-decoration: none;
-            color: inherit;
-        }
-
-        {% block extra_styles %}{% endblock %}
-    </style>
+    {% block extra_styles %}{% endblock %}
 </head>
-<body>
+<body class="font-sans bg-surface text-foreground"{% block body_attrs %}{% endblock %}>
     {% block body %}{% endblock %}
 
     {% block extra_scripts %}{% endblock %}

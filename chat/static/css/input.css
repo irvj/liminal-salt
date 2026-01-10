@@ -1,0 +1,151 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* ===== Tell Tailwind where to find template files ===== */
+@source "../../templates/**/*.html";
+
+/* ===== Custom Theme Extensions ===== */
+@theme {
+  /* Semantic colors referencing CSS variables */
+  --color-surface: var(--surface);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-elevated: var(--surface-elevated);
+
+  --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-muted: var(--foreground-muted);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-cyan: var(--accent-cyan);
+
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-user-bubble: var(--user-bubble);
+  --color-assistant-bubble: var(--assistant-bubble);
+
+  /* Custom widths */
+  --width-sidebar: 300px;
+
+  /* Custom max-widths */
+  --max-width-modal: 400px;
+  --max-width-modal-lg: 600px;
+  --max-width-modal-xl: 700px;
+
+  /* Custom z-index */
+  --z-index-modal: 1000;
+  --z-index-modal-nested: 1001;
+
+  /* Custom animations */
+  --animate-bounce-dot: bounce-dot 1.4s infinite ease-in-out;
+  --animate-blink: blink 1.4s infinite;
+
+  @keyframes bounce-dot {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+}
+
+/* ===== DARK THEME (Nord) - Default ===== */
+:root {
+  /* Surfaces/Backgrounds */
+  --surface: #2E3440;
+  --surface-secondary: #3B4252;
+  --surface-elevated: #4C566A;
+
+  /* Text/Foreground */
+  --foreground: #ECEFF4;
+  --foreground-secondary: #D8DEE9;
+  --foreground-muted: #8a93a3;
+
+  /* Accent colors */
+  --accent: #5E81AC;
+  --accent-hover: #81A1C1;
+  --accent-cyan: #88C0D0;
+
+  /* Status colors */
+  --success: #A3BE8C;
+  --danger: #BF616A;
+  --danger-hover: #d08088;
+  --warning: #D08770;
+
+  /* Borders */
+  --border: #4C566A;
+
+  /* Message bubbles */
+  --user-bubble: #5E81AC;
+  --assistant-bubble: #4C566A;
+}
+
+/* ===== LIGHT THEME ===== */
+[data-theme="light"] {
+  /* Surfaces */
+  --surface: #ECEFF4;           /* nord6 */
+  --surface-secondary: #E5E9F0; /* nord5 */
+  --surface-elevated: #D8DEE9;  /* nord4 */
+
+  /* Text */
+  --foreground: #2E3440;        /* nord0 */
+  --foreground-secondary: #4C566A; /* nord3 */
+  --foreground-muted: #4C566A;  /* nord3 */
+
+  /* Accents - darker for light background readability */
+  --accent: #5E81AC;            /* nord10 */
+  --accent-hover: #81A1C1;      /* nord9 */
+  --accent-cyan: #5E81AC;       /* nord10 - darker for contrast */
+
+  /* Status colors */
+  --success: #A3BE8C;           /* nord14 */
+  --danger: #BF616A;            /* nord11 */
+  --danger-hover: #BF616A;      /* nord11 */
+  --warning: #D08770;           /* nord12 */
+
+  /* Borders */
+  --border: #D8DEE9;            /* nord4 */
+
+  /* Bubbles */
+  --user-bubble: #5E81AC;       /* nord10 */
+  --assistant-bubble: #D8DEE9;  /* nord4 */
+}
+
+/* ===== Custom Component Classes ===== */
+@utility message-tail-user {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    right: 4px;
+    bottom: -10px;
+    width: 16px;
+    height: 12px;
+    background: var(--user-bubble);
+    border-radius: 0 6px 1px 16px;
+  }
+}
+
+@utility message-tail-assistant {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    bottom: -10px;
+    width: 16px;
+    height: 12px;
+    background: var(--assistant-bubble);
+    border-radius: 6px 0 16px 1px;
+  }
+}
+
+/* Alpine.js cloak */
+[x-cloak] {
+  display: none !important;
+}

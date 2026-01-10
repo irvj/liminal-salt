@@ -1,34 +1,76 @@
 {% load markdown_extras %}
 <!-- Header -->
-<header class="header">
-    <h1>Settings</h1>
-    <div class="subtitle">Model: {{ model }}</div>
+<header class="bg-surface-secondary px-5 py-4 border-b border-border">
+    <h1 class="text-2xl text-accent-cyan">Settings</h1>
+    <div class="text-xs text-foreground-secondary mt-1">Model: {{ model }}</div>
 </header>
 
 <!-- Settings Content -->
-<div class="settings-area">
+<div class="flex-1 overflow-y-auto p-5">
     {% if success %}
-    <div class="alert alert-success">✅ {{ success }}</div>
+    <div class="p-3 px-4 rounded mb-4 bg-success text-surface">✅ {{ success }}</div>
     {% endif %}
 
-    <h2>Chat Personality</h2>
+    <!-- Theme Section -->
+    <h2 class="text-accent-cyan text-xl mb-4">Theme</h2>
+    <div class="mb-6">
+        <p class="text-foreground-secondary text-sm mb-3">Choose your preferred color theme:</p>
+        <div class="flex gap-3">
+            <button onclick="setTheme('dark')" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent" id="theme-dark-btn">
+                🌙 Dark
+            </button>
+            <button onclick="setTheme('light')" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent" id="theme-light-btn">
+                ☀️ Light
+            </button>
+        </div>
+        <script>
+            function setTheme(theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+                localStorage.setItem('theme', theme);
+                updateThemeButtons(theme);
+            }
+            function updateThemeButtons(theme) {
+                const darkBtn = document.getElementById('theme-dark-btn');
+                const lightBtn = document.getElementById('theme-light-btn');
+                if (theme === 'dark') {
+                    darkBtn.classList.add('bg-accent');
+                    darkBtn.classList.remove('bg-surface-elevated');
+                    lightBtn.classList.remove('bg-accent');
+                    lightBtn.classList.add('bg-surface-elevated');
+                } else {
+                    lightBtn.classList.add('bg-accent');
+                    lightBtn.classList.remove('bg-surface-elevated');
+                    darkBtn.classList.remove('bg-accent');
+                    darkBtn.classList.add('bg-surface-elevated');
+                }
+            }
+            // Initialize button state
+            (function() {
+                const theme = localStorage.getItem('theme') || 'dark';
+                updateThemeButtons(theme);
+            })();
+        </script>
+    </div>
+
+    <h2 class="text-accent-cyan text-xl mb-4">Chat Personality</h2>
 
     {% if not personalities %}
-    <div class="alert alert-error">
+    <div class="p-3 px-4 rounded mb-4 bg-danger text-white">
         No personalities found in 'personalities/' directory.
         Create personality folders with .md files to define chatbot personalities.
     </div>
     {% else %}
 
-    <p class="settings-info"><strong>Default personality for new chats:</strong> {% if default_personality %}{{ default_personality|display_name }}{% else %}none{% endif %}</p>
+    <p class="text-foreground-secondary text-sm mb-4"><strong>Default personality for new chats:</strong> {% if default_personality %}{{ default_personality|display_name }}{% else %}none{% endif %}</p>
 
     <form hx-post="{% url 'save_settings' %}"
           hx-target="#main-content"
           hx-swap="innerHTML">
         {% csrf_token %}
-        <div class="form-group">
-            <label for="personality">Select a personality:</label>
-            <select id="personality" name="personality" class="settings-select"
+        <div class="mb-4">
+            <label for="personality" class="block mb-2 font-medium">Select a personality:</label>
+            <select id="personality" name="personality"
+                    class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-cyan"
                     hx-get="{% url 'settings' %}"
                     hx-target="#main-content"
                     hx-swap="innerHTML"
@@ -45,10 +87,12 @@
             </select>
         </div>
 
-        <button type="submit" class="button-primary">Set as Default</button>
-        <button type="button" class="button-secondary" onclick="openEditPersonalityModal()">Edit Personality</button>
-        <button type="button" class="button-secondary" onclick="openNewPersonalityModal()">New Personality</button>
-        <button type="button" class="button-danger" onclick="openDeletePersonalityModal()">Delete Personality</button>
+        <div class="flex gap-3 flex-wrap">
+            <button type="submit" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover">Set as Default</button>
+            <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent" onclick="openEditPersonalityModal()">Edit Personality</button>
+            <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent" onclick="openNewPersonalityModal()">New Personality</button>
+            <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-danger" onclick="openDeletePersonalityModal()">Delete Personality</button>
+        </div>
     </form>
 
     <script>
@@ -56,7 +100,7 @@
     </script>
 
     {% if personality_preview %}
-    <div class="settings-preview">
+    <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent mt-5 prose prose-invert max-w-none">
         {{ personality_preview|markdown }}
     </div>
     {% endif %}

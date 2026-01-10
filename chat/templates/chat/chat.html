@@ -3,871 +3,7 @@
 
 {% block title %}{{ title }} - Liminal Salt{% endblock %}
 
-{% block body_style %}display: flex; height: 100vh;{% endblock %}
-
-{% block extra_styles %}
-.sidebar {
-    width: 300px;
-    background: #3B4252;
-    padding: 20px;
-    overflow-y: auto;
-    border-right: 1px solid #4C566A;
-}
-.sidebar h2 {
-    color: #88C0D0;
-    margin-bottom: 16px;
-    font-size: 20px;
-}
-.sidebar button, .sidebar a {
-    display: block;
-    width: 100%;
-    padding: 10px;
-    margin: 4px 0;
-    background: #4C566A;
-    color: #ECEFF4;
-    border: none;
-    border-radius: 4px;
-    text-decoration: none;
-    text-align: left;
-    cursor: pointer;
-    font-size: 14px;
-}
-.sidebar button:hover, .sidebar a:hover {
-    background: #5E81AC;
-}
-.sidebar .current {
-    background: #5E81AC;
-    font-weight: bold;
-}
-.sidebar .personality-header {
-    background: #4C566A;
-    color: #88C0D0;
-    font-weight: 600;
-    margin-top: 12px;
-}
-.sidebar .session-item {
-    padding-left: 20px;
-    font-size: 13px;
-}
-.sidebar .session-row {
-    display: flex;
-    align-items: stretch;
-    margin: 4px 0;
-    gap: 2px;
-}
-.sidebar .session-row .session-item {
-    flex: 1;
-    margin: 0;
-    border-radius: 4px 0 0 4px;
-}
-.sidebar .session-row .delete-btn {
-    width: 32px;
-    padding: 0;
-    margin: 0;
-    background: #4C566A;
-    border-radius: 0 4px 4px 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    opacity: 0.6;
-}
-.sidebar .session-row .delete-btn:hover {
-    background: #BF616A;
-    opacity: 1;
-}
-/* Modal styles */
-.modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-.modal {
-    background: #3B4252;
-    border-radius: 8px;
-    padding: 24px;
-    max-width: 400px;
-    width: 90%;
-    border: 1px solid #4C566A;
-}
-.modal h3 {
-    color: #ECEFF4;
-    margin-bottom: 12px;
-}
-.modal p {
-    color: #D8DEE9;
-    margin-bottom: 20px;
-}
-.modal-buttons {
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-}
-.modal-buttons button {
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-weight: 500;
-    width: auto;
-}
-.modal-buttons .cancel-btn {
-    background: #4C566A;
-}
-.modal-buttons .confirm-btn {
-    background: #BF616A;
-}
-.modal .form-group {
-    margin: 16px 0;
-}
-.modal .form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 500;
-    color: #D8DEE9;
-}
-.modal-select {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #4C566A;
-    border-radius: 4px;
-    background: #2E3440;
-    color: #ECEFF4;
-    font-size: 14px;
-}
-.modal-select:focus {
-    outline: none;
-    border-color: #88C0D0;
-}
-
-/* Context Files Modal */
-.context-files-modal {
-    max-width: 500px;
-    width: 90%;
-}
-.context-files-modal h2 {
-    color: #ECEFF4;
-    margin-bottom: 8px;
-}
-.modal-help {
-    color: #D8DEE9;
-    font-size: 14px;
-    margin-bottom: 20px;
-}
-.drop-zone {
-    border: 2px dashed #4C566A;
-    border-radius: 8px;
-    padding: 40px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    margin-bottom: 20px;
-}
-.drop-zone:hover {
-    border-color: #5E81AC;
-    background: rgba(94, 129, 172, 0.1);
-}
-.drop-zone.drag-over {
-    border-color: #88C0D0;
-    background: rgba(136, 192, 208, 0.15);
-}
-.drop-zone-content {
-    pointer-events: none;
-}
-.drop-icon {
-    font-size: 48px;
-    margin-bottom: 12px;
-}
-.drop-zone p {
-    margin: 8px 0;
-    color: #ECEFF4;
-}
-.drop-zone .file-types {
-    font-size: 12px;
-    color: #D8DEE9;
-}
-.upload-status {
-    padding: 8px 12px;
-    border-radius: 4px;
-    margin-bottom: 16px;
-    font-size: 14px;
-}
-.upload-status.success {
-    background: rgba(163, 190, 140, 0.2);
-    color: #A3BE8C;
-}
-.upload-status.error {
-    background: rgba(191, 97, 106, 0.2);
-    color: #BF616A;
-}
-.context-modal-file-list {
-    max-height: 200px;
-    overflow-y: auto;
-    margin-bottom: 20px;
-}
-.context-modal-file-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 0;
-    border-bottom: 1px solid #3B4252;
-}
-.context-modal-file-item:last-child {
-    border-bottom: none;
-}
-.context-modal-file-item .filename {
-    flex: 1;
-    color: #ECEFF4;
-    cursor: pointer;
-}
-.context-modal-file-item .filename:hover {
-    color: #88C0D0;
-}
-.context-modal-file-item .delete-btn {
-    background: transparent;
-    border: none;
-    color: #BF616A;
-    cursor: pointer;
-    font-size: 18px;
-    padding: 4px 8px;
-}
-.context-modal-file-item .delete-btn:hover {
-    color: #D08770;
-}
-
-/* Custom Toggle Switch */
-.toggle-switch {
-    position: relative;
-    width: 44px;
-    height: 24px;
-    flex-shrink: 0;
-}
-.toggle-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-.toggle-slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #4C566A;
-    transition: 0.2s;
-    border-radius: 24px;
-}
-.toggle-slider:before {
-    position: absolute;
-    content: "";
-    height: 18px;
-    width: 18px;
-    left: 3px;
-    bottom: 3px;
-    background-color: #D8DEE9;
-    transition: 0.2s;
-    border-radius: 50%;
-}
-input:checked + .toggle-slider {
-    background-color: #5E81AC;
-}
-input:checked + .toggle-slider:before {
-    transform: translateX(20px);
-}
-.toggle-slider:hover {
-    background-color: #434C5E;
-}
-input:checked + .toggle-slider:hover {
-    background-color: #81A1C1;
-}
-
-/* File Edit Modal */
-.file-edit-modal {
-    max-width: 600px;
-    width: 90%;
-}
-.modal-filename {
-    color: #88C0D0;
-    font-family: monospace;
-    margin-bottom: 16px;
-}
-.file-edit-textarea {
-    width: 100%;
-    height: 300px;
-    background: #2E3440;
-    border: 1px solid #4C566A;
-    border-radius: 4px;
-    color: #ECEFF4;
-    font-family: monospace;
-    font-size: 14px;
-    padding: 12px;
-    resize: vertical;
-    margin-bottom: 16px;
-    box-sizing: border-box;
-}
-.file-edit-textarea:focus {
-    outline: none;
-    border-color: #88C0D0;
-}
-
-.modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-}
-.modal-actions .button-secondary {
-    padding: 10px 24px;
-    background: #4C566A;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-}
-.modal-actions .button-secondary:hover {
-    background: #5E81AC;
-}
-.modal-actions .button-primary {
-    padding: 10px 24px;
-    background: #5E81AC;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-}
-.modal-actions .button-primary:hover {
-    background: #81A1C1;
-}
-.no-files {
-    color: #4C566A;
-    font-style: italic;
-    text-align: center;
-    padding: 20px 0;
-}
-
-/* Context Files Button */
-.context-files-btn {
-    position: relative;
-}
-.context-files-btn .badge {
-    background: #5E81AC;
-    color: white;
-    border-radius: 10px;
-    padding: 2px 8px;
-    font-size: 12px;
-    margin-left: 8px;
-}
-
-/* Hide Alpine elements until initialized */
-[x-cloak] {
-    display: none !important;
-}
-/* Memory page styles */
-.memory-area {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-}
-.memory-buttons {
-    display: flex;
-    gap: 12px;
-    margin: 20px 0;
-}
-.memory-buttons button, .memory-buttons .button-primary {
-    padding: 12px 24px;
-    border: none;
-    border-radius: 4px;
-    font-size: 14px;
-    cursor: pointer;
-    font-weight: 500;
-    background: #5E81AC;
-    color: white;
-}
-.memory-buttons button:hover {
-    background: #81A1C1;
-}
-.memory-buttons .button-danger {
-    background: #4C566A;
-}
-.memory-buttons .button-danger:hover {
-    background: #BF616A;
-}
-.memory-timestamp {
-    font-size: 12px;
-    color: #D8DEE9;
-    margin-bottom: 16px;
-}
-.memory-content-box {
-    background: #3B4252;
-    padding: 20px;
-    border-radius: 8px;
-    line-height: 1.6;
-    border-left: 4px solid #5E81AC;
-}
-.memory-content-box p {
-    margin-bottom: 1em;
-}
-.memory-content-box p:last-child {
-    margin-bottom: 0;
-}
-.memory-content-box .empty-state {
-    text-align: center;
-    color: #D8DEE9;
-    padding: 40px 20px;
-}
-/* Context Files Section */
-.context-files-section {
-    margin-top: 24px;
-    padding-top: 24px;
-    border-top: 1px solid #4C566A;
-}
-.context-files-section h3 {
-    margin: 0 0 8px 0;
-    color: #ECEFF4;
-    font-size: 18px;
-}
-.context-files-section .help-text {
-    color: #D8DEE9;
-    font-size: 14px;
-    margin-bottom: 16px;
-}
-.context-file-list {
-    margin-bottom: 16px;
-}
-.context-file-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 0;
-    border-bottom: 1px solid #3B4252;
-}
-.context-file-item input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-}
-.context-file-item .filename {
-    flex: 1;
-    color: #ECEFF4;
-}
-.context-file-item .delete-btn {
-    background: transparent;
-    border: none;
-    color: #BF616A;
-    cursor: pointer;
-    font-size: 18px;
-    padding: 4px 8px;
-}
-.context-file-item .delete-btn:hover {
-    color: #D08770;
-}
-.no-files {
-    color: #4C566A;
-    font-style: italic;
-}
-.upload-form {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-}
-.upload-form input[type="file"] {
-    flex: 1;
-    color: #ECEFF4;
-}
-.upload-form button {
-    padding: 8px 16px;
-    background: #5E81AC;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-.upload-form button:hover {
-    background: #81A1C1;
-}
-.alert {
-    padding: 12px 16px;
-    border-radius: 4px;
-    margin-bottom: 16px;
-}
-.alert-success {
-    background: #A3BE8C;
-    color: #2E3440;
-}
-.alert-error {
-    background: #BF616A;
-    color: white;
-}
-#memory-status .updating-dots span {
-    animation: blink 1.4s infinite;
-}
-#memory-status .updating-dots span:nth-child(2) {
-    animation-delay: 0.2s;
-}
-#memory-status .updating-dots span:nth-child(3) {
-    animation-delay: 0.4s;
-}
-/* Settings page styles */
-.settings-area {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-}
-.settings-area h2 {
-    color: #88C0D0;
-    font-size: 18px;
-    margin-bottom: 16px;
-}
-.settings-info {
-    color: #D8DEE9;
-    font-size: 14px;
-    margin-bottom: 16px;
-}
-.settings-area .form-group {
-    margin: 20px 0;
-}
-.settings-area label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 500;
-}
-.settings-select {
-    width: 100%;
-    max-width: 400px;
-    padding: 10px;
-    border: 1px solid #4C566A;
-    border-radius: 4px;
-    background: #3B4252;
-    color: #ECEFF4;
-    font-size: 16px;
-}
-.settings-select:focus {
-    outline: none;
-    border-color: #88C0D0;
-}
-.settings-area .button-primary {
-    padding: 12px 24px;
-    background: #5E81AC;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 500;
-    font-size: 16px;
-}
-.settings-area .button-primary:hover {
-    background: #81A1C1;
-}
-.settings-preview {
-    background: #3B4252;
-    padding: 16px;
-    border-radius: 8px;
-    margin-top: 20px;
-    font-size: 14px;
-    border-left: 4px solid #5E81AC;
-    line-height: 1.6;
-}
-.settings-preview p {
-    margin-bottom: 1em;
-}
-.settings-preview p:last-child {
-    margin-bottom: 0;
-}
-.settings-preview ul, .settings-preview ol {
-    margin-left: 1.5em;
-    margin-bottom: 1em;
-}
-.settings-preview li {
-    margin-bottom: 0.25em;
-}
-.personality-editor {
-    width: 100%;
-    height: 400px;
-    background: #2E3440;
-    color: #ECEFF4;
-    border: 1px solid #4C566A;
-    border-radius: 4px;
-    padding: 12px;
-    font-family: monospace;
-    font-size: 14px;
-    resize: vertical;
-    margin-bottom: 16px;
-    box-sizing: border-box;
-}
-.personality-editor:focus {
-    outline: none;
-    border-color: #88C0D0;
-}
-.modal-input {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #4C566A;
-    border-radius: 4px;
-    background: #2E3440;
-    color: #ECEFF4;
-    font-size: 14px;
-    margin-bottom: 8px;
-    box-sizing: border-box;
-}
-.modal-input:focus {
-    outline: none;
-    border-color: #88C0D0;
-}
-.button-secondary {
-    background: #4C566A;
-    color: #ECEFF4;
-    padding: 12px 24px;
-    border: none;
-    border-radius: 4px;
-    font-size: 16px;
-    cursor: pointer;
-    font-weight: 500;
-    margin-left: 8px;
-}
-.button-secondary:hover {
-    background: #5E81AC;
-}
-.button-danger {
-    background: #BF616A;
-    color: #ECEFF4;
-    padding: 12px 24px;
-    border: none;
-    border-radius: 4px;
-    font-size: 16px;
-    cursor: pointer;
-    font-weight: 500;
-    margin-left: 8px;
-}
-.button-danger:hover {
-    background: #d08088;
-}
-.main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-.header {
-    background: #3B4252;
-    padding: 16px 20px;
-    border-bottom: 1px solid #4C566A;
-}
-.header h1 {
-    font-size: 24px;
-    color: #88C0D0;
-}
-.header .subtitle {
-    font-size: 12px;
-    color: #D8DEE9;
-    margin-top: 4px;
-}
-.messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-}
-.message {
-    padding: 12px 16px;
-    border-radius: 8px;
-    width: fit-content;
-}
-.message.user {
-    background: #5E81AC;
-    position: relative;
-}
-.message.user::after {
-    content: '';
-    position: absolute;
-    right: 4px;
-    bottom: -10px;
-    width: 16px;
-    height: 12px;
-    background: #5E81AC;
-    border-radius: 0 6px 1px 16px;
-}
-.message.assistant {
-    background: #4C566A;
-    position: relative;
-}
-.message.assistant::after {
-    content: '';
-    position: absolute;
-    left: 4px;
-    bottom: -10px;
-    width: 16px;
-    height: 12px;
-    background: #4C566A;
-    border-radius: 6px 0 16px 1px;
-}
-.message.error {
-    background: #BF616A;
-}
-.message pre {
-    background: #2E3440;
-    padding: 8px;
-    border-radius: 4px;
-    overflow-x: auto;
-    margin-top: 8px;
-}
-.message p {
-    margin-bottom: 1em;
-}
-.message p:last-child {
-    margin-bottom: 0;
-}
-.message ul, .message ol {
-    margin-left: 1.5em;
-    margin-bottom: 1em;
-}
-.message li {
-    margin-bottom: 0.25em;
-}
-.input-area {
-    background: #3B4252;
-    padding: 20px;
-    border-top: 1px solid #4C566A;
-}
-.input-area form {
-    display: flex;
-    gap: 12px;
-    align-items: flex-end;
-}
-.input-area input,
-.input-area textarea {
-    flex: 1;
-    padding: 12px;
-    border: 1px solid #4C566A;
-    border-radius: 4px;
-    background: #2E3440;
-    color: #ECEFF4;
-    font-size: 16px;
-    font-family: inherit;
-}
-.input-area textarea {
-    resize: none;
-    min-height: 24px;
-    max-height: 200px;
-    overflow-y: auto;
-}
-.input-area input:focus,
-.input-area textarea:focus {
-    outline: none;
-    border-color: #88C0D0;
-}
-.input-area button {
-    padding: 12px 24px;
-    background: #5E81AC;
-    color: white;
-    border: 1px solid #5E81AC;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 500;
-    font-size: 16px;
-}
-.input-area button:hover {
-    background: #81A1C1;
-}
-.divider {
-    height: 1px;
-    background: #4C566A;
-    margin: 12px 0;
-}
-.message.thinking {
-    opacity: 0.7;
-}
-.typing-indicator {
-    display: flex;
-    gap: 4px;
-    padding: 4px 0;
-}
-.typing-indicator span {
-    width: 8px;
-    height: 8px;
-    background: #D8DEE9;
-    border-radius: 50%;
-    animation: bounce 1.4s infinite ease-in-out;
-}
-.typing-indicator span:nth-child(1) {
-    animation-delay: 0s;
-}
-.typing-indicator span:nth-child(2) {
-    animation-delay: 0.2s;
-}
-.typing-indicator span:nth-child(3) {
-    animation-delay: 0.4s;
-}
-@keyframes bounce {
-    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-    30% { transform: translateY(-6px); opacity: 1; }
-}
-/* Staggered fade-in for assistant responses */
-.fade-in-chunk {
-    opacity: 0;
-    transform: translateY(8px);
-    transition: opacity 0.9s ease, transform 0.9s ease;
-}
-.fade-in-chunk.visible {
-    opacity: 1;
-    transform: translateY(0);
-}
-/* Message container styles */
-.message-container {
-    margin: 16px 0;
-    max-width: 80%;
-    width: fit-content;
-}
-.message-container.user {
-    margin-left: auto;
-}
-.message-container.assistant {
-    margin-right: auto;
-}
-.message-container .message {
-    margin: 0;
-}
-/* Timestamp styles */
-.timestamp {
-    display: block;
-    font-size: 11px;
-    color: #8a93a3;
-    margin-top: 14px;
-    padding: 0 4px;
-}
-.message-container.user .timestamp {
-    text-align: right;
-}
-.message-container.assistant .timestamp {
-    text-align: left;
-}
-/* Date separator styles */
-.date-separator {
-    text-align: center;
-    color: #8a93a3;
-    font-size: 12px;
-    margin: 24px 0 16px 0;
-    position: relative;
-}
-.date-separator::before,
-.date-separator::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    width: 30%;
-    height: 1px;
-    background: #4C566A;
-}
-.date-separator::before {
-    left: 0;
-}
-.date-separator::after {
-    right: 0;
-}
-{% endblock %}
+{% block body_attrs %} style="display: flex; height: 100vh;"{% endblock %}
 
 {% block body %}
 <!-- New Chat Modal (Alpine.js) -->
@@ -875,16 +11,16 @@ input:checked + .toggle-slider:hover {
     <div x-show="showModal"
          x-transition:enter="transition ease-out duration-200"
          x-transition:leave="transition ease-in duration-150"
-         class="modal-backdrop"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
-        <div class="modal">
-            <h3>New Chat</h3>
-            <p>Choose a personality for this conversation:</p>
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
+            <h3 class="text-foreground mb-3">New Chat</h3>
+            <p class="text-foreground-secondary mb-5">Choose a personality for this conversation:</p>
             <form hx-post="{% url 'new_chat' %}" hx-swap="none">
                 {% csrf_token %}
-                <div class="form-group">
-                    <label for="new-chat-personality">Personality:</label>
-                    <select id="new-chat-personality" name="personality" class="modal-select">
+                <div class="my-4">
+                    <label for="new-chat-personality" class="block mb-2 font-medium text-foreground-secondary">Personality:</label>
+                    <select id="new-chat-personality" name="personality" class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-cyan">
                         {% for p in available_personalities %}
                             <option value="{{ p }}" {% if p == default_personality %}selected{% endif %}>
                                 {{ p|display_name }}
@@ -892,9 +28,9 @@ input:checked + .toggle-slider:hover {
                         {% endfor %}
                     </select>
                 </div>
-                <div class="modal-buttons">
-                    <button type="button" @click="showModal = false" class="cancel-btn">Cancel</button>
-                    <button type="submit" class="confirm-btn" style="background: #A3BE8C;">Create</button>
+                <div class="flex gap-3 justify-end">
+                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium w-auto">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-success text-surface rounded font-medium w-auto">Create</button>
                 </div>
             </form>
         </div>
@@ -903,24 +39,23 @@ input:checked + .toggle-slider:hover {
 
 <!-- Delete Confirmation Modal (Alpine.js + HTMX) -->
 <div x-data="deleteModal()" x-cloak>
-    <!-- Modal backdrop -->
     <div x-show="showModal"
          x-transition:enter="transition ease-out duration-200"
          x-transition:leave="transition ease-in duration-150"
-         class="modal-backdrop"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
-        <div class="modal">
-            <h3>Delete Chat?</h3>
-            <p>Are you sure you want to delete "<span x-text="sessionTitle"></span>"? This cannot be undone.</p>
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
+            <h3 class="text-foreground mb-3">Delete Chat?</h3>
+            <p class="text-foreground-secondary mb-5">Are you sure you want to delete "<span x-text="sessionTitle"></span>"? This cannot be undone.</p>
             <form hx-post="{% url 'delete_chat' %}"
                   hx-target="#main-content"
                   hx-swap="innerHTML"
                   @htmx:after-request="showModal = false">
                 {% csrf_token %}
                 <input type="hidden" name="session_id" x-bind:value="sessionId">
-                <div class="modal-buttons">
-                    <button type="button" @click="showModal = false" class="cancel-btn">Cancel</button>
-                    <button type="submit" class="confirm-btn">Delete</button>
+                <div class="flex gap-3 justify-end">
+                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium w-auto">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-danger text-foreground rounded font-medium w-auto">Delete</button>
                 </div>
             </form>
         </div>
@@ -932,14 +67,14 @@ input:checked + .toggle-slider:hover {
     <div x-show="showModal"
          x-transition:enter="transition ease-out duration-200"
          x-transition:leave="transition ease-in duration-150"
-         class="modal-backdrop"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
-        <div class="modal">
-            <h3>Wipe Memory?</h3>
-            <p>Are you sure you want to wipe your entire long-term memory? This action cannot be undone.</p>
-            <div class="modal-buttons">
-                <button @click="showModal = false" class="cancel-btn">Cancel</button>
-                <button @click="confirmWipe()" class="confirm-btn">Wipe</button>
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
+            <h3 class="text-foreground mb-3">Wipe Memory?</h3>
+            <p class="text-foreground-secondary mb-5">Are you sure you want to wipe your entire long-term memory? This action cannot be undone.</p>
+            <div class="flex gap-3 justify-end">
+                <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium">Cancel</button>
+                <button @click="confirmWipe()" class="px-4 py-2 bg-danger text-foreground rounded font-medium">Wipe</button>
             </div>
         </div>
     </div>
@@ -950,19 +85,19 @@ input:checked + .toggle-slider:hover {
     <div x-show="showModal"
          x-transition:enter="transition ease-out duration-200"
          x-transition:leave="transition ease-in duration-150"
-         class="modal-backdrop"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
-        <div class="modal" style="max-width: 700px;">
-            <h3 x-text="isNew ? 'New Personality' : 'Edit Personality'"></h3>
-            <div class="form-group" style="margin-bottom: 16px;">
-                <label for="personality-name" style="display: block; margin-bottom: 8px; font-weight: 500; color: #D8DEE9;">Display Name:</label>
-                <input type="text" id="personality-name" x-model="displayName" class="modal-input" @input="displayName = displayName.replace(/[^a-zA-Z0-9 ]/g, '')">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal-xl w-[90%] border border-border">
+            <h3 class="text-foreground mb-3" x-text="isNew ? 'New Personality' : 'Edit Personality'"></h3>
+            <div class="mb-4">
+                <label for="personality-name" class="block mb-2 font-medium text-foreground-secondary">Display Name:</label>
+                <input type="text" id="personality-name" x-model="displayName" class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-cyan" @input="displayName = displayName.replace(/[^a-zA-Z0-9 ]/g, '')">
             </div>
-            <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #D8DEE9;">Personality File:</label>
-            <textarea x-model="content" class="personality-editor"></textarea>
-            <div class="modal-buttons">
-                <button @click="showModal = false" class="cancel-btn">Cancel</button>
-                <button @click="savePersonality()" class="confirm-btn" style="background: #A3BE8C;">Save</button>
+            <label class="block mb-2 font-medium text-foreground-secondary">Personality File:</label>
+            <textarea x-model="content" class="w-full h-[400px] bg-surface border border-border rounded text-foreground font-mono text-sm p-3 resize-y mb-4 focus:outline-none focus:border-accent-cyan"></textarea>
+            <div class="flex gap-3 justify-end">
+                <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium">Cancel</button>
+                <button @click="savePersonality()" class="px-4 py-2 bg-success text-surface rounded font-medium">Save</button>
             </div>
         </div>
     </div>
@@ -973,14 +108,14 @@ input:checked + .toggle-slider:hover {
     <div x-show="showModal"
          x-transition:enter="transition ease-out duration-200"
          x-transition:leave="transition ease-in duration-150"
-         class="modal-backdrop"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
-        <div class="modal">
-            <h3>Delete Personality?</h3>
-            <p>Are you sure you want to delete "<span x-text="displayName"></span>"? This cannot be undone.</p>
-            <div class="modal-buttons">
-                <button @click="showModal = false" class="cancel-btn">Cancel</button>
-                <button @click="confirmDelete()" class="confirm-btn">Delete</button>
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
+            <h3 class="text-foreground mb-3">Delete Personality?</h3>
+            <p class="text-foreground-secondary mb-5">Are you sure you want to delete "<span x-text="displayName"></span>"? This cannot be undone.</p>
+            <div class="flex gap-3 justify-end">
+                <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium">Cancel</button>
+                <button @click="confirmDelete()" class="px-4 py-2 bg-danger text-foreground rounded font-medium">Delete</button>
             </div>
         </div>
     </div>
@@ -991,117 +126,116 @@ input:checked + .toggle-slider:hover {
     <div x-show="showModal"
          x-transition:enter="transition ease-out duration-200"
          x-transition:leave="transition ease-in duration-150"
-         class="modal-backdrop"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
-        <div class="modal context-files-modal">
-            <h2>Context Files</h2>
-            <p class="modal-help">Upload files to provide additional context to the assistant. These are included in every conversation but not used for memory generation.</p>
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-[500px] w-[90%] border border-border">
+            <h2 class="text-foreground mb-2">Context Files</h2>
+            <p class="text-foreground-secondary text-sm mb-5">Upload files to provide additional context to the assistant. These are included in every conversation but not used for memory generation.</p>
 
             <!-- Drop Zone -->
-            <div class="drop-zone"
-                 :class="{ 'drag-over': isDragging }"
+            <div class="border-2 border-dashed border-border rounded-lg p-10 text-center cursor-pointer transition-all mb-5 hover:border-accent hover:bg-accent/10"
+                 :class="{ 'border-accent-cyan bg-accent-cyan/15': isDragging }"
                  @dragover.prevent="isDragging = true"
                  @dragleave.prevent="isDragging = false"
                  @drop.prevent="handleDrop($event)"
                  @click="$refs.fileInput.click()">
-                <div class="drop-zone-content">
-                    <div class="drop-icon">📁</div>
-                    <p x-show="!isDragging">Drag & drop files here, or click to browse</p>
-                    <p x-show="isDragging">Drop files to upload</p>
-                    <p class="file-types">Accepts .md and .txt files</p>
+                <div class="pointer-events-none">
+                    <div class="text-5xl mb-3">📁</div>
+                    <p class="text-foreground my-2" x-show="!isDragging">Drag & drop files here, or click to browse</p>
+                    <p class="text-foreground my-2" x-show="isDragging">Drop files to upload</p>
+                    <p class="text-xs text-foreground-secondary">Accepts .md and .txt files</p>
                 </div>
                 <input type="file"
                        x-ref="fileInput"
                        @change="handleFileSelect($event)"
                        accept=".md,.txt"
                        multiple
-                       style="display: none;">
+                       class="hidden">
             </div>
 
             <!-- Upload Status -->
-            <div x-show="uploadStatus" x-transition class="upload-status" :class="uploadStatusType">
+            <div x-show="uploadStatus" x-transition class="p-2 px-3 rounded mb-4 text-sm" :class="uploadStatusType === 'success' ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'">
                 <span x-text="uploadStatus"></span>
             </div>
 
             <!-- File List -->
-            <div class="context-modal-file-list">
+            <div class="max-h-[200px] overflow-y-auto mb-5">
                 <template x-for="file in files" :key="file.name">
-                    <div class="context-modal-file-item">
-                        <label class="toggle-switch">
-                            <input type="checkbox" :checked="file.enabled" @change="toggleFile(file.name)">
-                            <span class="toggle-slider"></span>
+                    <div class="flex items-center gap-3 py-2.5 border-b border-surface last:border-b-0">
+                        <label class="relative w-11 h-6 shrink-0">
+                            <input type="checkbox" :checked="file.enabled" @change="toggleFile(file.name)" class="opacity-0 w-0 h-0 peer">
+                            <span class="absolute cursor-pointer inset-0 bg-surface-elevated rounded-full transition-colors peer-checked:bg-accent before:absolute before:content-[''] before:h-[18px] before:w-[18px] before:left-[3px] before:bottom-[3px] before:bg-foreground-secondary before:rounded-full before:transition-transform peer-checked:before:translate-x-5"></span>
                         </label>
-                        <span class="filename" x-text="file.name" @click="openEditFile(file.name)"></span>
-                        <button class="delete-btn" @click="deleteFile(file.name)">×</button>
+                        <span class="flex-1 text-foreground cursor-pointer hover:text-accent-cyan" x-text="file.name" @click="openEditFile(file.name)"></span>
+                        <button class="bg-transparent border-none text-danger cursor-pointer text-lg px-2 py-1 hover:text-warning" @click="deleteFile(file.name)">×</button>
                     </div>
                 </template>
-                <p x-show="files.length === 0" class="no-files">No context files uploaded.</p>
+                <p x-show="files.length === 0" class="text-border italic text-center py-5">No context files uploaded.</p>
             </div>
 
             <!-- Close Button -->
-            <div class="modal-actions">
-                <button @click="showModal = false" class="button-primary">Done</button>
+            <div class="flex justify-end gap-3">
+                <button @click="showModal = false" class="px-6 py-2.5 bg-accent text-white rounded font-medium hover:bg-accent-hover">Done</button>
             </div>
         </div>
     </div>
 
     <!-- File Edit Modal (nested) -->
     <div x-show="editModal.show"
-         class="modal-backdrop"
-         @click.self="editModal.show = false"
-         style="z-index: 1001;">
-        <div class="modal file-edit-modal">
-            <h2>Edit File</h2>
-            <p class="modal-filename" x-text="editModal.filename"></p>
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal-nested"
+         @click.self="editModal.show = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal-lg w-[90%] border border-border">
+            <h2 class="text-foreground mb-2">Edit File</h2>
+            <p class="text-accent-cyan font-mono mb-4" x-text="editModal.filename"></p>
             <textarea x-model="editModal.content"
-                      class="file-edit-textarea"
+                      class="w-full h-[300px] bg-surface border border-border rounded text-foreground font-mono text-sm p-3 resize-y mb-4 focus:outline-none focus:border-accent-cyan"
                       placeholder="File content..."></textarea>
-            <div x-show="editModal.status" class="upload-status" :class="editModal.statusType">
+            <div x-show="editModal.status" class="p-2 px-3 rounded mb-4 text-sm" :class="editModal.statusType === 'success' ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'">
                 <span x-text="editModal.status"></span>
             </div>
-            <div class="modal-actions">
-                <button @click="editModal.show = false" class="button-secondary">Cancel</button>
-                <button @click="saveEditFile()" class="button-primary">Save</button>
+            <div class="flex justify-end gap-3">
+                <button @click="editModal.show = false" class="px-6 py-2.5 bg-surface-elevated text-white rounded font-medium hover:bg-accent">Cancel</button>
+                <button @click="saveEditFile()" class="px-6 py-2.5 bg-accent text-white rounded font-medium hover:bg-accent-hover">Save</button>
             </div>
         </div>
     </div>
 </div>
 
 <!-- Sidebar -->
-<aside class="sidebar">
-    <h2>🧂 Liminal Salt</h2>
+<aside class="w-sidebar bg-surface-secondary p-5 overflow-y-auto border-r border-border">
+    <h2 class="text-accent-cyan mb-4 text-xl">🧂 Liminal Salt</h2>
 
     <div id="new-chat-button">
     {% include "chat/new_chat_button.html" %}
     </div>
 
-    <div class="divider"></div>
+    <div class="h-px bg-border my-3"></div>
 
     <!-- Sessions grouped by personality -->
     <div id="sidebar-sessions">
     {% include "chat/sidebar_sessions.html" %}
     </div>
 
-    <div class="divider"></div>
+    <div class="h-px bg-border my-3"></div>
 
     <button hx-get="{% url 'memory' %}"
             hx-target="#main-content"
             hx-swap="innerHTML"
             onclick="updateSidebarHighlight(this)"
-            class="session-item">
+            class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent">
         User Memory
     </button>
     <button hx-get="{% url 'settings' %}"
             hx-target="#main-content"
             hx-swap="innerHTML"
             onclick="updateSidebarHighlight(this)"
-            class="session-item">
+            class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent">
         Settings
     </button>
 </aside>
 
 <!-- Main Chat Area -->
-<div class="main" id="main-content">
+<div class="flex-1 flex flex-col" id="main-content">
     {% include 'chat/chat_main.html' %}
 </div>
 {% endblock %}
@@ -1148,22 +282,22 @@ input:checked + .toggle-slider:hover {
 
         if (needsSeparator) {
             const separator = document.createElement('div');
-            separator.className = 'date-separator';
+            separator.className = 'date-separator text-center text-foreground-muted text-xs my-6 relative';
             separator.textContent = formatDateSeparator(now);
             messagesDiv.appendChild(separator);
         }
 
         const container = document.createElement('div');
-        container.className = 'message-container user';
+        container.className = 'message-container user my-4 max-w-[80%] w-fit ml-auto';
 
         const userDiv = document.createElement('div');
-        userDiv.className = 'message user';
+        userDiv.className = 'message user message-tail-user p-3 px-4 rounded-lg bg-user-bubble text-foreground';
         userDiv.textContent = message;
         container.appendChild(userDiv);
 
         // Add timestamp outside the bubble
         const timestamp = document.createElement('span');
-        timestamp.className = 'timestamp';
+        timestamp.className = 'timestamp block text-xs text-foreground-muted mt-3.5 px-1 text-right';
         timestamp.setAttribute('data-utc', now.toISOString());
         timestamp.textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
         container.appendChild(timestamp);
@@ -1173,8 +307,8 @@ input:checked + .toggle-slider:hover {
         // Create and append thinking indicator
         const thinkingDiv = document.createElement('div');
         thinkingDiv.id = 'thinking-indicator';
-        thinkingDiv.className = 'message assistant thinking';
-        thinkingDiv.innerHTML = '<span class="typing-indicator"><span></span><span></span><span></span></span>';
+        thinkingDiv.className = 'message assistant p-3 px-4 rounded-lg bg-assistant-bubble opacity-70 w-fit max-w-[80%] mr-auto my-4';
+        thinkingDiv.innerHTML = '<span class="typing-indicator flex gap-1 py-1"><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot"></span><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.2s;"></span><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.4s;"></span></span>';
         messagesDiv.appendChild(thinkingDiv);
 
         // Scroll to bottom
@@ -1251,10 +385,12 @@ input:checked + .toggle-slider:hover {
     function updateSidebarHighlight(clickedButton) {
         // Remove 'current' class from all session items
         document.querySelectorAll('.session-item').forEach(item => {
-            item.classList.remove('current');
+            item.classList.remove('current', 'bg-accent', 'font-bold');
+            item.classList.add('bg-surface-elevated');
         });
         // Add 'current' class to clicked button
-        clickedButton.classList.add('current');
+        clickedButton.classList.add('current', 'bg-accent', 'font-bold');
+        clickedButton.classList.remove('bg-surface-elevated');
     }
 
     // Delete modal state (shared with Alpine)
@@ -1763,7 +899,7 @@ input:checked + .toggle-slider:hover {
 
                     // Insert new date separator
                     const separator = document.createElement('div');
-                    separator.className = 'date-separator';
+                    separator.className = 'date-separator text-center text-foreground-muted text-xs my-6 relative';
                     separator.textContent = formatDateSeparator(date);
                     container.parentNode.insertBefore(separator, container);
 
@@ -1773,6 +909,12 @@ input:checked + .toggle-slider:hover {
                 // Silently fail
             }
         });
+    }
+
+    // Theme toggle function
+    function setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
     }
 
     // Initialize on page load
