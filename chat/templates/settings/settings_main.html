@@ -211,8 +211,15 @@
                      this.selected = p.id;
                      this.search = p.display;
                      this.open = false;
-                     // Trigger HTMX preview
-                     htmx.ajax('GET', this.settingsUrl + '?preview=' + p.id, '#main-content');
+                     // Trigger HTMX preview (preserve scroll position)
+                     const scrollContainer = document.querySelector('#main-content .overflow-y-auto');
+                     const scrollPos = scrollContainer ? scrollContainer.scrollTop : 0;
+                     htmx.ajax('GET', this.settingsUrl + '?preview=' + p.id, {target: '#main-content', swap: 'innerHTML'}).then(() => {
+                         if (scrollContainer) {
+                             const newScrollContainer = document.querySelector('#main-content .overflow-y-auto');
+                             if (newScrollContainer) newScrollContainer.scrollTop = scrollPos;
+                         }
+                     });
                  },
                  selectHighlighted() {
                      if (this.filteredPersonalities.length > 0) {
@@ -289,13 +296,18 @@
                     </template>
                 </div>
             </div>
-        </div>
 
-        <div class="flex gap-3 flex-wrap">
-            <button type="submit" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover">Set as Default</button>
-            <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openEditPersonalityModal()">Edit Personality</button>
-            <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openNewPersonalityModal()">New Personality</button>
-            <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent" onclick="openDeletePersonalityModal()">Delete Personality</button>
+            <div class="flex gap-3 flex-wrap mt-4">
+                <button type="submit" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover">Set as Default</button>
+                <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openEditPersonalityModal()">Edit Personality</button>
+                <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openNewPersonalityModal()">New Personality</button>
+                <button type="button"
+                        class="px-6 py-3 bg-surface-elevated rounded font-medium"
+                        :class="selected === 'assistant' ? 'text-foreground-secondary cursor-not-allowed opacity-50' : 'text-foreground cursor-pointer hover:bg-danger hover:text-foreground-on-accent'"
+                        :disabled="selected === 'assistant'"
+                        :title="selected === 'assistant' ? 'Cannot delete the default Assistant personality' : 'Delete Personality'"
+                        @click="selected !== 'assistant' && openDeletePersonalityModal()">Delete Personality</button>
+            </div>
         </div>
     </form>
 
