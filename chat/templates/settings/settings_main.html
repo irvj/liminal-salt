@@ -16,10 +16,10 @@
     <div class="mb-6">
         <p class="text-foreground-secondary text-sm mb-3">Choose your preferred color theme:</p>
         <div class="flex gap-3">
-            <button onclick="setTheme('dark')" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent" id="theme-dark-btn">
+            <button onclick="setTheme('dark')" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" id="theme-dark-btn">
                 🌙 Dark
             </button>
-            <button onclick="setTheme('light')" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent" id="theme-light-btn">
+            <button onclick="setTheme('light')" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" id="theme-light-btn">
                 ☀️ Light
             </button>
         </div>
@@ -33,14 +33,14 @@
                 const darkBtn = document.getElementById('theme-dark-btn');
                 const lightBtn = document.getElementById('theme-light-btn');
                 if (theme === 'dark') {
-                    darkBtn.classList.add('bg-accent');
+                    darkBtn.classList.add('bg-accent', 'text-foreground-on-accent');
                     darkBtn.classList.remove('bg-surface-elevated');
-                    lightBtn.classList.remove('bg-accent');
+                    lightBtn.classList.remove('bg-accent', 'text-foreground-on-accent');
                     lightBtn.classList.add('bg-surface-elevated');
                 } else {
-                    lightBtn.classList.add('bg-accent');
+                    lightBtn.classList.add('bg-accent', 'text-foreground-on-accent');
                     lightBtn.classList.remove('bg-surface-elevated');
-                    darkBtn.classList.remove('bg-accent');
+                    darkBtn.classList.remove('bg-accent', 'text-foreground-on-accent');
                     darkBtn.classList.add('bg-surface-elevated');
                 }
             }
@@ -89,9 +89,9 @@
 
         <div class="flex gap-3 flex-wrap">
             <button type="submit" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover">Set as Default</button>
-            <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent" onclick="openEditPersonalityModal()">Edit Personality</button>
-            <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent" onclick="openNewPersonalityModal()">New Personality</button>
-            <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-danger" onclick="openDeletePersonalityModal()">Delete Personality</button>
+            <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openEditPersonalityModal()">Edit Personality</button>
+            <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openNewPersonalityModal()">New Personality</button>
+            <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent" onclick="openDeletePersonalityModal()">Delete Personality</button>
         </div>
     </form>
 

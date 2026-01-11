@@ -14,6 +14,7 @@
   --color-foreground: var(--foreground);
   --color-foreground-secondary: var(--foreground-secondary);
   --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-on-accent: var(--foreground-on-accent);
 
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
@@ -65,6 +66,7 @@
   --foreground: #ECEFF4;
   --foreground-secondary: #D8DEE9;
   --foreground-muted: #8a93a3;
+  --foreground-on-accent: #ECEFF4;  /* nord6 - light text on accent backgrounds */
 
   /* Accent colors */
   --accent: #5E81AC;
@@ -96,6 +98,7 @@
   --foreground: #2E3440;        /* nord0 */
   --foreground-secondary: #4C566A; /* nord3 */
   --foreground-muted: #4C566A;  /* nord3 */
+  --foreground-on-accent: #ECEFF4;  /* nord6 - light text on accent backgrounds */
 
   /* Accents - darker for light background readability */
   --accent: #5E81AC;            /* nord10 */
@@ -105,7 +108,7 @@
   /* Status colors */
   --success: #A3BE8C;           /* nord14 */
   --danger: #BF616A;            /* nord11 */
-  --danger-hover: #BF616A;      /* nord11 */
+  --danger-hover: #d08088;      /* lighter red for hover */
   --warning: #D08770;           /* nord12 */
 
   /* Borders */
@@ -114,6 +117,26 @@
   /* Bubbles */
   --user-bubble: #5E81AC;       /* nord10 */
   --assistant-bubble: #D8DEE9;  /* nord4 */
+}
+
+/* Fix prose/typography colors in light mode */
+[data-theme="light"] .prose {
+  --tw-prose-body: #2E3440;
+  --tw-prose-headings: #2E3440;
+  --tw-prose-links: #5E81AC;
+  --tw-prose-bold: #2E3440;
+  --tw-prose-code: #2E3440;
+  --tw-prose-quotes: #4C566A;
+}
+
+/* Keep light text for user bubbles in light mode */
+[data-theme="light"] .bg-user-bubble .prose {
+  --tw-prose-body: #ECEFF4;
+  --tw-prose-headings: #ECEFF4;
+  --tw-prose-links: #D8DEE9;
+  --tw-prose-bold: #ECEFF4;
+  --tw-prose-code: #ECEFF4;
+  --tw-prose-quotes: #D8DEE9;
 }
 
 /* ===== Custom Component Classes ===== */

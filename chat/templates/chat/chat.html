@@ -73,8 +73,8 @@
             <h3 class="text-foreground mb-3">Wipe Memory?</h3>
             <p class="text-foreground-secondary mb-5">Are you sure you want to wipe your entire long-term memory? This action cannot be undone.</p>
             <div class="flex gap-3 justify-end">
-                <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium">Cancel</button>
-                <button @click="confirmWipe()" class="px-4 py-2 bg-danger text-foreground rounded font-medium">Wipe</button>
+                <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="confirmWipe()" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Wipe</button>
             </div>
         </div>
     </div>
@@ -114,8 +114,8 @@
             <h3 class="text-foreground mb-3">Delete Personality?</h3>
             <p class="text-foreground-secondary mb-5">Are you sure you want to delete "<span x-text="displayName"></span>"? This cannot be undone.</p>
             <div class="flex gap-3 justify-end">
-                <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium">Cancel</button>
-                <button @click="confirmDelete()" class="px-4 py-2 bg-danger text-foreground rounded font-medium">Delete</button>
+                <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="confirmDelete()" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Delete</button>
             </div>
         </div>
     </div>
@@ -194,7 +194,7 @@
                 <span x-text="editModal.status"></span>
             </div>
             <div class="flex justify-end gap-3">
-                <button @click="editModal.show = false" class="px-6 py-2.5 bg-surface-elevated text-white rounded font-medium hover:bg-accent">Cancel</button>
+                <button @click="editModal.show = false" class="px-6 py-2.5 bg-surface-elevated text-foreground rounded font-medium hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
                 <button @click="saveEditFile()" class="px-6 py-2.5 bg-accent text-white rounded font-medium hover:bg-accent-hover">Save</button>
             </div>
         </div>
@@ -222,14 +222,14 @@
             hx-target="#main-content"
             hx-swap="innerHTML"
             onclick="updateSidebarHighlight(this)"
-            class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent">
+            class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
         User Memory
     </button>
     <button hx-get="{% url 'settings' %}"
             hx-target="#main-content"
             hx-swap="innerHTML"
             onclick="updateSidebarHighlight(this)"
-            class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent">
+            class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
         Settings
     </button>
 </aside>
@@ -291,7 +291,7 @@
         container.className = 'message-container user my-4 max-w-[80%] w-fit ml-auto';
 
         const userDiv = document.createElement('div');
-        userDiv.className = 'message user message-tail-user p-3 px-4 rounded-lg bg-user-bubble text-foreground';
+        userDiv.className = 'message user message-tail-user p-3 px-4 rounded-lg bg-user-bubble text-foreground-on-accent';
         userDiv.textContent = message;
         container.appendChild(userDiv);
 
@@ -424,12 +424,12 @@
     function updateSidebarHighlight(clickedButton) {
         // Remove 'current' class from all session items
         document.querySelectorAll('.session-item').forEach(item => {
-            item.classList.remove('current', 'bg-accent', 'font-bold');
-            item.classList.add('bg-surface-elevated');
+            item.classList.remove('current', 'bg-accent', 'text-foreground-on-accent', 'font-bold');
+            item.classList.add('bg-surface-elevated', 'text-foreground');
         });
         // Add 'current' class to clicked button
-        clickedButton.classList.add('current', 'bg-accent', 'font-bold');
-        clickedButton.classList.remove('bg-surface-elevated');
+        clickedButton.classList.add('current', 'bg-accent', 'text-foreground-on-accent', 'font-bold');
+        clickedButton.classList.remove('bg-surface-elevated', 'text-foreground');
     }
 
     // Delete modal state (shared with Alpine)

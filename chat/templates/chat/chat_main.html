@@ -11,7 +11,7 @@
 <div class="flex-1 overflow-y-auto p-5" id="messages">
     {% for message in messages %}
         <div class="message-container {{ message.role }} my-4 max-w-[80%] w-fit {% if message.role == 'user' %}ml-auto{% else %}mr-auto{% endif %}">
-            <div class="message {{ message.role }} {% if message.role == 'user' %}message-tail-user bg-user-bubble{% else %}message-tail-assistant bg-assistant-bubble{% endif %} p-3 px-4 rounded-lg text-foreground">
+            <div class="message {{ message.role }} {% if message.role == 'user' %}message-tail-user bg-user-bubble text-foreground-on-accent{% else %}message-tail-assistant bg-assistant-bubble text-foreground{% endif %} p-3 px-4 rounded-lg">
                 {% if message.content|slice:":6" == "ERROR:" %}
                     <strong>⚠️ Error:</strong><br>
                     <pre class="bg-surface p-2 rounded overflow-x-auto mt-2">{{ message.content|slice:"6:" }}</pre>
