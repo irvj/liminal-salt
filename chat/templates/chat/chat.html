@@ -286,6 +286,15 @@
         <!-- Footer (always visible) -->
         <div class="p-3 border-t border-border">
             <div class="flex justify-center gap-4" :class="collapsed ? 'flex-col items-center' : ''">
+                <!-- New Chat -->
+                <button hx-get="{% url 'new_chat' %}"
+                        hx-target="#main-content"
+                        hx-swap="innerHTML"
+                        @click="if (isMobile) collapsed = true"
+                        class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+                        title="New Chat">
+                    {% include 'icons/circle-plus.html' with class='w-6 h-6' %}
+                </button>
                 <!-- Memory -->
                 <button hx-get="{% url 'memory' %}"
                         hx-target="#main-content"
