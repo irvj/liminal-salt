@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.7] - 2026-01-11
+
+### Changes
+- update claude file
+- prevent default assistant personality from being deleted
+- change new chat svg to circle plus
+- add chevron down to personality picker in settings
+- add x svg
+
 ## [0.2.6] - 2026-01-11
 
 ### Changes
