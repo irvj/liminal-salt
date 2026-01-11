@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.4] - 2026-01-11
+
+### Changes
+- setup: add select for future provider picker, add openrouter api validation, update styling
+- convert settings page personality selector to alpine implementation
+- add hover states to settings modal buttons
+- add assistant name to selector
+- better mobile responsiveness for sidenav
+
 ## [0.2.3] - 2026-01-11
 
 ### Changes
