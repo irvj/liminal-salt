@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.2] - 2026-01-11
+
+### Changes
+- chat button styling, delete modal button style fixes
+- add sidebar collapse
+- fix various light mode styles
+- typewriter effect on assistant response
+
 ## [0.2.1] - 2026-01-10
 
 ### Changes
