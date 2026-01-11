@@ -183,11 +183,12 @@ def chat(request):
         sessions = get_sessions_with_titles()
         available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
         default_personality = config.get("DEFAULT_PERSONALITY", "")
-        grouped_sessions = group_sessions_by_personality(sessions)
+        pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
 
         context = {
             'personalities': available_personalities,
             'default_personality': default_personality,
+            'pinned_sessions': pinned_sessions,
             'grouped_sessions': grouped_sessions,
             'current_session': None,
             'is_htmx': False,
@@ -204,11 +205,12 @@ def chat(request):
             # No sessions - show home page partial
             available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
             default_personality = config.get("DEFAULT_PERSONALITY", "")
-            grouped_sessions = group_sessions_by_personality([])
+            pinned_sessions, grouped_sessions = group_sessions_by_personality([])
 
             context = {
                 'personalities': available_personalities,
                 'default_personality': default_personality,
+                'pinned_sessions': pinned_sessions,
                 'grouped_sessions': grouped_sessions,
                 'current_session': None,
                 'is_htmx': True,
@@ -290,7 +292,7 @@ def chat(request):
 
     # Prepare sidebar data
     sessions = get_sessions_with_titles()
-    grouped_sessions = group_sessions_by_personality(sessions)
+    pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
     collapsed_personalities = get_collapsed_personalities(request)
 
     # Get available personalities for new chat modal
@@ -304,6 +306,7 @@ def chat(request):
         'model': model,
         'messages': chat_core.messages,
         'sessions': sessions,
+        'pinned_sessions': pinned_sessions,
         'grouped_sessions': grouped_sessions,
         'collapsed_personalities': collapsed_personalities,
         'current_session': session_id,
@@ -349,11 +352,12 @@ def new_chat(request):
     available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
     default_personality = config.get("DEFAULT_PERSONALITY", "")
     sessions = get_sessions_with_titles()
-    grouped_sessions = group_sessions_by_personality(sessions)
+    pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
 
     context = {
         'personalities': available_personalities,
         'default_personality': default_personality,
+        'pinned_sessions': pinned_sessions,
         'grouped_sessions': grouped_sessions,
         'current_session': None,
         'is_htmx': request.headers.get('HX-Request') == 'true',
@@ -420,7 +424,7 @@ def start_chat(request):
 
     # Build context for chat_main.html
     sessions = get_sessions_with_titles()
-    grouped_sessions = group_sessions_by_personality(sessions)
+    pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
     available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
     default_personality = config.get("DEFAULT_PERSONALITY", "")
     model = config.get("MODEL", "anthropic/claude-haiku-4.5")
@@ -431,6 +435,7 @@ def start_chat(request):
         'personality': selected_personality,
         'model': model,
         'messages': initial_data['messages'],
+        'pinned_sessions': pinned_sessions,
         'grouped_sessions': grouped_sessions,
         'current_session': session_id,
         'available_personalities': available_personalities,
@@ -516,7 +521,7 @@ def delete_chat(request):
 
             # Build context for template
             sessions = get_sessions_with_titles()
-            grouped_sessions = group_sessions_by_personality(sessions)
+            pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
             available_personalities = get_available_personalities(personalities_dir)
             default_personality = config.get("DEFAULT_PERSONALITY", "")
 
@@ -526,6 +531,7 @@ def delete_chat(request):
                 'personality': chat_core.personality,
                 'model': model,
                 'messages': chat_core.messages,
+                'pinned_sessions': pinned_sessions,
                 'grouped_sessions': grouped_sessions,
                 'current_session': new_session_id,
                 'available_personalities': available_personalities,
@@ -538,6 +544,48 @@ def delete_chat(request):
         return redirect('chat')
 
     return redirect('chat')
+
+
+def toggle_pin_chat(request):
+    """Toggle pinned status of a chat session (POST) - returns updated sidebar"""
+    from django.conf import settings
+    from .utils import get_sessions_with_titles, group_sessions_by_personality, get_current_session
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    session_id = request.POST.get('session_id')
+    if not session_id:
+        return HttpResponse(status=400)
+
+    session_path = settings.SESSIONS_DIR / session_id
+    if not os.path.exists(session_path):
+        return HttpResponse(status=404)
+
+    # Load, toggle pinned, save
+    try:
+        with open(session_path, 'r') as f:
+            data = json.load(f)
+
+        data['pinned'] = not data.get('pinned', False)
+
+        with open(session_path, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        return HttpResponse(f"Error: {e}", status=500)
+
+    # Return updated sidebar
+    sessions = get_sessions_with_titles()
+    pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
+    current_session = get_current_session(request)
+
+    context = {
+        'pinned_sessions': pinned_sessions,
+        'grouped_sessions': grouped_sessions,
+        'current_session': current_session,
+    }
+
+    return render(request, 'chat/sidebar_sessions.html', context)
 
 
 def send_message(request):
@@ -666,7 +714,7 @@ def send_message(request):
         from .services import get_available_personalities
 
         sessions = get_sessions_with_titles()
-        grouped_sessions = group_sessions_by_personality(sessions)
+        pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
         available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
         default_personality = config.get("DEFAULT_PERSONALITY", "")
 
@@ -676,6 +724,7 @@ def send_message(request):
             'personality': chat_core.personality,
             'model': model,
             'messages': chat_core.messages,
+            'pinned_sessions': pinned_sessions,
             'grouped_sessions': grouped_sessions,
             'current_session': session_id,
             'available_personalities': available_personalities,

@@ -1,4 +1,44 @@
 {% load markdown_extras %}
+
+{% if pinned_sessions %}
+<!-- Pinned Section -->
+<div x-data="{ open: true }">
+    <button @click="open = !open" class="block w-full p-2.5 mt-3 bg-surface-elevated text-accent-cyan font-semibold rounded text-left text-sm cursor-pointer">
+        <span x-text="open ? '▼' : '▶'"></span>
+        <span class="text-yellow-400">★</span> Pinned ({{ pinned_sessions|length }})
+    </button>
+
+    <div x-show="open">
+        {% for session in pinned_sessions %}
+            <div class="session-row flex items-stretch my-1 gap-0.5" data-session-id="{{ session.id }}">
+                <button hx-post="{% url 'switch_session' %}"
+                        hx-vals='{"session_id": "{{ session.id }}"}'
+                        hx-target="#main-content"
+                        hx-swap="innerHTML"
+                        @click="if (isMobile) collapsed = true; updateSidebarHighlight($el)"
+                        data-session-id="{{ session.id }}"
+                        class="session-item flex-1 m-0 pl-5 p-2.5 text-sm rounded-l text-left cursor-pointer {% if session.id == current_session %}bg-accent text-foreground-on-accent font-bold{% else %}bg-surface-elevated text-foreground{% endif %} hover:bg-accent hover:text-foreground-on-accent">
+                    {{ session.title }} <span class="text-foreground-secondary text-xs">({{ session.personality|display_name }})</span>
+                </button>
+                <button hx-post="{% url 'toggle_pin_chat' %}"
+                        hx-vals='{"session_id": "{{ session.id }}"}'
+                        hx-target="#sidebar-sessions"
+                        hx-swap="innerHTML"
+                        class="w-8 p-0 m-0 bg-surface-elevated flex items-center justify-center text-xs cursor-pointer text-yellow-400 hover:text-yellow-300"
+                        title="Unpin chat">
+                    ★
+                </button>
+                <button class="w-8 p-0 m-0 bg-surface-elevated rounded-r flex items-center justify-center text-xs opacity-60 hover:bg-danger hover:opacity-100 cursor-pointer"
+                        onclick="openDeleteModal('{{ session.id }}', '{{ session.title|escapejs }}')"
+                        title="Delete chat">
+                    🗑️
+                </button>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 {% for personality, personality_sessions in grouped_sessions.items %}
     <!-- Using Alpine.js for collapsible groups -->
     <div x-data="{ open: true }">
@@ -18,6 +58,14 @@
                             data-session-id="{{ session.id }}"
                             class="session-item flex-1 m-0 pl-5 p-2.5 text-sm rounded-l text-left cursor-pointer {% if session.id == current_session %}bg-accent text-foreground-on-accent font-bold{% else %}bg-surface-elevated text-foreground{% endif %} hover:bg-accent hover:text-foreground-on-accent">
                         {{ session.title }}
+                    </button>
+                    <button hx-post="{% url 'toggle_pin_chat' %}"
+                            hx-vals='{"session_id": "{{ session.id }}"}'
+                            hx-target="#sidebar-sessions"
+                            hx-swap="innerHTML"
+                            class="w-8 p-0 m-0 bg-surface-elevated flex items-center justify-center text-xs opacity-60 hover:opacity-100 cursor-pointer hover:text-yellow-400"
+                            title="Pin chat">
+                        ☆
                     </button>
                     <button class="w-8 p-0 m-0 bg-surface-elevated rounded-r flex items-center justify-center text-xs opacity-60 hover:bg-danger hover:opacity-100 cursor-pointer"
                             onclick="openDeleteModal('{{ session.id }}', '{{ session.title|escapejs }}')"

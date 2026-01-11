@@ -12,6 +12,7 @@ urlpatterns = [
     path('chat/start/', views.start_chat, name='start_chat'),
     path('chat/switch/', views.switch_session, name='switch_session'),
     path('chat/delete/', views.delete_chat, name='delete_chat'),
+    path('chat/pin/', views.toggle_pin_chat, name='toggle_pin_chat'),
     path('chat/send/', views.send_message, name='send_message'),
     path('memory/', views.memory, name='memory'),
     path('memory/update/', views.update_memory, name='update_memory'),

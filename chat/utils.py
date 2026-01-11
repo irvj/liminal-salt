@@ -38,8 +38,8 @@ def save_config(config_data):
 
 def get_sessions_with_titles():
     """
-    Get list of all sessions with their titles and personalities
-    Returns list of dicts: [{"id": "session_*.json", "title": "...", "personality": "..."}]
+    Get list of all sessions with their titles, personalities, and pinned status
+    Returns list of dicts: [{"id": "session_*.json", "title": "...", "personality": "...", "pinned": bool}]
     """
     sessions_dir = settings.SESSIONS_DIR
     os.makedirs(sessions_dir, exist_ok=True)
@@ -54,9 +54,10 @@ def get_sessions_with_titles():
                 data = json.load(file)
                 title = data.get("title", "New Chat") if isinstance(data, dict) else "Old Session"
                 personality = data.get("personality", "assistant") if isinstance(data, dict) else "assistant"
-                sessions.append({"id": f, "title": title, "personality": personality})
+                pinned = data.get("pinned", False) if isinstance(data, dict) else False
+                sessions.append({"id": f, "title": title, "personality": personality, "pinned": pinned})
         except Exception:
-            sessions.append({"id": f, "title": "Error Loading", "personality": "assistant"})
+            sessions.append({"id": f, "title": "Error Loading", "personality": "assistant", "pinned": False})
 
     return sorted(sessions, key=lambda x: x['id'], reverse=True)
 
@@ -64,17 +65,23 @@ def get_sessions_with_titles():
 def group_sessions_by_personality(sessions):
     """
     Group sessions by personality, maintaining chronological order within groups.
-    Order personalities by most recent thread.
+    Order personalities by most recent thread. Also returns pinned sessions separately.
 
     Args:
         sessions: List of session dicts from get_sessions_with_titles()
 
     Returns:
-        OrderedDict mapping personality -> list of sessions
+        Tuple of (pinned_sessions, ordered_groups)
+        - pinned_sessions: List of pinned sessions (sorted newest-first)
+        - ordered_groups: OrderedDict mapping personality -> list of non-pinned sessions
     """
-    # Group sessions by personality
+    # Separate pinned and unpinned sessions
+    pinned_sessions = [s for s in sessions if s.get("pinned", False)]
+    unpinned_sessions = [s for s in sessions if not s.get("pinned", False)]
+
+    # Group unpinned sessions by personality
     groups = defaultdict(list)
-    for session in sessions:
+    for session in unpinned_sessions:
         groups[session["personality"]].append(session)
 
     # Sort personalities by most recent thread (sessions already sorted newest-first)
@@ -89,7 +96,7 @@ def group_sessions_by_personality(sessions):
     for personality in personality_order:
         ordered_groups[personality] = groups[personality]
 
-    return ordered_groups
+    return pinned_sessions, ordered_groups
 
 
 def get_current_session(request):
