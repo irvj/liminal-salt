@@ -1,6 +1,6 @@
 # Business logic services
 from .chat_core import ChatCore
-from .config_manager import load_config, save_config, fetch_available_models, validate_api_key, get_providers
+from .config_manager import fetch_available_models, validate_api_key, get_providers
 from .context_manager import load_context, get_available_personalities
 from .summarizer import Summarizer
 from .user_context import (

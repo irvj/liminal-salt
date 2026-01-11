@@ -1077,6 +1077,13 @@ def settings(request):
     available_personalities = get_available_personalities(personalities_dir)
     default_personality = config.get("DEFAULT_PERSONALITY", "")
     model = config.get("MODEL", "")
+    provider = config.get("PROVIDER", "openrouter")
+    providers = get_providers()
+
+    # Check if API key exists for current provider
+    has_api_key = False
+    if provider == 'openrouter':
+        has_api_key = bool(config.get("OPENROUTER_API_KEY"))
 
     # Read first personality file preview
     personality_preview = ""
@@ -1095,6 +1102,10 @@ def settings(request):
 
     context = {
         'model': model,
+        'provider': provider,
+        'providers': providers,
+        'providers_json': json.dumps(providers),
+        'has_api_key': has_api_key,
         'personalities': available_personalities,
         'default_personality': default_personality,
         'selected_personality': selected_personality,
@@ -1161,6 +1172,93 @@ def save_settings(request):
             return redirect('settings' + '?success=' + success_msg)
 
     return redirect('settings')
+
+
+def validate_provider_api_key(request):
+    """Validate API key and return models list (JSON endpoint for Settings page)"""
+    from django.http import JsonResponse
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    provider = request.POST.get('provider', 'openrouter')
+    api_key = request.POST.get('api_key', '').strip()
+    use_existing = request.POST.get('use_existing', 'false') == 'true'
+
+    # If using existing key, get it from config
+    if use_existing:
+        config = load_config()
+        if provider == 'openrouter':
+            api_key = config.get('OPENROUTER_API_KEY', '')
+
+    if not api_key:
+        return JsonResponse({'valid': False, 'error': 'API key required'})
+
+    # Validate based on provider
+    if provider == 'openrouter':
+        # Skip validation if using existing (already validated)
+        if not use_existing and not validate_api_key(api_key):
+            return JsonResponse({'valid': False, 'error': 'Invalid API key'})
+
+        # Fetch models for this key
+        models = fetch_available_models(api_key)
+        if not models:
+            return JsonResponse({'valid': False, 'error': 'Could not fetch models'})
+
+        # Format models for frontend
+        grouped = group_models_by_provider(models)
+        model_options = flatten_models_with_provider_prefix(grouped)
+
+        return JsonResponse({
+            'valid': True,
+            'models': [{'id': m[0], 'display': m[1]} for m in model_options]
+        })
+
+    return JsonResponse({'valid': False, 'error': 'Unknown provider'})
+
+
+def save_provider_model(request):
+    """Save provider and model settings (JSON endpoint for Settings page)"""
+    from django.http import JsonResponse
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    provider = request.POST.get('provider', '').strip()
+    api_key = request.POST.get('api_key', '').strip()
+    model = request.POST.get('model', '').strip()
+    keep_existing_key = request.POST.get('keep_existing_key', 'false') == 'true'
+
+    if not provider or not model:
+        return JsonResponse({'success': False, 'error': 'Provider and model required'})
+
+    config = load_config()
+
+    # Safety check: if config is empty but we're keeping existing key, file may be corrupted
+    from django.conf import settings as django_settings
+    if keep_existing_key and not config.get('OPENROUTER_API_KEY'):
+        if os.path.exists(django_settings.CONFIG_FILE):
+            logger.error("Config appears corrupted - load returned empty but file exists")
+            return JsonResponse({'success': False, 'error': 'Configuration file may be corrupted. Please check config.json'})
+
+    # Update provider
+    config['PROVIDER'] = provider
+
+    # Update API key (only if new one provided)
+    if api_key and not keep_existing_key:
+        if provider == 'openrouter':
+            config['OPENROUTER_API_KEY'] = api_key
+
+    # Update model
+    config['MODEL'] = model
+
+    save_config(config)
+
+    return JsonResponse({
+        'success': True,
+        'provider': provider,
+        'model': model
+    })
 
 
 def save_personality_file(request):

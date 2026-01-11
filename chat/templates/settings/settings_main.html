@@ -52,6 +52,129 @@
         </script>
     </div>
 
+    <!-- Provider & Model Section -->
+    <h2 class="text-accent-cyan text-xl mb-4">Provider & Model</h2>
+    <div class="mb-6"
+         x-data="providerModelSettings()"
+         data-provider="{{ provider }}"
+         data-provider-name="{% for p in providers %}{% if p.id == provider %}{{ p.name }}{% endif %}{% endfor %}"
+         data-model="{{ model }}"
+         data-has-existing-key="{{ has_api_key|yesno:'true,false' }}"
+         data-providers='{{ providers_json|safe }}'
+         data-validate-url="{% url 'validate_provider_api_key' %}"
+         data-save-url="{% url 'save_provider_model' %}"
+         data-csrf-token="{{ csrf_token }}">
+        <!-- Status Messages -->
+        <div x-show="statusMessage" x-transition
+             :class="statusType === 'success' ? 'bg-success text-surface' : 'bg-danger text-white'"
+             class="p-3 px-4 rounded mb-4">
+            <span x-text="statusMessage"></span>
+        </div>
+
+        <!-- Provider Picker -->
+        <div class="mb-4">
+            <label class="block mb-2 font-medium">Provider:</label>
+            <div class="relative">
+                <button type="button"
+                        @click.stop="providerOpen = !providerOpen"
+                        class="w-full max-w-md p-3 border rounded text-left flex items-center justify-between cursor-pointer"
+                        :class="selectedProvider ? 'border-accent-cyan bg-surface' : 'border-border bg-surface-secondary'">
+                    <span x-text="selectedProviderName || 'Select a provider...'"></span>
+                    <svg class="w-4 h-4 text-foreground-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+
+                <div x-show="providerOpen"
+                     x-transition:enter="transition ease-out duration-100"
+                     x-transition:leave="transition ease-in duration-75"
+                     @click.away="providerOpen = false"
+                     class="absolute w-full max-w-md mt-1 bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
+                    <template x-for="p in providers" :key="p.id">
+                        <button type="button"
+                                @click="selectProvider(p)"
+                                :class="selectedProvider === p.id ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                                class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
+                            <span x-text="p.name"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Key Field -->
+        <div class="mb-4">
+            <label class="block mb-2 font-medium">API Key:</label>
+            <p class="text-foreground-secondary text-sm mb-2">
+                <template x-if="currentProviderData">
+                    <span>Get your API key from
+                        <a :href="currentProviderData.api_key_url" target="_blank" class="text-accent-cyan hover:underline" x-text="currentProviderData.name"></a>
+                    </span>
+                </template>
+            </p>
+            <div class="flex gap-2 items-center max-w-md">
+                <input type="password"
+                       x-model="apiKey"
+                       @input="onApiKeyChange()"
+                       :placeholder="hasExistingKey && !apiKeyModified ? '••••••••••••••••' : (currentProviderData?.api_key_placeholder || 'Enter API key...')"
+                       class="flex-1 p-3 border border-border rounded bg-surface-secondary text-foreground text-base focus:outline-none focus:border-accent-cyan">
+                <button type="button"
+                        @click="validateApiKey()"
+                        x-show="apiKeyModified && apiKey"
+                        :disabled="validating"
+                        class="px-4 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
+                    <span x-show="!validating">Validate</span>
+                    <span x-show="validating">...</span>
+                </button>
+                <span x-show="apiKeyValid && !apiKeyModified" class="text-success text-xl">✓</span>
+            </div>
+            <p x-show="apiKeyError" class="text-danger text-sm mt-1" x-text="apiKeyError"></p>
+        </div>
+
+        <!-- Model Picker -->
+        <div class="mb-4" x-show="showModelPicker">
+            <label class="block mb-2 font-medium">Model:</label>
+            <div class="relative max-w-md">
+                <input type="text"
+                       x-model="modelSearch"
+                       @focus="modelOpen = true"
+                       @click.stop="modelOpen = true"
+                       @keydown.escape="modelOpen = false"
+                       @keydown.enter.prevent="selectHighlightedModel()"
+                       @keydown.arrow-down.prevent="highlightNextModel()"
+                       @keydown.arrow-up.prevent="highlightPrevModel()"
+                       placeholder="Search models..."
+                       :class="selectedModel ? 'border-accent-cyan bg-surface' : 'border-border bg-surface-secondary'"
+                       class="w-full p-3 border rounded text-foreground text-base focus:outline-none focus:border-accent-cyan">
+
+                <div x-show="modelOpen && filteredModels.length > 0"
+                     x-transition:enter="transition ease-out duration-100"
+                     x-transition:leave="transition ease-in duration-75"
+                     @click.away="modelOpen = false"
+                     class="absolute w-full mt-1 max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
+                    <template x-for="(m, index) in filteredModels" :key="m.id">
+                        <button type="button"
+                                @click="selectModel(m)"
+                                @mouseenter="modelHighlightedIndex = index"
+                                :class="index === modelHighlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                                class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
+                            <span x-text="m.display"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- Save Button -->
+        <button type="button"
+                @click="saveProviderModel()"
+                :disabled="!canSave || saving"
+                class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover disabled:bg-surface-elevated disabled:cursor-not-allowed">
+            <span x-show="!saving">Save Provider & Model</span>
+            <span x-show="saving">Saving...</span>
+        </button>
+    </div>
+
     <h2 class="text-accent-cyan text-xl mb-4">Chat Personality</h2>
 
     {% if not personalities %}

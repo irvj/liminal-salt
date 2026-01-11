@@ -1,5 +1,3 @@
-import json
-import os
 import requests
 import logging
 
@@ -28,17 +26,6 @@ def get_provider_by_id(provider_id):
         if provider["id"] == provider_id:
             return provider
     return None
-
-def load_config(path="config.json"):
-    if not os.path.exists(path):
-        return {}
-    with open(path, 'r') as f:
-        return json.load(f)
-
-def save_config(config_data, path="config.json"):
-    """Save configuration to JSON file"""
-    with open(path, 'w') as f:
-        json.dump(config_data, f, indent=4)
 
 def validate_api_key(api_key):
     """

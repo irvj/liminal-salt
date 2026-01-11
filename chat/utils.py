@@ -3,9 +3,12 @@ Utility functions for chat app
 """
 import os
 import json
+import logging
 from pathlib import Path
 from collections import defaultdict, OrderedDict
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 def load_config():
@@ -16,15 +19,21 @@ def load_config():
     try:
         with open(config_path, 'r') as f:
             return json.load(f)
-    except Exception:
+    except json.JSONDecodeError as e:
+        logger.error(f"Config file corrupted: {e}")
+        return {}
+    except Exception as e:
+        logger.error(f"Error loading config: {e}")
         return {}
 
 
 def save_config(config_data):
-    """Save configuration to config.json"""
+    """Save configuration to config.json with explicit flush"""
     config_path = settings.CONFIG_FILE
     with open(config_path, 'w') as f:
         json.dump(config_data, f, indent=4)
+        f.flush()
+        os.fsync(f.fileno())
 
 
 def get_sessions_with_titles():
@@ -223,11 +232,18 @@ def flatten_models_with_provider_prefix(grouped_models):
     """
     options = []
     for provider, models in grouped_models.items():
+        # Capitalize provider name for display
+        provider_display = provider.replace('-', ' ').title()
         for model in models:
+            model_name = model['name']
+            # Skip adding provider prefix if model name already starts with it
+            if not model_name.lower().startswith(provider.lower()):
+                model_name = f"{provider_display}: {model_name}"
+
             pricing_str = format_model_pricing(model.get("pricing", {}))
             if pricing_str:
-                display_name = f"{model['name']} - {pricing_str}"
+                display_name = f"{model_name} - {pricing_str}"
             else:
-                display_name = model['name']
+                display_name = model_name
             options.append((model["id"], display_name))
     return options

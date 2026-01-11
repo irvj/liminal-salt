@@ -835,6 +835,236 @@
         }
     }
 
+    // Alpine.js component for Provider & Model settings (used in settings_main.html partial)
+    function providerModelSettings() {
+        return {
+            // Properties with defaults (populated in init from data-* attributes)
+            currentProvider: '',
+            currentModel: '',
+            hasExistingKey: false,
+            providers: [],
+            providerOpen: false,
+            selectedProvider: '',
+            selectedProviderName: '',
+            apiKey: '',
+            apiKeyModified: false,
+            apiKeyValid: false,
+            apiKeyError: '',
+            validating: false,
+            models: [],
+            modelOpen: false,
+            modelSearch: '',
+            selectedModel: '',
+            modelHighlightedIndex: 0,
+            _lastSearch: '',
+            statusMessage: '',
+            statusType: '',
+            saving: false,
+
+            // URLs (populated from data attributes)
+            validateUrl: '',
+            saveUrl: '',
+            csrfToken: '',
+
+            init() {
+                const el = this.$el;
+                this.currentProvider = el.dataset.provider || '';
+                this.currentModel = el.dataset.model || '';
+                this.hasExistingKey = el.dataset.hasExistingKey === 'true';
+                this.selectedProvider = el.dataset.provider || 'openrouter';
+                this.selectedProviderName = el.dataset.providerName || '';
+                this.modelSearch = el.dataset.model || '';
+                this.selectedModel = el.dataset.model || '';
+                this.apiKeyValid = el.dataset.hasExistingKey === 'true';
+                this.validateUrl = el.dataset.validateUrl || '';
+                this.saveUrl = el.dataset.saveUrl || '';
+                this.csrfToken = el.dataset.csrfToken || '';
+
+                // Parse providers from JSON
+                try {
+                    this.providers = JSON.parse(el.dataset.providers || '[]');
+                } catch (e) {
+                    this.providers = [];
+                }
+
+                // Load models if we have an existing key
+                if (this.hasExistingKey) {
+                    this.loadExistingModels();
+                }
+            },
+
+            get currentProviderData() {
+                return this.providers.find(p => p.id === this.selectedProvider);
+            },
+
+            get showModelPicker() {
+                return this.apiKeyValid || this.hasExistingKey;
+            },
+
+            get filteredModels() {
+                // Only reset highlight when search actually changes
+                if (this._lastSearch !== this.modelSearch) {
+                    this._lastSearch = this.modelSearch;
+                    this.modelHighlightedIndex = 0;
+                }
+                if (!this.modelSearch) return this.models.slice(0, 50);
+                const s = this.modelSearch.toLowerCase();
+                return this.models.filter(m =>
+                    m.display.toLowerCase().includes(s) || m.id.toLowerCase().includes(s)
+                ).slice(0, 50);
+            },
+
+            get canSave() {
+                const hasValidKey = this.apiKeyValid || (this.hasExistingKey && !this.apiKeyModified);
+                return hasValidKey && this.selectedModel;
+            },
+
+            selectProvider(provider) {
+                this.selectedProvider = provider.id;
+                this.selectedProviderName = provider.name;
+                this.providerOpen = false;
+                if (provider.id !== this.currentProvider) {
+                    this.apiKey = '';
+                    this.apiKeyModified = true;
+                    this.apiKeyValid = false;
+                    this.models = [];
+                    this.selectedModel = '';
+                    this.modelSearch = '';
+                }
+            },
+
+            onApiKeyChange() {
+                this.apiKeyModified = true;
+                this.apiKeyValid = false;
+                this.apiKeyError = '';
+            },
+
+            async loadExistingModels() {
+                try {
+                    const formData = new FormData();
+                    formData.append('provider', this.selectedProvider);
+                    formData.append('use_existing', 'true');
+
+                    const response = await fetch(this.validateUrl, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': this.csrfToken },
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.valid && data.models) {
+                        this.models = data.models;
+                        // Update modelSearch to show display name of current model
+                        const currentModel = this.models.find(m => m.id === this.selectedModel);
+                        if (currentModel) {
+                            this.modelSearch = currentModel.display;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to load models:', e);
+                    this.statusMessage = 'Failed to load models. Please try again.';
+                    this.statusType = 'error';
+                }
+            },
+
+            async validateApiKey() {
+                this.validating = true;
+                this.apiKeyError = '';
+
+                try {
+                    const formData = new FormData();
+                    formData.append('provider', this.selectedProvider);
+                    formData.append('api_key', this.apiKey);
+
+                    const response = await fetch(this.validateUrl, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': this.csrfToken },
+                        body: formData
+                    });
+                    const data = await response.json();
+
+                    if (data.valid) {
+                        this.apiKeyValid = true;
+                        this.models = data.models || [];
+                        this.selectedModel = '';
+                        this.modelSearch = '';
+                    } else {
+                        this.apiKeyError = data.error || 'Invalid API key';
+                    }
+                } catch (e) {
+                    this.apiKeyError = 'Validation failed. Please try again.';
+                } finally {
+                    this.validating = false;
+                }
+            },
+
+            selectModel(model) {
+                this.selectedModel = model.id;
+                this.modelSearch = model.display;
+                this.modelOpen = false;
+            },
+
+            selectHighlightedModel() {
+                if (this.filteredModels.length > 0) {
+                    this.selectModel(this.filteredModels[this.modelHighlightedIndex]);
+                }
+            },
+
+            highlightNextModel() {
+                if (this.modelHighlightedIndex < this.filteredModels.length - 1) {
+                    this.modelHighlightedIndex++;
+                }
+            },
+
+            highlightPrevModel() {
+                if (this.modelHighlightedIndex > 0) {
+                    this.modelHighlightedIndex--;
+                }
+            },
+
+            async saveProviderModel() {
+                this.saving = true;
+                this.statusMessage = '';
+
+                try {
+                    const formData = new FormData();
+                    formData.append('provider', this.selectedProvider);
+                    formData.append('model', this.selectedModel);
+
+                    if (this.apiKeyModified && this.apiKey) {
+                        formData.append('api_key', this.apiKey);
+                    } else {
+                        formData.append('keep_existing_key', 'true');
+                    }
+
+                    const response = await fetch(this.saveUrl, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': this.csrfToken },
+                        body: formData
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.statusMessage = 'Provider and model updated successfully!';
+                        this.statusType = 'success';
+                        this.currentProvider = data.provider;
+                        this.currentModel = data.model;
+                        this.hasExistingKey = true;
+                        this.apiKeyModified = false;
+                        setTimeout(() => { this.statusMessage = ''; }, 3000);
+                    } else {
+                        this.statusMessage = data.error || 'Failed to save settings';
+                        this.statusType = 'error';
+                    }
+                } catch (e) {
+                    this.statusMessage = 'Failed to save settings. Please try again.';
+                    this.statusType = 'error';
+                } finally {
+                    this.saving = false;
+                }
+            }
+        };
+    }
+
     // Show memory updating indicator (called via HTMX hx-on::before-request)
     function showMemoryUpdating() {
         const status = document.getElementById('memory-status');
