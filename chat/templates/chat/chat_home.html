@@ -14,12 +14,15 @@
             <h1 class="text-4xl text-accent-cyan">Liminal Salt</h1>
             <input type="hidden" name="personality" :value="selected">
 
-            <!-- Personality icon button -->
+            <!-- Personality selector toggle -->
             <button type="button"
                     @click="open = !open"
-                    class="p-2 text-xl text-foreground-secondary hover:text-foreground cursor-pointer"
+                    class="group flex items-center gap-1 p-2 cursor-pointer"
                     title="Select personality">
-                👤
+                <span class="text-xl text-foreground-secondary group-hover:text-foreground">👤</span>
+                <span class="text-sm text-foreground-muted group-hover:text-foreground"
+                      x-text="selected.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())">
+                </span>
             </button>
 
             <!-- Popup menu -->

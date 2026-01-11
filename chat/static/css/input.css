@@ -100,7 +100,7 @@
   /* Text */
   --foreground: #2E3440;        /* nord0 */
   --foreground-secondary: #4C566A; /* nord3 */
-  --foreground-muted: #4C566A;  /* nord3 */
+  --foreground-muted: #8a93a3;  /* lighter gray for subtle text */
   --foreground-on-accent: #ECEFF4;  /* nord6 - light text on accent backgrounds */
 
   /* Accents - darker for light background readability */
