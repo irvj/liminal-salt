@@ -12,14 +12,14 @@
         })();
     </script>
     <link rel="stylesheet" href="{% static 'css/output.css' %}">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body class="font-sans bg-surface text-foreground">
     <div class="max-w-xl mx-auto mt-12 p-5">
         <h1 class="text-accent-cyan text-2xl mb-4">🧂 Welcome to Liminal Salt</h1>
 
-        <h2 class="text-xl text-foreground mb-2">Step 2: Choose Your Model</h2>
-        <p class="text-foreground-secondary text-sm mb-1">Found {{ model_count }} available models</p>
-        <p class="text-foreground-secondary text-sm mb-4">💡 Tip: Use Ctrl+F / Cmd+F to search for a specific model</p>
+        <h2 class="text-xl text-foreground mb-2">Step 2: Choose a Default Model</h2>
+        <p class="text-foreground-secondary text-sm mb-4">Found {{ model_count }} available models</p>
 
         {% if error %}
         <div class="p-3 px-4 rounded mb-4 bg-danger text-white">{{ error }}</div>
@@ -27,48 +27,120 @@
 
         <form method="POST" id="modelForm">
             {% csrf_token %}
-            <div class="mb-5">
-                <label for="model" class="block mb-2 font-medium">Select a model:</label>
-                <select id="model" name="model" required onchange="updateButton()"
-                        class="w-full p-3 border border-border rounded bg-surface-secondary text-foreground text-base focus:outline-none focus:border-accent-cyan">
-                    <option value="">Choose a model...</option>
-                    {% for model_id, display_name in model_options %}
-                    <option value="{{ model_id }}" {% if selected_model == model_id %}selected{% endif %}>
-                        {{ display_name }}
-                    </option>
-                    {% endfor %}
-                </select>
+            <div class="mb-5" x-data="modelPicker()">
+                <label class="block mb-2 font-medium">Select a model:</label>
+                <input type="hidden" name="model" :value="selectedId">
+
+                <div class="relative">
+                    <!-- Search input -->
+                    <input type="text"
+                           x-model="search"
+                           @focus="open = true"
+                           @click.stop="open = true"
+                           @keydown.escape="open = false"
+                           @keydown.enter.prevent="selectHighlighted()"
+                           @keydown.arrow-down.prevent="highlightNext()"
+                           @keydown.arrow-up.prevent="highlightPrev()"
+                           placeholder="Search models..."
+                           :class="selectedId ? 'border-accent-cyan bg-surface' : 'border-border bg-surface-secondary'"
+                           class="w-full p-3 border rounded text-foreground text-base focus:outline-none focus:border-accent-cyan">
+
+                    <!-- Dropdown -->
+                    <div x-show="open && filteredModels.length > 0"
+                         x-transition:enter="transition ease-out duration-100"
+                         x-transition:leave="transition ease-in duration-75"
+                         @click.away="open = false"
+                         class="absolute w-full mt-1 max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
+                        <template x-for="(model, index) in filteredModels" :key="model.id">
+                            <button type="button"
+                                    @click="selectModel(model)"
+                                    @mouseenter="highlightedIndex = index"
+                                    :class="index === highlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                                    class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
+                                <span x-text="model.display"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
             </div>
 
-            <div id="selectedInfo" class="p-3 px-4 rounded mb-4 bg-accent text-white hidden">
-                <strong>Selected:</strong> <span id="selectedModelText"></span>
-            </div>
-
-            <button type="submit" id="submitBtn" disabled
+            <button type="submit" id="submitBtn"
                     class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover disabled:bg-surface-elevated disabled:cursor-not-allowed">
                 Complete Setup
             </button>
         </form>
 
         <script>
-            function updateButton() {
-                const select = document.getElementById('model');
-                const btn = document.getElementById('submitBtn');
-                const info = document.getElementById('selectedInfo');
-                const selectedText = document.getElementById('selectedModelText');
-
-                if (select.value) {
-                    btn.disabled = false;
-                    info.classList.remove('hidden');
-                    selectedText.textContent = select.options[select.selectedIndex].text;
-                } else {
-                    btn.disabled = true;
-                    info.classList.add('hidden');
+            function modelPicker() {
+                return {
+                    open: false,
+                    search: '',
+                    selectedId: '{{ selected_model|default:"" }}',
+                    selectedDisplay: '',
+                    highlightedIndex: 0,
+                    models: [
+                        {% for model_id, display_name in model_options %}
+                        { id: '{{ model_id }}', display: '{{ display_name|escapejs }}' },
+                        {% endfor %}
+                    ],
+                    init() {
+                        // If there's a pre-selected model, set the display and search
+                        if (this.selectedId) {
+                            const found = this.models.find(m => m.id === this.selectedId);
+                            if (found) {
+                                this.selectedDisplay = found.display;
+                                this.search = found.display;
+                            }
+                        }
+                        this.updateButton();
+                    },
+                    get filteredModels() {
+                        this.highlightedIndex = 0;
+                        if (!this.search) return this.models.slice(0, 50);
+                        const s = this.search.toLowerCase();
+                        return this.models.filter(m =>
+                            m.display.toLowerCase().includes(s) || m.id.toLowerCase().includes(s)
+                        ).slice(0, 50);
+                    },
+                    selectModel(model) {
+                        this.selectedId = model.id;
+                        this.selectedDisplay = model.display;
+                        this.search = model.display;
+                        this.open = false;
+                        this.updateButton();
+                    },
+                    selectHighlighted() {
+                        if (this.filteredModels.length > 0) {
+                            this.selectModel(this.filteredModels[this.highlightedIndex]);
+                        }
+                    },
+                    highlightNext() {
+                        if (this.highlightedIndex < this.filteredModels.length - 1) {
+                            this.highlightedIndex++;
+                            this.scrollToHighlighted();
+                        }
+                    },
+                    highlightPrev() {
+                        if (this.highlightedIndex > 0) {
+                            this.highlightedIndex--;
+                            this.scrollToHighlighted();
+                        }
+                    },
+                    scrollToHighlighted() {
+                        this.$nextTick(() => {
+                            const dropdown = this.$el.querySelector('.max-h-64');
+                            const highlighted = dropdown?.children[this.highlightedIndex];
+                            if (highlighted) {
+                                highlighted.scrollIntoView({ block: 'nearest' });
+                            }
+                        });
+                    },
+                    updateButton() {
+                        const btn = document.getElementById('submitBtn');
+                        btn.disabled = !this.selectedId;
+                    }
                 }
             }
-
-            // Check on page load if there's a selected value
-            document.addEventListener('DOMContentLoaded', updateButton);
         </script>
     </div>
 </body>

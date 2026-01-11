@@ -12,29 +12,68 @@
         })();
     </script>
     <link rel="stylesheet" href="{% static 'css/output.css' %}">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body class="font-sans bg-surface text-foreground">
     <div class="max-w-xl mx-auto mt-12 p-5">
         <h1 class="text-accent-cyan text-2xl mb-4">🧂 Welcome to Liminal Salt</h1>
         <p class="text-foreground-secondary mb-6">Let's get you set up! This will only take a minute.</p>
 
-        <h2 class="text-xl text-foreground mb-2">Step 1: OpenRouter API Key</h2>
-        <p class="text-foreground-secondary text-sm mb-4">Get your API key from <a href="https://openrouter.ai/keys" target="_blank" class="text-accent-cyan hover:underline">OpenRouter</a></p>
+        <h2 class="text-xl text-foreground mb-4">Step 1: Connect Your Provider</h2>
 
         {% if error %}
         <div class="p-3 px-4 rounded mb-4 bg-danger text-white">{{ error }}</div>
         {% endif %}
 
-        <form method="POST">
+        <form method="POST" x-data="providerPicker()">
             {% csrf_token %}
+            <input type="hidden" name="provider" :value="selectedId">
+
+            <!-- Provider Selector -->
             <div class="mb-5">
-                <label for="api_key" class="block mb-2 font-medium">Enter your OpenRouter API key:</label>
+                <label class="block mb-2 font-medium">Select Provider:</label>
+                <div class="relative">
+                    <button type="button"
+                            @click.stop="open = !open"
+                            class="w-full p-3 border rounded text-left flex items-center justify-between cursor-pointer"
+                            :class="selectedId ? 'border-accent-cyan bg-surface' : 'border-border bg-surface-secondary'">
+                        <span x-text="selectedName || 'Select a provider...'"></span>
+                        <svg class="w-4 h-4 text-foreground-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+
+                    <!-- Dropdown -->
+                    <div x-show="open"
+                         x-transition:enter="transition ease-out duration-100"
+                         x-transition:leave="transition ease-in duration-75"
+                         @click.away="open = false"
+                         class="absolute w-full mt-1 bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
+                        <template x-for="provider in providers" :key="provider.id">
+                            <button type="button"
+                                    @click="selectProvider(provider)"
+                                    :class="selectedId === provider.id ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                                    class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
+                                <span x-text="provider.name"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API Key Field -->
+            <div class="mb-5">
+                <label for="api_key" class="block mb-2 font-medium">Enter your API key:</label>
+                <p class="text-foreground-secondary text-sm mb-2">
+                    Get your API key from
+                    <a :href="selectedProvider?.api_key_url || '#'" target="_blank" class="text-accent-cyan hover:underline" x-text="selectedName"></a>
+                </p>
                 <input
                     type="password"
                     id="api_key"
                     name="api_key"
                     value="{{ api_key|default:'' }}"
-                    placeholder="sk-or-v1-..."
+                    :placeholder="selectedProvider?.api_key_placeholder || 'Enter API key...'"
                     required
                     autocomplete="off"
                     class="w-full p-3 border border-border rounded bg-surface-secondary text-foreground text-base focus:outline-none focus:border-accent-cyan"
@@ -42,6 +81,37 @@
             </div>
             <button type="submit" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover">Validate & Continue</button>
         </form>
+
+        <script>
+            function providerPicker() {
+                return {
+                    open: false,
+                    selectedId: '{{ selected_provider|default:"openrouter" }}',
+                    selectedName: '',
+                    selectedProvider: null,
+                    providers: [
+                        {% for provider in providers %}
+                        { id: '{{ provider.id }}', name: '{{ provider.name }}', api_key_url: '{{ provider.api_key_url }}', api_key_placeholder: '{{ provider.api_key_placeholder }}' },
+                        {% endfor %}
+                    ],
+                    init() {
+                        // Auto-select first provider if only one, or find selected
+                        if (this.providers.length === 1) {
+                            this.selectProvider(this.providers[0]);
+                        } else if (this.selectedId) {
+                            const found = this.providers.find(p => p.id === this.selectedId);
+                            if (found) this.selectProvider(found);
+                        }
+                    },
+                    selectProvider(provider) {
+                        this.selectedId = provider.id;
+                        this.selectedName = provider.name;
+                        this.selectedProvider = provider;
+                        this.open = false;
+                    }
+                }
+            }
+        </script>
     </div>
 </body>
 </html>

@@ -7,7 +7,7 @@ import shutil
 
 logger = logging.getLogger(__name__)
 
-from .services import fetch_available_models
+from .services import fetch_available_models, validate_api_key, get_providers
 from .utils import (
     load_config, save_config, group_models_by_provider,
     flatten_models_with_provider_prefix, ensure_sessions_dir
@@ -36,49 +36,58 @@ def setup_wizard(request):
 
     step = request.session.get('setup_step', 1)
 
-    # Step 1: API Key
+    # Step 1: Provider & API Key
     if step == 1:
+        providers = get_providers()
+
         if request.method == 'POST':
+            provider = request.POST.get('provider', 'openrouter')
             api_key = request.POST.get('api_key', '').strip()
 
             if not api_key:
                 return render(request, 'setup/step1.html', {
-                    'error': 'Please enter an API key'
+                    'error': 'Please enter an API key',
+                    'providers': providers
                 })
 
-            # Validate API key by fetching models
-            models = fetch_available_models(api_key)
-            logger.info(f"fetch_available_models returned: {len(models) if models else 'None'} models")
+            # Validate API key based on provider
+            if provider == 'openrouter':
+                if not validate_api_key(api_key):
+                    logger.error("API key validation failed")
+                    return render(request, 'setup/step1.html', {
+                        'error': 'Invalid API key. Please check your key and try again.',
+                        'api_key': api_key,
+                        'providers': providers,
+                        'selected_provider': provider
+                    })
 
-            if models and len(models) > 0:
-                # Write partial config.json with API key immediately
-                partial_config = {
-                    "OPENROUTER_API_KEY": api_key,
-                    "MODEL": "",  # To be filled in step 2
-                    "SITE_URL": "https://liminalsalt.app",
-                    "SITE_NAME": "Liminal Salt",
-                    "DEFAULT_PERSONALITY": "assistant",
-                    "PERSONALITIES_DIR": "personalities",
-                    "MAX_HISTORY": 50,
-                    "SESSIONS_DIR": "sessions",
-                    "LTM_FILE": "long_term_memory.md"
-                }
-                save_config(partial_config)
-                logger.info("API key validated and saved to config.json")
+            logger.info(f"API key validated successfully for provider: {provider}")
 
-                # Only store step in session - no API key or models
-                request.session['setup_step'] = 2
-                request.session.modified = True
-                logger.info("Advancing to step 2")
-                return redirect('setup')
-            else:
-                logger.error(f"API key validation failed: models={models}")
-                return render(request, 'setup/step1.html', {
-                    'error': 'Invalid API key or connection error. Please check the server logs for details.',
-                    'api_key': api_key
-                })
+            # Write partial config.json with provider and API key
+            partial_config = {
+                "PROVIDER": provider,
+                "OPENROUTER_API_KEY": api_key if provider == 'openrouter' else "",
+                "MODEL": "",  # To be filled in step 2
+                "SITE_URL": "https://liminalsalt.app",
+                "SITE_NAME": "Liminal Salt",
+                "DEFAULT_PERSONALITY": "assistant",
+                "PERSONALITIES_DIR": "personalities",
+                "MAX_HISTORY": 50,
+                "SESSIONS_DIR": "sessions",
+                "LTM_FILE": "long_term_memory.md"
+            }
+            save_config(partial_config)
+            logger.info(f"Provider ({provider}) and API key saved to config.json")
 
-        return render(request, 'setup/step1.html')
+            # Only store step in session - no API key or models
+            request.session['setup_step'] = 2
+            request.session.modified = True
+            logger.info("Advancing to step 2")
+            return redirect('setup')
+
+        return render(request, 'setup/step1.html', {
+            'providers': providers
+        })
 
     # Step 2: Model Selection
     elif step == 2:

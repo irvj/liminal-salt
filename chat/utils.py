@@ -226,8 +226,8 @@ def flatten_models_with_provider_prefix(grouped_models):
         for model in models:
             pricing_str = format_model_pricing(model.get("pricing", {}))
             if pricing_str:
-                display_name = f"[{provider}] {model['name']} - {pricing_str}"
+                display_name = f"{model['name']} - {pricing_str}"
             else:
-                display_name = f"[{provider}] {model['name']}"
+                display_name = model['name']
             options.append((model["id"], display_name))
     return options

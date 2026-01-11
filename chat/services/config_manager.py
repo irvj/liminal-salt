@@ -5,6 +5,30 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Available API providers
+# Each provider has: id, name, api_key_url, api_key_placeholder
+PROVIDERS = [
+    {
+        "id": "openrouter",
+        "name": "OpenRouter",
+        "api_key_url": "https://openrouter.ai/keys",
+        "api_key_placeholder": "sk-or-v1-..."
+    },
+]
+
+
+def get_providers():
+    """Return list of available providers."""
+    return PROVIDERS
+
+
+def get_provider_by_id(provider_id):
+    """Get a provider by its ID."""
+    for provider in PROVIDERS:
+        if provider["id"] == provider_id:
+            return provider
+    return None
+
 def load_config(path="config.json"):
     if not os.path.exists(path):
         return {}
@@ -15,6 +39,43 @@ def save_config(config_data, path="config.json"):
     """Save configuration to JSON file"""
     with open(path, 'w') as f:
         json.dump(config_data, f, indent=4)
+
+def validate_api_key(api_key):
+    """
+    Validate an OpenRouter API key by checking the auth endpoint.
+
+    Args:
+        api_key: OpenRouter API key to validate
+
+    Returns:
+        True if valid, False otherwise
+    """
+    try:
+        logger.info("Validating API key with OpenRouter...")
+        response = requests.get(
+            "https://openrouter.ai/api/v1/auth/key",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=10
+        )
+        logger.info(f"OpenRouter auth response status: {response.status_code}")
+
+        if response.status_code == 200:
+            data = response.json().get("data", {})
+            logger.info(f"API key valid. Label: {data.get('label', 'N/A')}")
+            return True
+        else:
+            logger.error(f"API key validation failed: {response.status_code}")
+            return False
+    except requests.exceptions.Timeout:
+        logger.error("Timeout while validating API key")
+        return False
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error while validating API key: {str(e)}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error validating API key: {str(e)}")
+        return False
+
 
 def fetch_available_models(api_key):
     """
