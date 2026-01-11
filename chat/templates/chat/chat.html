@@ -54,8 +54,8 @@
                 {% csrf_token %}
                 <input type="hidden" name="session_id" x-bind:value="sessionId">
                 <div class="flex gap-3 justify-end">
-                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium w-auto">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-danger text-foreground rounded font-medium w-auto">Delete</button>
+                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Delete</button>
                 </div>
             </form>
         </div>
