@@ -1,0 +1,77 @@
+{% load markdown_extras %}
+<!-- Header -->
+<header class="bg-surface-secondary px-5 py-4 border-b border-border">
+    <h1 class="text-2xl text-accent-cyan">New Chat</h1>
+</header>
+
+<!-- Centered content -->
+<div class="flex-1 flex flex-col items-center justify-center p-5">
+    <form method="POST"
+          hx-post="{% url 'start_chat' %}"
+          hx-target="#main-content"
+          hx-swap="innerHTML"
+          class="w-full max-w-xl">
+        {% csrf_token %}
+        <input type="hidden" name="timezone" id="timezone-input" value="">
+
+        <!-- Title row with personality picker -->
+        <div class="flex items-center gap-2 mb-6 relative" x-data="{ open: false, selected: '{{ default_personality }}' }">
+            <h1 class="text-4xl text-accent-cyan">Liminal Salt</h1>
+            <input type="hidden" name="personality" :value="selected">
+
+            <!-- Personality icon button -->
+            <button type="button"
+                    @click="open = !open"
+                    class="p-2 text-xl text-foreground-secondary hover:text-foreground cursor-pointer"
+                    title="Select personality">
+                👤
+            </button>
+
+            <!-- Popup menu -->
+            <div x-show="open"
+                 x-transition:enter="transition ease-out duration-100"
+                 x-transition:leave="transition ease-in duration-75"
+                 @click.away="open = false"
+                 class="absolute top-full left-0 mt-2 bg-surface-secondary border border-border rounded-lg shadow-lg overflow-hidden min-w-[150px]">
+                {% for p in personalities %}
+                <button type="button"
+                        @click="selected = '{{ p }}'; open = false"
+                        :class="selected === '{{ p }}' ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                        class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
+                    {{ p|display_name }}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Chat input -->
+        <div class="flex gap-3 items-end">
+            <input type="text"
+                   name="message"
+                   id="message-input"
+                   placeholder="What's on your mind?"
+                   required
+                   autocomplete="off"
+                   autofocus
+                   class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-cyan">
+            <button type="submit" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Send</button>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Set timezone
+    (function() {
+        const tzInput = document.getElementById('timezone-input');
+        if (tzInput) {
+            tzInput.value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        }
+    })();
+</script>
+
+{% if is_htmx %}
+<!-- OOB: Update sidebar sessions -->
+<div id="sidebar-sessions" hx-swap-oob="true">
+{% include "chat/sidebar_sessions.html" %}
+</div>
+{% endif %}

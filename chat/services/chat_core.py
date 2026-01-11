@@ -96,9 +96,11 @@ class ChatCore:
 
         return payload
 
-    def send_message(self, user_input):
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        self.messages.append({"role": "user", "content": user_input, "timestamp": timestamp})
+    def send_message(self, user_input, skip_user_save=False):
+        # Only add user message if not already saved (e.g., by start_chat)
+        if not skip_user_save:
+            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            self.messages.append({"role": "user", "content": user_input, "timestamp": timestamp})
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",

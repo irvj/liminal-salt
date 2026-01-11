@@ -24,6 +24,28 @@
             {% endif %}
         </div>
     {% endfor %}
+
+    {% if pending_message %}
+    <!-- Thinking indicator for new chat -->
+    <div id="thinking-indicator" class="message-container assistant my-4 max-w-[80%] w-fit mr-auto">
+        <div class="message assistant message-tail-assistant bg-assistant-bubble text-foreground p-3 px-4 rounded-lg opacity-70">
+            <span class="typing-indicator flex gap-1 py-1">
+                <span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot"></span>
+                <span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.2s;"></span>
+                <span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.4s;"></span>
+            </span>
+        </div>
+    </div>
+
+    <!-- Auto-trigger LLM request -->
+    <div hx-post="{% url 'send_message' %}"
+         hx-trigger="load"
+         hx-target="#messages"
+         hx-swap="beforeend"
+         hx-vals='{"message": "{{ pending_message|escapejs }}", "skip_user_save": "true"}'
+         hx-on::after-request="removeThinkingIndicator(); animateAssistantResponse();">
+    </div>
+    {% endif %}
 </div>
 
 <!-- Input Area -->

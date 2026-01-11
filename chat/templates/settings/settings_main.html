@@ -61,7 +61,7 @@
     </div>
     {% else %}
 
-    <p class="text-foreground-secondary text-sm mb-4"><strong>Default personality for new chats:</strong> {% if default_personality %}{{ default_personality|display_name }}{% else %}none{% endif %}</p>
+    <p class="text-foreground-secondary text-sm mb-4"><strong>Default personality for new chats:</strong> {{ default_personality|display_name }}</p>
 
     <form hx-post="{% url 'save_settings' %}"
           hx-target="#main-content"
@@ -76,9 +76,6 @@
                     hx-swap="innerHTML"
                     hx-trigger="change"
                     hx-include="this">
-                <option value="" {% if not selected_personality %}selected{% endif %}>
-                    none (always prompt)
-                </option>
                 {% for p in personalities %}
                     <option value="{{ p }}" {% if p == selected_personality %}selected{% endif %}>
                         {{ p|display_name }}

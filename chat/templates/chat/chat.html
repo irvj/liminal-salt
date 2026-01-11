@@ -6,37 +6,6 @@
 {% block body_attrs %} style="display: flex; height: 100vh;"{% endblock %}
 
 {% block body %}
-<!-- New Chat Modal (Alpine.js) -->
-<div x-data="newChatModal()" x-cloak>
-    <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
-         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
-         @click.self="showModal = false">
-        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
-            <h3 class="text-foreground mb-3">New Chat</h3>
-            <p class="text-foreground-secondary mb-5">Choose a personality for this conversation:</p>
-            <form hx-post="{% url 'new_chat' %}" hx-swap="none">
-                {% csrf_token %}
-                <div class="my-4">
-                    <label for="new-chat-personality" class="block mb-2 font-medium text-foreground-secondary">Personality:</label>
-                    <select id="new-chat-personality" name="personality" class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-cyan">
-                        {% for p in available_personalities %}
-                            <option value="{{ p }}" {% if p == default_personality %}selected{% endif %}>
-                                {{ p|display_name }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="flex gap-3 justify-end">
-                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium w-auto">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-success text-surface rounded font-medium w-auto">Create</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
 <!-- Delete Confirmation Modal (Alpine.js + HTMX) -->
 <div x-data="deleteModal()" x-cloak>
     <div x-show="showModal"
@@ -91,7 +60,12 @@
             <h3 class="text-foreground mb-3" x-text="isNew ? 'New Personality' : 'Edit Personality'"></h3>
             <div class="mb-4">
                 <label for="personality-name" class="block mb-2 font-medium text-foreground-secondary">Display Name:</label>
-                <input type="text" id="personality-name" x-model="displayName" class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-cyan" @input="displayName = displayName.replace(/[^a-zA-Z0-9 ]/g, '')">
+                <input type="text" id="personality-name" x-model="displayName"
+                       :disabled="isAssistant"
+                       :class="isAssistant ? 'opacity-50 cursor-not-allowed' : ''"
+                       class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-cyan"
+                       @input="displayName = displayName.replace(/[^a-zA-Z0-9 ]/g, '')">
+                <p x-show="isAssistant" class="text-foreground-secondary text-xs mt-1">The default personality cannot be renamed.</p>
             </div>
             <label class="block mb-2 font-medium text-foreground-secondary">Personality File:</label>
             <textarea x-model="content" class="w-full h-[400px] bg-surface border border-border rounded text-foreground font-mono text-sm p-3 resize-y mb-4 focus:outline-none focus:border-accent-cyan"></textarea>
@@ -252,7 +226,11 @@
 
 <!-- Main Chat Area -->
 <div class="flex-1 flex flex-col" id="main-content">
-    {% include 'chat/chat_main.html' %}
+    {% if show_home %}
+        {% include 'chat/chat_home.html' %}
+    {% else %}
+        {% include 'chat/chat_main.html' %}
+    {% endif %}
 </div>
 {% endblock %}
 
@@ -477,23 +455,6 @@
         }
     }
 
-    // Alpine.js component for new chat modal
-    function newChatModal() {
-        return {
-            showModal: false,
-            init() {
-                window.newChatModalComponent = this;
-            }
-        };
-    }
-
-    // Open new chat modal
-    function openNewChatModal() {
-        if (window.newChatModalComponent) {
-            window.newChatModalComponent.showModal = true;
-        }
-    }
-
     // Alpine.js component for wipe memory modal
     function wipeMemoryModal() {
         return {
@@ -534,6 +495,7 @@
         return {
             showModal: false,
             isNew: false,         // true for new personality, false for edit
+            isAssistant: false,   // true if editing the "assistant" personality (cannot rename)
             personality: '',      // Original folder name (empty for new)
             displayName: '',      // User-editable display name
             content: '',
@@ -550,9 +512,12 @@
                     .replace(/[^a-z0-9_]/g, '');
 
                 const url = this.isNew ? '{% url "create_personality" %}' : '{% url "save_personality_file" %}';
+                // Don't send new_name for assistant personality (cannot be renamed)
                 const body = this.isNew
                     ? `name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`
-                    : `personality=${encodeURIComponent(this.personality)}&new_name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`;
+                    : this.isAssistant
+                        ? `personality=${encodeURIComponent(this.personality)}&content=${encodeURIComponent(this.content)}`
+                        : `personality=${encodeURIComponent(this.personality)}&new_name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`;
 
                 fetch(url, {
                     method: 'POST',
@@ -585,6 +550,7 @@
             const displayName = personality.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
             window.editPersonalityModalComponent.isNew = false;
+            window.editPersonalityModalComponent.isAssistant = (personality === 'assistant');
             window.editPersonalityModalComponent.personality = personality;
             window.editPersonalityModalComponent.displayName = displayName;
             window.editPersonalityModalComponent.content = content;
@@ -596,6 +562,7 @@
     function openNewPersonalityModal() {
         if (window.editPersonalityModalComponent) {
             window.editPersonalityModalComponent.isNew = true;
+            window.editPersonalityModalComponent.isAssistant = false;
             window.editPersonalityModalComponent.personality = '';
             window.editPersonalityModalComponent.displayName = '';
             window.editPersonalityModalComponent.content = '';

@@ -9,6 +9,7 @@ urlpatterns = [
     path('setup/', views.setup_wizard, name='setup'),
     path('chat/', views.chat, name='chat'),
     path('chat/new/', views.new_chat, name='new_chat'),
+    path('chat/start/', views.start_chat, name='start_chat'),
     path('chat/switch/', views.switch_session, name='switch_session'),
     path('chat/delete/', views.delete_chat, name='delete_chat'),
     path('chat/send/', views.send_message, name='send_message'),

@@ -165,15 +165,46 @@ def chat(request):
 
     # Get session_id from Django session storage
     session_id = get_current_session(request)
+    is_htmx = request.headers.get('HX-Request') == 'true'
 
-    # If no current session, load first available or create new
+    # For full page loads (refresh), always show home page
+    # For HTMX requests (session switching), load the session
+    if not is_htmx:
+        # Full page load - show home page
+        sessions = get_sessions_with_titles()
+        available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
+        default_personality = config.get("DEFAULT_PERSONALITY", "")
+        grouped_sessions = group_sessions_by_personality(sessions)
+
+        context = {
+            'personalities': available_personalities,
+            'default_personality': default_personality,
+            'grouped_sessions': grouped_sessions,
+            'current_session': None,
+            'is_htmx': False,
+        }
+        return render(request, 'chat/chat.html', {**context, 'show_home': True})
+
+    # HTMX request - load requested session or first available
     if not session_id:
         sessions = get_sessions_with_titles()
         if sessions:
             session_id = sessions[0]["id"]
+            set_current_session(request, session_id)
         else:
-            session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        set_current_session(request, session_id)
+            # No sessions - show home page partial
+            available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
+            default_personality = config.get("DEFAULT_PERSONALITY", "")
+            grouped_sessions = group_sessions_by_personality([])
+
+            context = {
+                'personalities': available_personalities,
+                'default_personality': default_personality,
+                'grouped_sessions': grouped_sessions,
+                'current_session': None,
+                'is_htmx': True,
+            }
+            return render(request, 'chat/chat_home.html', context)
 
     # Load session data
     session_path = settings.SESSIONS_DIR / session_id
@@ -196,7 +227,7 @@ def chat(request):
 
     # Fallback to default
     if not session_personality:
-        session_personality = config.get("DEFAULT_PERSONALITY", "")
+        session_personality = config.get("DEFAULT_PERSONALITY", "assistant") or "assistant"
 
     # Capture user timezone from POST or session
     user_timezone = request.POST.get('timezone') or request.session.get('user_timezone', 'UTC')
@@ -293,55 +324,113 @@ def switch_session(request):
 
 
 def new_chat(request):
-    """Create new chat (POST)"""
-    from datetime import datetime
+    """Show new chat home page (clears current session)"""
     from .services import get_available_personalities
+    from .utils import set_current_session, get_sessions_with_titles, group_sessions_by_personality
     from django.conf import settings
 
     config = load_config()
     if not config:
         return redirect('setup')
 
-    # Use Django settings for absolute path instead of config's relative path
+    # Clear current session to show home page
+    set_current_session(request, None)
+
+    # Get data for home page
     available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
     default_personality = config.get("DEFAULT_PERSONALITY", "")
+    sessions = get_sessions_with_titles()
+    grouped_sessions = group_sessions_by_personality(sessions)
 
-    if request.method == 'POST':
-        from .utils import set_current_session
-        from django.urls import reverse
+    context = {
+        'personalities': available_personalities,
+        'default_personality': default_personality,
+        'grouped_sessions': grouped_sessions,
+        'current_session': None,
+        'is_htmx': request.headers.get('HX-Request') == 'true',
+    }
 
-        selected_personality = request.POST.get('personality', default_personality)
-        new_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    # For HTMX requests, return just the home partial
+    if request.headers.get('HX-Request'):
+        return render(request, 'chat/chat_home.html', context)
 
-        # Store personality in session for new chat
-        if 'session_personalities' not in request.session:
-            request.session['session_personalities'] = {}
-        request.session['session_personalities'][new_id] = selected_personality
-        request.session.modified = True
+    return render(request, 'chat/chat.html', {**context, 'show_home': True})
 
-        # Set as current session
-        set_current_session(request, new_id)
 
-        # Create initial session file so it appears in sidebar immediately
-        session_path = settings.SESSIONS_DIR / new_id
-        initial_data = {
-            "title": "New Chat",
-            "personality": selected_personality,
-            "messages": []
-        }
-        with open(session_path, 'w') as f:
-            json.dump(initial_data, f)
+def start_chat(request):
+    """Start a new chat - creates session, saves user message, returns chat view with thinking indicator"""
+    from datetime import datetime
+    from .services import load_context, get_available_personalities
+    from .utils import set_current_session, get_sessions_with_titles, group_sessions_by_personality
+    from django.conf import settings
 
-        # For HTMX requests, use HX-Redirect header for full page reload
-        if request.headers.get('HX-Request'):
-            response = HttpResponse()
-            response['HX-Redirect'] = reverse('chat')
-            return response
-
+    if request.method != 'POST':
         return redirect('chat')
 
-    # GET request - redirect to chat (new chat is now a modal)
-    return redirect('chat')
+    config = load_config()
+    if not config:
+        return redirect('setup')
+
+    user_message = request.POST.get('message', '').strip()
+    if not user_message:
+        return redirect('chat')
+
+    # Get personality from form
+    selected_personality = request.POST.get('personality', config.get("DEFAULT_PERSONALITY", "assistant")) or "assistant"
+
+    # Create new session
+    session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    session_path = settings.SESSIONS_DIR / session_id
+
+    # Get user timezone
+    user_timezone = request.POST.get('timezone') or request.session.get('user_timezone', 'UTC')
+    if request.POST.get('timezone'):
+        request.session['user_timezone'] = user_timezone
+
+    # Create timestamp for user message
+    from zoneinfo import ZoneInfo
+    try:
+        tz = ZoneInfo(user_timezone)
+    except:
+        tz = ZoneInfo('UTC')
+    timestamp = datetime.now(tz).isoformat()
+
+    # Create session with user message
+    initial_data = {
+        "title": "New Chat",
+        "personality": selected_personality,
+        "messages": [
+            {"role": "user", "content": user_message, "timestamp": timestamp}
+        ]
+    }
+    with open(session_path, 'w') as f:
+        json.dump(initial_data, f)
+
+    # Set as current session
+    set_current_session(request, session_id)
+
+    # Build context for chat_main.html
+    sessions = get_sessions_with_titles()
+    grouped_sessions = group_sessions_by_personality(sessions)
+    available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
+    default_personality = config.get("DEFAULT_PERSONALITY", "")
+    model = config.get("MODEL", "anthropic/claude-haiku-4.5")
+
+    context = {
+        'session_id': session_id,
+        'title': 'New Chat',
+        'personality': selected_personality,
+        'model': model,
+        'messages': initial_data['messages'],
+        'grouped_sessions': grouped_sessions,
+        'current_session': session_id,
+        'available_personalities': available_personalities,
+        'default_personality': default_personality,
+        'is_htmx': True,
+        'pending_message': user_message,  # Signal to show thinking indicator and auto-trigger LLM
+    }
+
+    return render(request, 'chat/chat_main.html', context)
 
 
 def delete_chat(request):
@@ -458,15 +547,35 @@ def send_message(request):
     if not user_message:
         return HttpResponse(status=400)  # Bad request
 
-    # Get current session from storage
-    session_id = get_current_session(request)
-    if not session_id:
-        return HttpResponse('<div class="message error">No active session</div>')
-
-    # Load config
+    # Load config first (needed for new chat creation)
     config = load_config()
     if not config or not config.get("OPENROUTER_API_KEY"):
         return HttpResponse('<div class="message error">Configuration error: API key not found</div>')
+
+    # Check if this is a new chat from home page
+    is_new_chat = request.POST.get('is_new_chat') == 'true'
+    session_id = get_current_session(request)
+
+    if is_new_chat or not session_id:
+        # Create new session
+        from datetime import datetime
+        from .utils import set_current_session
+
+        selected_personality = request.POST.get('personality', config.get("DEFAULT_PERSONALITY", "assistant")) or "assistant"
+        session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+        # Create initial session file
+        session_path = settings.SESSIONS_DIR / session_id
+        initial_data = {
+            "title": "New Chat",
+            "personality": selected_personality,
+            "messages": []
+        }
+        with open(session_path, 'w') as f:
+            json.dump(initial_data, f)
+
+        # Set as current session
+        set_current_session(request, session_id)
 
     # Load session data (same as chat view)
     session_path = settings.SESSIONS_DIR / session_id
@@ -488,7 +597,7 @@ def send_message(request):
             pass
 
     if not session_personality:
-        session_personality = config.get("DEFAULT_PERSONALITY", "")
+        session_personality = config.get("DEFAULT_PERSONALITY", "assistant") or "assistant"
 
     # Capture user timezone from POST or session
     user_timezone = request.POST.get('timezone') or request.session.get('user_timezone', 'UTC')
@@ -509,8 +618,11 @@ def send_message(request):
         user_timezone=user_timezone
     )
 
+    # Check if we should skip saving user message (already saved by start_chat)
+    skip_user_save = request.POST.get('skip_user_save') == 'true'
+
     # Send message and get response
-    assistant_message = chat_core.send_message(user_message)
+    assistant_message = chat_core.send_message(user_message, skip_user_save=skip_user_save)
 
     # Handle title generation (same logic as chat view)
     summarizer = Summarizer(api_key, model)
@@ -538,6 +650,30 @@ def send_message(request):
 
     # Get assistant timestamp from the last message
     assistant_timestamp = chat_core.messages[-1].get('timestamp', '') if chat_core.messages else ''
+
+    # If this was a new chat, return full chat_main.html (targets #main-content)
+    if is_new_chat:
+        from .utils import get_sessions_with_titles, group_sessions_by_personality
+        from .services import get_available_personalities
+
+        sessions = get_sessions_with_titles()
+        grouped_sessions = group_sessions_by_personality(sessions)
+        available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
+        default_personality = config.get("DEFAULT_PERSONALITY", "")
+
+        context = {
+            'session_id': session_id,
+            'title': chat_core.title,
+            'personality': chat_core.personality,
+            'model': model,
+            'messages': chat_core.messages,
+            'grouped_sessions': grouped_sessions,
+            'current_session': session_id,
+            'available_personalities': available_personalities,
+            'default_personality': default_personality,
+            'is_htmx': True,
+        }
+        return render(request, 'chat/chat_main.html', context)
 
     # Return HTML fragment for HTMX (only assistant message, user already shown)
     response = render(request, 'chat/assistant_fragment.html', {
@@ -970,18 +1106,19 @@ def save_settings(request):
     from django.conf import settings as django_settings
 
     if request.method == 'POST':
-        selected_personality = request.POST.get('personality', '')
+        selected_personality = request.POST.get('personality', '').strip()
         config = load_config()
         success_msg = None
 
-        # Allow empty string for "none" - update if different from current
+        # Personality is required - fall back to "assistant" if empty
+        if not selected_personality:
+            selected_personality = "assistant"
+
+        # Update if different from current
         if selected_personality != config.get("DEFAULT_PERSONALITY", ""):
             config["DEFAULT_PERSONALITY"] = selected_personality
             save_config(config)
-            if selected_personality:
-                success_msg = "Default personality updated"
-            else:
-                success_msg = "Default personality cleared"
+            success_msg = "Default personality updated"
 
         # For HTMX requests, return the partial directly
         if request.headers.get('HX-Request'):
