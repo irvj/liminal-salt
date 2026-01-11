@@ -172,7 +172,7 @@
                             <span class="absolute cursor-pointer inset-0 bg-surface-elevated rounded-full transition-colors peer-checked:bg-accent before:absolute before:content-[''] before:h-[18px] before:w-[18px] before:left-[3px] before:bottom-[3px] before:bg-foreground-secondary before:rounded-full before:transition-transform peer-checked:before:translate-x-5"></span>
                         </label>
                         <span class="flex-1 text-foreground cursor-pointer hover:text-accent-cyan" x-text="file.name" @click="openEditFile(file.name)"></span>
-                        <button class="bg-transparent border-none text-danger cursor-pointer text-lg px-2 py-1 hover:text-warning" @click="deleteFile(file.name)">×</button>
+                        <button class="bg-transparent border-none text-danger cursor-pointer px-1 py-1 hover:text-warning" @click="deleteFile(file.name)">{% include 'icons/x.html' with class='w-5 h-5' %}</button>
                     </div>
                 </template>
                 <p x-show="files.length === 0" class="text-border italic text-center py-5">No context files uploaded.</p>
