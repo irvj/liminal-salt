@@ -84,13 +84,13 @@ class Summarizer:
             title = self._clean_title(title)
 
             # Validation: If title is too long, too short, or contains artifacts, use fallback
-            if not title or len(title) < 3 or len(title) > 60 or self._has_artifacts(title):
-                return user_prompt[:40] + ("..." if len(user_prompt) > 40 else "")
+            if not title or len(title) < 3 or len(title) > 50 or self._has_artifacts(title):
+                return user_prompt[:50] + ("..." if len(user_prompt) > 50 else "")
 
             return title
         except Exception:
             # Fallback #3: On any error, use truncated user prompt
-            return user_prompt[:40] + ("..." if len(user_prompt) > 40 else "")
+            return user_prompt[:50] + ("..." if len(user_prompt) > 50 else "")
 
     def _clean_title(self, title):
         """Remove all known model artifacts and formatting"""

@@ -588,6 +588,50 @@ def toggle_pin_chat(request):
     return render(request, 'chat/sidebar_sessions.html', context)
 
 
+def rename_chat(request):
+    """Rename a chat session (POST) - returns updated sidebar"""
+    from django.conf import settings
+    from .utils import get_sessions_with_titles, group_sessions_by_personality, get_current_session
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    session_id = request.POST.get('session_id')
+    new_title = request.POST.get('new_title', '').strip()[:50]  # 50 char limit
+
+    if not session_id or not new_title:
+        return HttpResponse(status=400)
+
+    session_path = settings.SESSIONS_DIR / session_id
+    if not os.path.exists(session_path):
+        return HttpResponse(status=404)
+
+    # Load, update title, save
+    try:
+        with open(session_path, 'r') as f:
+            data = json.load(f)
+
+        data['title'] = new_title
+
+        with open(session_path, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        return HttpResponse(f"Error: {e}", status=500)
+
+    # Return updated sidebar
+    sessions = get_sessions_with_titles()
+    pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
+    current_session = get_current_session(request)
+
+    context = {
+        'pinned_sessions': pinned_sessions,
+        'grouped_sessions': grouped_sessions,
+        'current_session': current_session,
+    }
+
+    return render(request, 'chat/sidebar_sessions.html', context)
+
+
 def send_message(request):
     """Send message to chat (HTMX endpoint) - returns HTML fragment"""
     from datetime import datetime

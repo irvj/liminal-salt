@@ -29,6 +29,39 @@
     </div>
 </div>
 
+<!-- Rename Chat Modal (Alpine.js + HTMX) -->
+<div x-data="renameModal()" x-cloak>
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
+            <h3 class="text-foreground mb-3">Rename Chat</h3>
+            <input type="text"
+                   x-model="newTitle"
+                   maxlength="50"
+                   @keydown.enter.prevent="$refs.renameForm.requestSubmit()"
+                   class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-sm mb-2 focus:outline-none focus:border-accent-cyan"
+                   placeholder="Enter new title...">
+            <p class="text-foreground-secondary text-xs mb-5">50 character limit</p>
+            <form x-ref="renameForm"
+                  hx-post="{% url 'rename_chat' %}"
+                  hx-target="#sidebar-sessions"
+                  hx-swap="innerHTML"
+                  @htmx:after-request="showModal = false; updateHeaderTitle(newTitle)">
+                {% csrf_token %}
+                <input type="hidden" name="session_id" x-bind:value="sessionId">
+                <input type="hidden" name="new_title" x-bind:value="newTitle">
+                <div class="flex gap-3 justify-end">
+                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Wipe Memory Confirmation Modal (Alpine.js) -->
 <div x-data="wipeMemoryModal()" x-cloak>
     <div x-show="showModal"
@@ -492,6 +525,37 @@
             window.deleteModalComponent.sessionId = sessionId;
             window.deleteModalComponent.sessionTitle = sessionTitle;
             window.deleteModalComponent.showModal = true;
+        }
+    }
+
+    // Alpine.js component for rename modal
+    function renameModal() {
+        return {
+            showModal: false,
+            sessionId: '',
+            newTitle: '',
+            init() {
+                window.renameModalComponent = this;
+            }
+        };
+    }
+
+    // Open rename modal (called from rename buttons)
+    function openRenameModal(sessionId, currentTitle) {
+        if (window.renameModalComponent) {
+            window.renameModalComponent.sessionId = sessionId;
+            // Get current title from header (may have been updated dynamically)
+            const headerTitle = document.getElementById('chat-title');
+            window.renameModalComponent.newTitle = headerTitle ? headerTitle.textContent : currentTitle;
+            window.renameModalComponent.showModal = true;
+        }
+    }
+
+    // Update header title after rename
+    function updateHeaderTitle(newTitle) {
+        const headerTitle = document.getElementById('chat-title');
+        if (headerTitle) {
+            headerTitle.textContent = newTitle;
         }
     }
 
@@ -1123,7 +1187,7 @@
             }
 
             // Update header title
-            const headerTitle = document.querySelector('.header h1');
+            const headerTitle = document.getElementById('chat-title');
             if (headerTitle) {
                 headerTitle.textContent = newTitle;
             }

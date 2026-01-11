@@ -1,7 +1,14 @@
 {% load markdown_extras %}
 <!-- Header -->
 <header class="bg-surface-secondary px-5 py-4 border-b border-border">
-    <h1 class="text-2xl text-accent-cyan">{{ title }}</h1>
+    <div class="flex items-center gap-2">
+        <h1 id="chat-title" class="text-2xl text-accent-cyan">{{ title }}</h1>
+        <button onclick="openRenameModal('{{ session_id }}', '{{ title|escapejs }}')"
+                class="text-foreground-secondary hover:text-foreground cursor-pointer text-sm"
+                title="Rename chat">
+            ✏️
+        </button>
+    </div>
     <div class="text-xs text-foreground-secondary mt-1">
         Personality: {{ personality|display_name }} | Model: {{ model }}
     </div>
