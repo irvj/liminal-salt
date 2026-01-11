@@ -1,4 +1,5 @@
 <button hx-get="{% url 'new_chat' %}"
         hx-target="#main-content"
         hx-swap="innerHTML"
+        @click="if (isMobile) collapsed = true"
         class="w-full p-2.5 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover">+ New Chat</button>

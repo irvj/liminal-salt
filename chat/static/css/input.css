@@ -38,6 +38,8 @@
   --max-width-modal-xl: 700px;
 
   /* Custom z-index */
+  --z-index-sidebar-backdrop: 40;
+  --z-index-sidebar: 50;
   --z-index-modal: 1000;
   --z-index-modal-nested: 1001;
 

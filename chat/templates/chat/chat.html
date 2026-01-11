@@ -175,54 +175,96 @@
     </div>
 </div>
 
-<!-- Sidebar -->
-<aside x-data="{ collapsed: localStorage.getItem('sidebarCollapsed') === 'true' }"
-       x-init="$watch('collapsed', val => localStorage.setItem('sidebarCollapsed', val))"
-       :class="collapsed ? 'w-sidebar-collapsed' : 'w-sidebar'"
-       class="bg-surface-secondary p-5 overflow-y-auto border-r border-border transition-all duration-200">
+<!-- Sidebar wrapper with mobile state (contents = invisible to flex layout) -->
+<div class="contents" x-data="{
+        collapsed: localStorage.getItem('sidebarCollapsed') === 'true',
+        isMobile: window.innerWidth < 1024,
+        init() {
+            // Auto-collapse on smaller screens (< 1024px / lg breakpoint)
+            if (this.isMobile) this.collapsed = true;
 
-    <!-- Header with toggle -->
-    <div class="flex items-center mb-4" :class="collapsed ? 'justify-center' : 'justify-between'">
-        <h2 x-show="!collapsed" class="text-accent-cyan text-xl">🧂 Liminal Salt</h2>
-        <button @click="collapsed = !collapsed"
-                class="text-foreground-secondary hover:text-foreground cursor-pointer text-xl"
-                :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'">
-            <span x-show="collapsed">☰</span>
-            <span x-show="!collapsed">«</span>
-        </button>
+            // Listen for resize
+            window.addEventListener('resize', () => {
+                const wasMobile = this.isMobile;
+                this.isMobile = window.innerWidth < 1024;
+                // Auto-collapse when entering mobile
+                if (this.isMobile && !wasMobile) this.collapsed = true;
+                // Restore localStorage state when returning to desktop
+                if (!this.isMobile && wasMobile) {
+                    this.collapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+                }
+            });
+
+            // Persist collapsed state (desktop only)
+            this.$watch('collapsed', val => {
+                if (!this.isMobile) localStorage.setItem('sidebarCollapsed', val);
+            });
+        }
+     }">
+
+    <!-- Mobile backdrop -->
+    <div x-show="isMobile && !collapsed"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @click="collapsed = true"
+         class="fixed inset-0 bg-black/50 z-sidebar-backdrop">
     </div>
 
-    <!-- Sidebar content (hidden when collapsed) -->
-    <div x-show="!collapsed" x-transition>
-        <div id="new-chat-button">
-        {% include "chat/new_chat_button.html" %}
+    <!-- Sidebar -->
+    <aside :class="{
+               'w-sidebar-collapsed': collapsed,
+               'w-sidebar': !collapsed,
+               'fixed inset-y-0 left-0 z-sidebar': isMobile && !collapsed
+           }"
+           class="h-full bg-surface-secondary p-5 overflow-y-auto border-r border-border transition-all duration-200">
+
+        <!-- Header with toggle -->
+        <div class="flex items-center mb-4" :class="collapsed ? 'justify-center' : 'justify-between'">
+            <h2 x-show="!collapsed" class="text-accent-cyan text-xl">🧂 Liminal Salt</h2>
+            <button @click="collapsed = !collapsed"
+                    class="text-foreground-secondary hover:text-foreground cursor-pointer text-xl"
+                    :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'">
+                <span x-show="collapsed">☰</span>
+                <span x-show="!collapsed">«</span>
+            </button>
         </div>
 
-        <div class="h-px bg-border my-3"></div>
+        <!-- Sidebar content (hidden when collapsed) -->
+        <div x-show="!collapsed" x-transition>
+            <div id="new-chat-button">
+            {% include "chat/new_chat_button.html" %}
+            </div>
 
-        <!-- Sessions grouped by personality -->
-        <div id="sidebar-sessions">
-        {% include "chat/sidebar_sessions.html" %}
+            <div class="h-px bg-border my-3"></div>
+
+            <!-- Sessions grouped by personality -->
+            <div id="sidebar-sessions">
+            {% include "chat/sidebar_sessions.html" %}
+            </div>
+
+            <div class="h-px bg-border my-3"></div>
+
+            <button hx-get="{% url 'memory' %}"
+                    hx-target="#main-content"
+                    hx-swap="innerHTML"
+                    @click="if (isMobile) collapsed = true; updateSidebarHighlight($el)"
+                    class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
+                User Memory
+            </button>
+            <button hx-get="{% url 'settings' %}"
+                    hx-target="#main-content"
+                    hx-swap="innerHTML"
+                    @click="if (isMobile) collapsed = true; updateSidebarHighlight($el)"
+                    class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
+                Settings
+            </button>
         </div>
-
-        <div class="h-px bg-border my-3"></div>
-
-        <button hx-get="{% url 'memory' %}"
-                hx-target="#main-content"
-                hx-swap="innerHTML"
-                onclick="updateSidebarHighlight(this)"
-                class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
-            User Memory
-        </button>
-        <button hx-get="{% url 'settings' %}"
-                hx-target="#main-content"
-                hx-swap="innerHTML"
-                onclick="updateSidebarHighlight(this)"
-                class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
-            Settings
-        </button>
-    </div>
-</aside>
+    </aside>
+</div>
 
 <!-- Main Chat Area -->
 <div class="flex-1 flex flex-col" id="main-content">
