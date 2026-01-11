@@ -5,113 +5,70 @@
           hx-post="{% url 'start_chat' %}"
           hx-target="#main-content"
           hx-swap="innerHTML"
-          class="w-full max-w-xl">
+          class="w-full max-w-xl"
+          x-data="{
+              open: false,
+              selected: '{{ default_personality }}',
+              selectedDisplay: '',
+              highlightedIndex: 0,
+              personalities: [{% for p in personalities %}{ id: '{{ p }}', display: '{{ p|display_name|escapejs }}' }{% if not forloop.last %}, {% endif %}{% endfor %}],
+              get filteredPersonalities() {
+                  return this.personalities;
+              },
+              selectPersonality(p) {
+                  this.selected = p.id;
+                  this.selectedDisplay = p.display;
+                  this.open = false;
+              },
+              selectHighlighted() {
+                  if (this.filteredPersonalities.length > 0) {
+                      this.selectPersonality(this.filteredPersonalities[this.highlightedIndex]);
+                  }
+              },
+              highlightNext() {
+                  if (this.highlightedIndex < this.filteredPersonalities.length - 1) {
+                      this.highlightedIndex++;
+                      this.scrollToHighlighted();
+                  }
+              },
+              highlightPrev() {
+                  if (this.highlightedIndex > 0) {
+                      this.highlightedIndex--;
+                      this.scrollToHighlighted();
+                  }
+              },
+              scrollToHighlighted() {
+                  this.$nextTick(() => {
+                      const dropdown = this.$root.querySelector('.max-h-64');
+                      const buttons = dropdown?.querySelectorAll('button');
+                      const highlighted = buttons?.[this.highlightedIndex];
+                      if (dropdown && highlighted) {
+                          const itemTop = highlighted.offsetTop;
+                          const itemBottom = itemTop + highlighted.offsetHeight;
+                          const viewTop = dropdown.scrollTop;
+                          const viewBottom = viewTop + dropdown.clientHeight;
+                          if (itemBottom > viewBottom) {
+                              dropdown.scrollTop = itemBottom - dropdown.clientHeight;
+                          } else if (itemTop < viewTop) {
+                              dropdown.scrollTop = itemTop;
+                          }
+                      }
+                  });
+              },
+              init() {
+                  const found = this.personalities.find(p => p.id === this.selected);
+                  if (found) this.selectedDisplay = found.display;
+              }
+          }">
         {% csrf_token %}
         <input type="hidden" name="timezone" id="timezone-input" value="">
+        <input type="hidden" name="personality" :value="selected">
 
-        <!-- Title row with personality picker -->
-        <div class="flex items-center gap-2 mb-6"
-             x-data="{
-                 open: false,
-                 search: '',
-                 selected: '{{ default_personality }}',
-                 highlightedIndex: 0,
-                 personalities: [{% for p in personalities %}{ id: '{{ p }}', display: '{{ p|display_name|escapejs }}' }{% if not forloop.last %}, {% endif %}{% endfor %}],
-                 get filteredPersonalities() {
-                     // Show all if search matches selected (user hasn't typed anything new)
-                     const found = this.personalities.find(p => p.id === this.selected);
-                     if (found && this.search === found.display) return this.personalities;
-                     if (!this.search) return this.personalities;
-                     const s = this.search.toLowerCase();
-                     return this.personalities.filter(p => p.display.toLowerCase().includes(s) || p.id.toLowerCase().includes(s));
-                 },
-                 selectPersonality(p) {
-                     this.selected = p.id;
-                     this.search = p.display;
-                     this.open = false;
-                 },
-                 selectHighlighted() {
-                     if (this.filteredPersonalities.length > 0) {
-                         this.selectPersonality(this.filteredPersonalities[this.highlightedIndex]);
-                     }
-                 },
-                 highlightNext() {
-                     if (this.highlightedIndex < this.filteredPersonalities.length - 1) {
-                         this.highlightedIndex++;
-                         this.scrollToHighlighted();
-                     }
-                 },
-                 highlightPrev() {
-                     if (this.highlightedIndex > 0) {
-                         this.highlightedIndex--;
-                         this.scrollToHighlighted();
-                     }
-                 },
-                 scrollToHighlighted() {
-                     this.$nextTick(() => {
-                         const dropdown = this.$root.querySelector('.max-h-64');
-                         const buttons = dropdown?.querySelectorAll('button');
-                         const highlighted = buttons?.[this.highlightedIndex];
-                         if (dropdown && highlighted) {
-                             const itemTop = highlighted.offsetTop;
-                             const itemBottom = itemTop + highlighted.offsetHeight;
-                             const viewTop = dropdown.scrollTop;
-                             const viewBottom = viewTop + dropdown.clientHeight;
-                             if (itemBottom > viewBottom) {
-                                 dropdown.scrollTop = itemBottom - dropdown.clientHeight;
-                             } else if (itemTop < viewTop) {
-                                 dropdown.scrollTop = itemTop;
-                             }
-                         }
-                     });
-                 },
-                 init() {
-                     const found = this.personalities.find(p => p.id === this.selected);
-                     if (found) this.search = found.display;
-                 }
-             }">
-            <h1 class="text-4xl text-accent-cyan">Liminal Salt</h1>
-            <input type="hidden" name="personality" :value="selected">
-
-            <!-- Personality picker -->
-            <div class="relative">
-                <div class="flex items-center gap-1">
-                    <span class="text-foreground-secondary">{% include 'icons/user-pen.html' %}</span>
-                    <input type="text"
-                           x-model="search"
-                           @input="highlightedIndex = 0"
-                           @focus="open = true"
-                           @click.stop="open = true"
-                           @keydown.escape="open = false"
-                           @keydown.enter.prevent="selectHighlighted()"
-                           @keydown.arrow-down.prevent="highlightNext()"
-                           @keydown.arrow-up.prevent="highlightPrev()"
-                           placeholder="Select personality..."
-                           class="w-32 p-1 text-sm bg-transparent text-foreground-muted focus:outline-none cursor-pointer">
-                </div>
-
-                <!-- Dropdown -->
-                <div x-cloak
-                     x-show="open && filteredPersonalities.length > 0"
-                     x-transition:enter="transition ease-out duration-100"
-                     x-transition:leave="transition ease-in duration-75"
-                     @click.away="open = false"
-                     class="absolute top-full left-0 mt-1 min-w-[200px] max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
-                    <template x-for="(p, index) in filteredPersonalities" :key="p.id">
-                        <button type="button"
-                                @click="selectPersonality(p)"
-                                @mouseenter="highlightedIndex = index"
-                                :class="index === highlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
-                                class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
-                            <span x-text="p.display"></span>
-                        </button>
-                    </template>
-                </div>
-            </div>
-        </div>
+        <!-- Title -->
+        <h1 class="text-4xl text-accent-cyan mb-6">Liminal Salt</h1>
 
         <!-- Chat input -->
-        <div class="flex gap-3 items-end">
+        <div class="flex gap-3 items-end mb-3">
             <input type="text"
                    name="message"
                    id="message-input"
@@ -121,6 +78,38 @@
                    autofocus
                    class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-cyan">
             <button type="submit" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Send</button>
+        </div>
+
+        <!-- Personality picker -->
+        <div class="relative">
+            <button type="button"
+                    @click="open = !open"
+                    class="flex items-center gap-1 text-foreground-secondary hover:text-foreground text-sm cursor-pointer">
+                {% include 'icons/user-pen.html' with class='w-4 h-4' %}
+                <span x-text="selectedDisplay"></span>
+            </button>
+
+            <!-- Dropdown -->
+            <div x-cloak
+                 x-show="open"
+                 x-transition:enter="transition ease-out duration-100"
+                 x-transition:leave="transition ease-in duration-75"
+                 @click.away="open = false"
+                 @keydown.escape="open = false"
+                 @keydown.arrow-down.prevent="highlightNext()"
+                 @keydown.arrow-up.prevent="highlightPrev()"
+                 @keydown.enter.prevent="selectHighlighted()"
+                 class="absolute bottom-full left-0 mb-1 min-w-[200px] max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
+                <template x-for="(p, index) in filteredPersonalities" :key="p.id">
+                    <button type="button"
+                            @click="selectPersonality(p)"
+                            @mouseenter="highlightedIndex = index"
+                            :class="index === highlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                            class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
+                        <span x-text="p.display"></span>
+                    </button>
+                </template>
+            </div>
         </div>
     </form>
 </div>
