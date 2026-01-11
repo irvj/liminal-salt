@@ -68,20 +68,39 @@
           hx-swap="innerHTML">
         {% csrf_token %}
         <div class="mb-4">
-            <label for="personality" class="block mb-2 font-medium">Select a personality:</label>
-            <select id="personality" name="personality"
-                    class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-cyan"
-                    hx-get="{% url 'settings' %}"
-                    hx-target="#main-content"
-                    hx-swap="innerHTML"
-                    hx-trigger="change"
-                    hx-include="this">
-                {% for p in personalities %}
-                    <option value="{{ p }}" {% if p == selected_personality %}selected{% endif %}>
+            <label class="block mb-2 font-medium">Select a personality:</label>
+            <div class="relative" x-data="{ open: false, selected: '{{ selected_personality }}' }">
+                <input type="hidden" name="personality" :value="selected">
+
+                <!-- Trigger button -->
+                <button type="button"
+                        @click="open = !open"
+                        class="flex items-center gap-2 px-4 py-2.5 border border-border rounded bg-surface text-foreground cursor-pointer hover:border-accent-cyan">
+                    <span x-text="selected.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())"></span>
+                    <svg class="w-4 h-4 text-foreground-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+
+                <!-- Popup menu -->
+                <div x-show="open"
+                     x-transition:enter="transition ease-out duration-100"
+                     x-transition:leave="transition ease-in duration-75"
+                     @click.away="open = false"
+                     class="absolute top-full left-0 mt-2 bg-surface-secondary border border-border rounded-lg shadow-lg overflow-hidden min-w-[200px] z-10">
+                    {% for p in personalities %}
+                    <button type="button"
+                            @click="selected = '{{ p }}'; open = false"
+                            hx-get="{% url 'settings' %}?preview={{ p }}"
+                            hx-target="#main-content"
+                            hx-swap="innerHTML"
+                            :class="selected === '{{ p }}' ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                            class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
                         {{ p|display_name }}
-                    </option>
-                {% endfor %}
-            </select>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
         </div>
 
         <div class="flex gap-3 flex-wrap">
