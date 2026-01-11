@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.5] - 2026-01-11
+
+### Changes
+- standardize browser title
+- fix edit personality data issue
+- update styling for personality picker
+- settings page style fixes
+- fix model picker dropdowns for arrow navigation
+- add provider and model picker in settings
+
 ## [0.2.4] - 2026-01-11
 
 ### Changes
