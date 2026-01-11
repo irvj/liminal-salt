@@ -345,7 +345,7 @@
         textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
     }
 
-    // Animate assistant response with staggered fade-in
+    // Animate assistant response with typewriter effect
     function animateAssistantResponse() {
         const messagesDiv = document.getElementById('messages');
         if (!messagesDiv) return;
@@ -355,30 +355,69 @@
         const lastMessage = assistantMessages[assistantMessages.length - 1];
         if (!lastMessage) return;
 
-        // Get all block-level children
-        const blocks = lastMessage.querySelectorAll('p, ul, ol, pre, h1, h2, h3, h4, h5, h6, blockquote, table, hr');
+        // Apply typewriter to the entire message
+        typewriterReveal(lastMessage);
+    }
 
-        // If no blocks found, treat the whole content as one block
-        if (blocks.length === 0) {
-            lastMessage.classList.add('fade-in-chunk');
-            requestAnimationFrame(() => {
-                lastMessage.classList.add('visible');
-            });
-            return;
+    // Typewriter effect - reveal text word by word
+    function typewriterReveal(element) {
+        // Get all text nodes, but skip code blocks
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
+            acceptNode: function(node) {
+                // Skip text inside PRE or CODE elements
+                let parent = node.parentNode;
+                while (parent && parent !== element) {
+                    if (parent.tagName === 'PRE' || parent.tagName === 'CODE') {
+                        return NodeFilter.FILTER_REJECT;
+                    }
+                    parent = parent.parentNode;
+                }
+                return node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+            }
+        }, false);
+
+        const textNodes = [];
+        let node;
+        while (node = walker.nextNode()) {
+            textNodes.push(node);
         }
 
-        // Add fade-in class to each block
-        blocks.forEach(block => {
-            block.classList.add('fade-in-chunk');
+        // Wrap each word in a span
+        const allWords = [];
+        textNodes.forEach(textNode => {
+            const words = textNode.textContent.split(/(\s+)/);
+            const fragment = document.createDocumentFragment();
+
+            words.forEach(word => {
+                if (word.trim()) {
+                    const span = document.createElement('span');
+                    span.className = 'typewriter-word';
+                    span.textContent = word;
+                    fragment.appendChild(span);
+                    allWords.push(span);
+                } else if (word) {
+                    fragment.appendChild(document.createTextNode(word));
+                }
+            });
+
+            textNode.parentNode.replaceChild(fragment, textNode);
         });
 
-        // Stagger the visibility with 300ms delay
-        blocks.forEach((block, index) => {
+        // Reveal words progressively with auto-scroll
+        allWords.forEach((wordSpan, index) => {
             setTimeout(() => {
-                block.classList.add('visible');
-                scrollToBottom();
-            }, index * 900);
+                wordSpan.classList.add('shown');
+                // Scroll every 10 words to keep up
+                if (index % 10 === 0) {
+                    scrollToBottom();
+                }
+            }, index * 50);
         });
+
+        // Final scroll after all words revealed
+        if (allWords.length > 0) {
+            setTimeout(() => scrollToBottom(), allWords.length * 50 + 100);
+        }
     }
 
     // Update sidebar highlight when switching sessions

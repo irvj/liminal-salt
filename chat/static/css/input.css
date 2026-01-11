@@ -145,6 +145,16 @@
   }
 }
 
+/* Typewriter word reveal */
+.typewriter-word {
+  opacity: 0;
+  transition: opacity 0.1s ease-in;
+}
+
+.typewriter-word.shown {
+  opacity: 1;
+}
+
 /* Alpine.js cloak */
 [x-cloak] {
   display: none !important;
