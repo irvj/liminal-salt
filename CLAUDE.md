@@ -1,6 +1,6 @@
 # CLAUDE.md - Project Overview & Developer Guide
 
-**Last Updated:** January 10, 2026
+**Last Updated:** January 11, 2026
 **Project:** Liminal Salt - Multi-Session LLM Chatbot with Personalities
 **Status:** Production-ready Django application
 
@@ -28,10 +28,12 @@
 - **Personality System**: Per-session personality selection with customizable personalities
 - **Long-Term Memory**: Automatic user profile building across all conversations
 - **Grouped Sidebar**: Collapsible personality-based organization of chat threads
+- **Pinned Chats**: Pin important conversations to the top of the sidebar
 - **Smart Titles**: Multi-tier auto-generation of session titles with artifact detection
 - **User Memory View**: Dedicated pane for viewing and managing long-term memory
 - **Settings Management**: Configure default personality for new chats
-- **Nord Theme**: Custom dark theme for the interface
+- **Theme Toggle**: Switch between dark and light modes (Nord color scheme)
+- **SVG Icon System**: Consistent, theme-aware icons throughout the UI
 - **Reactive UI**: HTMX-powered updates without full page reloads
 
 ### Technology Stack
@@ -181,11 +183,21 @@ liminal-salt/
 │   │
 │   └── templates/               # Django templates
 │       ├── base.html            # Base template with HTMX/Alpine
+│       ├── icons/               # SVG icon components (20 icons)
+│       │   ├── alert.html, brain-cog.html, check.html, check-circle.html
+│       │   ├── chevron-down.html, chevron-right.html, chevrons-left.html
+│       │   ├── circle-plus.html, folder.html, menu.html, moon.html
+│       │   ├── pencil.html, plus.html, settings.html
+│       │   ├── star-filled.html, star-outline.html, sun.html
+│       │   ├── trash.html, user-pen.html, x.html
 │       ├── chat/
-│       │   ├── chat.html        # Main chat page (full)
-│       │   ├── chat_main.html   # Chat content partial
+│       │   ├── chat.html            # Main chat page (full)
+│       │   ├── chat_home.html       # New chat home page
+│       │   ├── chat_main.html       # Chat content partial
+│       │   ├── sidebar_sessions.html # Sidebar session list
+│       │   ├── new_chat_button.html # Reusable new chat button
 │       │   ├── assistant_fragment.html
-│       │   └── new_chat.html
+│       │   └── message_fragment.html
 │       ├── memory/
 │       │   ├── memory.html      # Memory page (full)
 │       │   └── memory_main.html # Memory content partial
@@ -309,19 +321,37 @@ Views check `request.headers.get('HX-Request')` to return either:
 Sessions are organized by personality with collapsible sections:
 
 ```
-▼ Assistant (3)
-  Session Title 1          🗑️
-  Session Title 2          🗑️
-  Session Title 3          🗑️
+★ Pinned (2)
+  Important Chat            ☆ 🗑
+  Another Pinned            ☆ 🗑
 
-▶ Custom (2)
+▼ Assistant (3)
+  Session Title 1           ☆ 🗑
+  Session Title 2           ☆ 🗑
+
+▶ Custom (2)  [collapsed]
 ```
 
 - Click personality header to toggle collapse/expand
-- Arrow indicator (▼ expanded, ▶ collapsed)
-- Count badge shows number of sessions
-- Current session highlighted in bold
-- Delete button with confirmation modal
+- Chevron icons indicate expanded/collapsed state
+- Count badge shows number of sessions per group
+- Current session highlighted with accent color
+- Pin/unpin and delete buttons on each session
+- All icons are SVG-based for theme compatibility
+
+### Pinned Chats
+
+- Star icon to pin/unpin chats
+- Pinned chats appear in a separate "Pinned" section at top
+- Pinned status persists across sessions
+
+### Sidebar Footer
+
+Icon buttons at bottom of sidebar for quick access:
+- **New Chat** (circle-plus icon) - Start a new conversation
+- **Memory** (brain-cog icon) - View/manage long-term memory
+- **Settings** (gear icon) - Configure preferences
+- **Theme Toggle** (sun/moon icon) - Switch dark/light mode
 
 ### HTMX-Powered Reactivity
 
@@ -336,6 +366,7 @@ Sessions are organized by personality with collapsible sections:
 - **Persistence:** Personality saved in session JSON
 - **Isolation:** Each session maintains its own personality
 - **Default:** Configurable default personality for new chats
+- **Protected:** The default "assistant" personality cannot be deleted
 
 ### Long-Term Memory
 
@@ -438,6 +469,42 @@ Key customizations:
 
 3. Restart server (personality appears in dropdown automatically)
 
+### SVG Icon System
+
+Icons are stored as reusable Django template includes in `chat/templates/icons/`.
+
+**Usage:**
+```html
+<!-- Basic usage (inherits parent text color) -->
+{% include 'icons/trash.html' %}
+
+<!-- With custom size -->
+{% include 'icons/trash.html' with class='w-4 h-4' %}
+
+<!-- With custom color via parent -->
+<span class="text-danger">{% include 'icons/trash.html' %}</span>
+```
+
+**Icon template pattern:**
+```html
+<svg class="{{ class|default:'w-5 h-5' }}" viewBox="0 0 24 24" fill="none"
+     stroke="currentColor" stroke-width="2" stroke-linecap="round"
+     stroke-linejoin="round" aria-hidden="true">
+    <!-- SVG paths -->
+</svg>
+```
+
+**Key design decisions:**
+- Icons use `currentColor` to inherit text color from parent element
+- Default size is `w-5 h-5` (20px), overridable via `class` parameter
+- All icons include `aria-hidden="true"` (decorative)
+- No wrapper elements - parent controls styling
+
+**Available icons (20):**
+`alert`, `brain-cog`, `check`, `check-circle`, `chevron-down`, `chevron-right`,
+`chevrons-left`, `circle-plus`, `folder`, `menu`, `moon`, `pencil`, `plus`,
+`settings`, `star-filled`, `star-outline`, `sun`, `trash`, `user-pen`, `x`
+
 ### URL Routes
 
 ```
@@ -486,13 +553,21 @@ Key customizations:
     </div>
 </div>
 
-<!-- Collapsible group -->
+<!-- Collapsible group with icons -->
 <div x-data="{ open: true }">
     <button @click="open = !open">
-        <span x-text="open ? '▼' : '▶'"></span> Title
+        <span x-show="open">{% include 'icons/chevron-down.html' %}</span>
+        <span x-show="!open">{% include 'icons/chevron-right.html' %}</span>
+        Title
     </button>
     <div x-show="open">Content</div>
 </div>
+
+<!-- Theme toggle -->
+<button @click="toggleTheme()">
+    <span x-show="isDark">{% include 'icons/moon.html' %}</span>
+    <span x-show="!isDark">{% include 'icons/sun.html' %}</span>
+</button>
 ```
 
 ### Testing Checklist
@@ -502,17 +577,21 @@ Key customizations:
 - [ ] Send messages and receive responses
 - [ ] Switch between sessions (HTMX)
 - [ ] Delete session with confirmation
+- [ ] Pin/unpin chat sessions
+- [ ] Toggle theme (dark/light)
 
 **Memory & Settings:**
 - [ ] View User Memory in main pane
 - [ ] Update memory, see status indicator
 - [ ] Wipe memory with confirmation
 - [ ] Change default personality in Settings
+- [ ] Verify "assistant" personality cannot be deleted
 
 **Edge Cases:**
 - [ ] First launch (no config.json)
 - [ ] Empty sessions directory
 - [ ] Invalid API key
+- [ ] Icons render correctly in both themes
 
 ---
 
