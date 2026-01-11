@@ -210,6 +210,11 @@
 <div class="contents" x-data="{
         collapsed: localStorage.getItem('sidebarCollapsed') === 'true',
         isMobile: window.innerWidth < 1024,
+        isDark: localStorage.getItem('theme') !== 'light',
+        toggleTheme() {
+            this.isDark = !this.isDark;
+            setTheme(this.isDark ? 'dark' : 'light');
+        },
         init() {
             // Auto-collapse on smaller screens (< 1024px / lg breakpoint)
             if (this.isMobile) this.collapsed = true;
@@ -251,21 +256,23 @@
                'w-sidebar': !collapsed,
                'fixed inset-y-0 left-0 z-sidebar': isMobile && !collapsed
            }"
-           class="h-full bg-surface-secondary p-5 overflow-y-auto border-r border-border transition-all duration-200">
+           class="h-full flex flex-col bg-surface-secondary border-r border-border transition-all duration-200">
 
-        <!-- Header with toggle -->
-        <div class="flex items-center mb-4" :class="collapsed ? 'justify-center' : 'justify-between'">
-            <h2 x-show="!collapsed" class="text-accent-cyan text-xl">🧂 Liminal Salt</h2>
-            <button @click="collapsed = !collapsed"
-                    class="text-foreground-secondary hover:text-foreground cursor-pointer text-xl"
-                    :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'">
-                <span x-show="collapsed">☰</span>
-                <span x-show="!collapsed">«</span>
-            </button>
+        <!-- Header with toggle (always visible) -->
+        <div class="p-5 pb-0">
+            <div class="flex items-center mb-4" :class="collapsed ? 'justify-center' : 'justify-between'">
+                <h2 x-show="!collapsed" class="text-accent-cyan text-xl">🧂 Liminal Salt</h2>
+                <button @click="collapsed = !collapsed"
+                        class="text-foreground-secondary hover:text-foreground cursor-pointer text-xl"
+                        :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'">
+                    <span x-show="collapsed">☰</span>
+                    <span x-show="!collapsed">«</span>
+                </button>
+            </div>
         </div>
 
-        <!-- Sidebar content (hidden when collapsed) -->
-        <div x-show="!collapsed" x-transition>
+        <!-- Scrollable content (hidden when collapsed) -->
+        <div x-show="!collapsed" x-transition class="flex-1 overflow-y-auto px-5">
             <div id="new-chat-button">
             {% include "chat/new_chat_button.html" %}
             </div>
@@ -274,23 +281,37 @@
             <div id="sidebar-sessions">
             {% include "chat/sidebar_sessions.html" %}
             </div>
+        </div>
 
-            <div class="h-px bg-border my-3"></div>
-
-            <button hx-get="{% url 'memory' %}"
-                    hx-target="#main-content"
-                    hx-swap="innerHTML"
-                    @click="if (isMobile) collapsed = true; updateSidebarHighlight($el)"
-                    class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
-                User Memory
-            </button>
-            <button hx-get="{% url 'settings' %}"
-                    hx-target="#main-content"
-                    hx-swap="innerHTML"
-                    @click="if (isMobile) collapsed = true; updateSidebarHighlight($el)"
-                    class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
-                Settings
-            </button>
+        <!-- Footer (always visible) -->
+        <div class="p-3 border-t border-border">
+            <div class="flex justify-center gap-4" :class="collapsed ? 'flex-col items-center' : ''">
+                <!-- Memory -->
+                <button hx-get="{% url 'memory' %}"
+                        hx-target="#main-content"
+                        hx-swap="innerHTML"
+                        @click="if (isMobile) collapsed = true"
+                        class="p-2 text-xl text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+                        title="User Memory">
+                    🧠
+                </button>
+                <!-- Settings -->
+                <button hx-get="{% url 'settings' %}"
+                        hx-target="#main-content"
+                        hx-swap="innerHTML"
+                        @click="if (isMobile) collapsed = true"
+                        class="p-2 text-xl text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+                        title="Settings">
+                    ⚙️
+                </button>
+                <!-- Theme Toggle -->
+                <button @click="toggleTheme()"
+                        class="p-2 text-xl text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+                        :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'">
+                    <span x-show="isDark">🌙</span>
+                    <span x-show="!isDark">☀️</span>
+                </button>
+            </div>
         </div>
     </aside>
 </div>
