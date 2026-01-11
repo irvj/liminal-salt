@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.3] - 2026-01-11
+
+### Changes
+- initial commit of new chat page
+
 ## [0.2.2] - 2026-01-11
 
 ### Changes
