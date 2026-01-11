@@ -268,7 +268,8 @@
                        @keydown.arrow-up.prevent="highlightPrev()"
                        placeholder="Search personalities..."
                        :class="selected ? 'border-accent-cyan bg-surface' : 'border-border bg-surface-secondary'"
-                       class="w-full p-3 border rounded text-foreground text-base focus:outline-none focus:border-accent-cyan">
+                       class="w-full p-3 pr-10 border rounded text-foreground text-base focus:outline-none focus:border-accent-cyan">
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-secondary pointer-events-none">{% include 'icons/chevron-down.html' with class='w-4 h-4' %}</span>
 
                 <!-- Dropdown -->
                 <div x-cloak
