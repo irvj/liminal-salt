@@ -85,7 +85,8 @@
                     </svg>
                 </button>
 
-                <div x-show="providerOpen"
+                <div x-cloak
+                     x-show="providerOpen"
                      x-transition:enter="transition ease-out duration-100"
                      x-transition:leave="transition ease-in duration-75"
                      @click.away="providerOpen = false"
@@ -137,6 +138,7 @@
             <div class="relative max-w-md">
                 <input type="text"
                        x-model="modelSearch"
+                       @input="modelHighlightedIndex = 0"
                        @focus="modelOpen = true"
                        @click.stop="modelOpen = true"
                        @keydown.escape="modelOpen = false"
@@ -147,7 +149,8 @@
                        :class="selectedModel ? 'border-accent-cyan bg-surface' : 'border-border bg-surface-secondary'"
                        class="w-full p-3 border rounded text-foreground text-base focus:outline-none focus:border-accent-cyan">
 
-                <div x-show="modelOpen && filteredModels.length > 0"
+                <div x-cloak
+                     x-show="modelOpen && filteredModels.length > 0"
                      x-transition:enter="transition ease-out duration-100"
                      x-transition:leave="transition ease-in duration-75"
                      @click.away="modelOpen = false"

@@ -856,7 +856,6 @@
             modelSearch: '',
             selectedModel: '',
             modelHighlightedIndex: 0,
-            _lastSearch: '',
             statusMessage: '',
             statusType: '',
             saving: false,
@@ -902,11 +901,6 @@
             },
 
             get filteredModels() {
-                // Only reset highlight when search actually changes
-                if (this._lastSearch !== this.modelSearch) {
-                    this._lastSearch = this.modelSearch;
-                    this.modelHighlightedIndex = 0;
-                }
                 if (!this.modelSearch) return this.models.slice(0, 50);
                 const s = this.modelSearch.toLowerCase();
                 return this.models.filter(m =>
@@ -1012,13 +1006,35 @@
             highlightNextModel() {
                 if (this.modelHighlightedIndex < this.filteredModels.length - 1) {
                     this.modelHighlightedIndex++;
+                    this.scrollToHighlightedModel();
                 }
             },
 
             highlightPrevModel() {
                 if (this.modelHighlightedIndex > 0) {
                     this.modelHighlightedIndex--;
+                    this.scrollToHighlightedModel();
                 }
+            },
+
+            scrollToHighlightedModel() {
+                this.$nextTick(() => {
+                    const dropdown = this.$root.querySelector('.max-h-64');
+                    const buttons = dropdown?.querySelectorAll('button');
+                    const highlighted = buttons?.[this.modelHighlightedIndex];
+                    if (dropdown && highlighted) {
+                        const itemTop = highlighted.offsetTop;
+                        const itemBottom = itemTop + highlighted.offsetHeight;
+                        const viewTop = dropdown.scrollTop;
+                        const viewBottom = viewTop + dropdown.clientHeight;
+
+                        if (itemBottom > viewBottom) {
+                            dropdown.scrollTop = itemBottom - dropdown.clientHeight;
+                        } else if (itemTop < viewTop) {
+                            dropdown.scrollTop = itemTop;
+                        }
+                    }
+                });
             },
 
             async saveProviderModel() {

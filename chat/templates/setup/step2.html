@@ -12,6 +12,7 @@
         })();
     </script>
     <link rel="stylesheet" href="{% static 'css/output.css' %}">
+    <style>[x-cloak] { display: none !important; }</style>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body class="font-sans bg-surface text-foreground">
@@ -35,6 +36,7 @@
                     <!-- Search input -->
                     <input type="text"
                            x-model="search"
+                           @input="highlightedIndex = 0"
                            @focus="open = true"
                            @click.stop="open = true"
                            @keydown.escape="open = false"
@@ -42,11 +44,12 @@
                            @keydown.arrow-down.prevent="highlightNext()"
                            @keydown.arrow-up.prevent="highlightPrev()"
                            placeholder="Search models..."
-                           :class="selectedId ? 'border-accent-cyan bg-surface' : 'border-border bg-surface-secondary'"
-                           class="w-full p-3 border rounded text-foreground text-base focus:outline-none focus:border-accent-cyan">
+                           :class="selectedId ? 'border-accent-cyan bg-surface' : ''"
+                           class="w-full p-3 border border-border rounded bg-surface-secondary text-foreground text-base outline-none focus:outline-none focus:border-accent-cyan">
 
                     <!-- Dropdown -->
-                    <div x-show="open && filteredModels.length > 0"
+                    <div x-cloak
+                         x-show="open && filteredModels.length > 0"
                          x-transition:enter="transition ease-out duration-100"
                          x-transition:leave="transition ease-in duration-75"
                          @click.away="open = false"
@@ -64,7 +67,7 @@
                 </div>
             </div>
 
-            <button type="submit" id="submitBtn"
+            <button type="submit" id="submitBtn" disabled
                     class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover disabled:bg-surface-elevated disabled:cursor-not-allowed">
                 Complete Setup
             </button>
@@ -95,7 +98,6 @@
                         this.updateButton();
                     },
                     get filteredModels() {
-                        this.highlightedIndex = 0;
                         if (!this.search) return this.models.slice(0, 50);
                         const s = this.search.toLowerCase();
                         return this.models.filter(m =>
@@ -128,10 +130,20 @@
                     },
                     scrollToHighlighted() {
                         this.$nextTick(() => {
-                            const dropdown = this.$el.querySelector('.max-h-64');
-                            const highlighted = dropdown?.children[this.highlightedIndex];
-                            if (highlighted) {
-                                highlighted.scrollIntoView({ block: 'nearest' });
+                            const dropdown = this.$root.querySelector('.max-h-64');
+                            const buttons = dropdown?.querySelectorAll('button');
+                            const highlighted = buttons?.[this.highlightedIndex];
+                            if (dropdown && highlighted) {
+                                const itemTop = highlighted.offsetTop;
+                                const itemBottom = itemTop + highlighted.offsetHeight;
+                                const viewTop = dropdown.scrollTop;
+                                const viewBottom = viewTop + dropdown.clientHeight;
+
+                                if (itemBottom > viewBottom) {
+                                    dropdown.scrollTop = itemBottom - dropdown.clientHeight;
+                                } else if (itemTop < viewTop) {
+                                    dropdown.scrollTop = itemTop;
+                                }
                             }
                         });
                     },
