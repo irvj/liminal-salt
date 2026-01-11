@@ -145,7 +145,7 @@
                  @drop.prevent="handleDrop($event)"
                  @click="$refs.fileInput.click()">
                 <div class="pointer-events-none">
-                    <div class="text-5xl mb-3">📁</div>
+                    <div class="mb-3">{% include 'icons/folder.html' with class='w-12 h-12 mx-auto' %}</div>
                     <p class="text-foreground my-2" x-show="!isDragging">Drag & drop files here, or click to browse</p>
                     <p class="text-foreground my-2" x-show="isDragging">Drop files to upload</p>
                     <p class="text-xs text-foreground-secondary">Accepts .md and .txt files</p>
@@ -261,12 +261,12 @@
         <!-- Header with toggle (always visible) -->
         <div class="p-5 pb-0">
             <div class="flex items-center mb-4" :class="collapsed ? 'justify-center' : 'justify-between'">
-                <h2 x-show="!collapsed" class="text-accent-cyan text-xl">🧂 Liminal Salt</h2>
+                <h2 x-show="!collapsed" class="text-accent-cyan text-xl">Liminal Salt</h2>
                 <button @click="collapsed = !collapsed"
                         class="text-foreground-secondary hover:text-foreground cursor-pointer text-xl"
                         :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'">
-                    <span x-show="collapsed">☰</span>
-                    <span x-show="!collapsed">«</span>
+                    <span x-show="collapsed">{% include 'icons/menu.html' with class='w-6 h-6' %}</span>
+                    <span x-show="!collapsed">{% include 'icons/chevrons-left.html' with class='w-6 h-6' %}</span>
                 </button>
             </div>
         </div>
@@ -291,25 +291,25 @@
                         hx-target="#main-content"
                         hx-swap="innerHTML"
                         @click="if (isMobile) collapsed = true"
-                        class="p-2 text-xl text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+                        class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
                         title="User Memory">
-                    🧠
+                    {% include 'icons/brain-cog.html' with class='w-6 h-6' %}
                 </button>
                 <!-- Settings -->
                 <button hx-get="{% url 'settings' %}"
                         hx-target="#main-content"
                         hx-swap="innerHTML"
                         @click="if (isMobile) collapsed = true"
-                        class="p-2 text-xl text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+                        class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
                         title="Settings">
-                    ⚙️
+                    {% include 'icons/settings.html' with class='w-6 h-6' %}
                 </button>
                 <!-- Theme Toggle -->
                 <button @click="toggleTheme()"
                         class="p-2 text-xl text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
                         :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'">
-                    <span x-show="isDark">🌙</span>
-                    <span x-show="!isDark">☀️</span>
+                    <span x-show="isDark">{% include 'icons/moon.html' with class='w-6 h-6' %}</span>
+                    <span x-show="!isDark">{% include 'icons/sun.html' with class='w-6 h-6' %}</span>
                 </button>
             </div>
         </div>

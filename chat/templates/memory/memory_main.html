@@ -8,7 +8,7 @@
 <!-- Memory Content -->
 <div class="flex-1 overflow-y-auto p-5">
     {% if error %}
-    <div class="p-3 px-4 rounded mb-4 bg-danger text-white">⚠️ {{ error }}</div>
+    <div class="p-3 px-4 rounded mb-4 bg-danger text-white flex items-center gap-2">{% include 'icons/alert.html' with class='w-5 h-5' %} {{ error }}</div>
     {% endif %}
 
     <div class="flex gap-3 my-5">
@@ -28,7 +28,7 @@
     </div>
 
     <div class="text-xs text-foreground-secondary mb-4">
-        {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update|date:'U' }}"></span>{% else %}Never updated from all sessions{% endif %}<span id="memory-status" {% if not just_updated %}style="display: none;"{% endif %}> · {% if just_updated %}✅ {{ success }}{% else %}Updating memory from all sessions<span class="updating-dots"><span class="animate-blink">.</span><span class="animate-blink" style="animation-delay: 0.2s;">.</span><span class="animate-blink" style="animation-delay: 0.4s;">.</span></span>{% endif %}</span>
+        {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update|date:'U' }}"></span>{% else %}Never updated from all sessions{% endif %}<span id="memory-status" {% if not just_updated %}style="display: none;"{% endif %}> · {% if just_updated %}{% include 'icons/check-circle.html' with class='w-4 h-4 inline' %} {{ success }}{% else %}Updating memory from all sessions<span class="updating-dots"><span class="animate-blink">.</span><span class="animate-blink" style="animation-delay: 0.2s;">.</span><span class="animate-blink" style="animation-delay: 0.4s;">.</span></span>{% endif %}</span>
     </div>
     <script>
         (function() {

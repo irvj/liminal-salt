@@ -7,7 +7,7 @@
 <!-- Assistant response -->
 <div class="message assistant">
     {% if assistant_message|slice:":6" == "ERROR:" %}
-        <strong>⚠️ Error:</strong><br>
+        <strong class="flex items-center gap-1">{% include 'icons/alert.html' with class='w-4 h-4' %} Error:</strong><br>
         <pre>{{ assistant_message|slice:"6:" }}</pre>
     {% else %}
         {{ assistant_message|linebreaks }}

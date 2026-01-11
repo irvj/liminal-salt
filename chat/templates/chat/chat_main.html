@@ -4,9 +4,9 @@
     <div class="flex items-center gap-2">
         <h1 id="chat-title" class="text-2xl text-accent-cyan">{{ title }}</h1>
         <button onclick="openRenameModal('{{ session_id }}', '{{ title|escapejs }}')"
-                class="text-foreground-secondary hover:text-foreground cursor-pointer text-sm"
+                class="text-foreground-secondary hover:text-foreground cursor-pointer"
                 title="Rename chat">
-            ✏️
+            {% include 'icons/pencil.html' with class='w-4 h-4' %}
         </button>
     </div>
     <div class="text-xs text-foreground-secondary mt-1">
@@ -20,7 +20,7 @@
         <div class="message-container {{ message.role }} my-4 max-w-[80%] w-fit {% if message.role == 'user' %}ml-auto{% else %}mr-auto{% endif %}">
             <div class="message {{ message.role }} {% if message.role == 'user' %}message-tail-user bg-user-bubble text-foreground-on-accent{% else %}message-tail-assistant bg-assistant-bubble text-foreground{% endif %} p-3 px-4 rounded-lg">
                 {% if message.content|slice:":6" == "ERROR:" %}
-                    <strong>⚠️ Error:</strong><br>
+                    <strong class="flex items-center gap-1">{% include 'icons/alert.html' with class='w-4 h-4' %} Error:</strong><br>
                     <pre class="bg-surface p-2 rounded overflow-x-auto mt-2">{{ message.content|slice:"6:" }}</pre>
                 {% else %}
                     <div class="prose prose-invert">{{ message.content|markdown }}</div>

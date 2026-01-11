@@ -7,9 +7,10 @@
 {% if pinned_sessions %}
 <!-- Pinned Section -->
 <div x-data="{ open: true }">
-    <button @click="open = !open" class="block w-full p-2.5 mt-3 bg-surface-elevated text-accent-cyan font-semibold rounded text-left text-sm cursor-pointer">
-        <span x-text="open ? '▼' : '▶'"></span>
-        <span class="text-yellow-400">★</span> Pinned ({{ pinned_sessions|length }})
+    <button @click="open = !open" class="flex items-center gap-1 w-full p-2.5 mt-3 bg-surface-elevated text-accent-cyan font-semibold rounded text-left text-sm cursor-pointer">
+        <span x-show="open">{% include 'icons/chevron-down.html' with class='w-4 h-4' %}</span>
+        <span x-show="!open">{% include 'icons/chevron-right.html' with class='w-4 h-4' %}</span>
+        {% include 'icons/star-filled.html' with class='w-4 h-4' %} Pinned ({{ pinned_sessions|length }})
     </button>
 
     <div x-show="open">
@@ -28,14 +29,14 @@
                         hx-vals='{"session_id": "{{ session.id }}"}'
                         hx-target="#sidebar-sessions"
                         hx-swap="innerHTML"
-                        class="w-8 p-0 m-0 bg-surface-elevated flex items-center justify-center text-xs cursor-pointer text-yellow-400 hover:text-yellow-300"
+                        class="w-8 p-0 m-0 bg-surface-elevated flex items-center justify-center cursor-pointer hover:opacity-80"
                         title="Unpin chat">
-                    ★
+                    {% include 'icons/star-filled.html' with class='w-4 h-4' %}
                 </button>
-                <button class="w-8 p-0 m-0 bg-surface-elevated rounded-r flex items-center justify-center text-xs opacity-60 hover:bg-danger hover:opacity-100 cursor-pointer"
+                <button class="w-8 p-0 m-0 bg-surface-elevated rounded-r flex items-center justify-center opacity-60 hover:bg-danger hover:opacity-100 cursor-pointer"
                         onclick="openDeleteModal('{{ session.id }}', '{{ session.title|escapejs }}')"
                         title="Delete chat">
-                    🗑️
+                    {% include 'icons/trash.html' with class='w-4 h-4' %}
                 </button>
             </div>
         {% endfor %}
@@ -46,8 +47,9 @@
 {% for personality, personality_sessions in grouped_sessions.items %}
     <!-- Using Alpine.js for collapsible groups -->
     <div x-data="{ open: true }">
-        <button @click="open = !open" class="block w-full p-2.5 mt-3 bg-surface-elevated text-accent-cyan font-semibold rounded text-left text-sm cursor-pointer">
-            <span x-text="open ? '▼' : '▶'"></span>
+        <button @click="open = !open" class="flex items-center gap-1 w-full p-2.5 mt-3 bg-surface-elevated text-accent-cyan font-semibold rounded text-left text-sm cursor-pointer">
+            <span x-show="open">{% include 'icons/chevron-down.html' with class='w-4 h-4' %}</span>
+            <span x-show="!open">{% include 'icons/chevron-right.html' with class='w-4 h-4' %}</span>
             {{ personality|display_name }} ({{ personality_sessions|length }})
         </button>
 
@@ -67,14 +69,14 @@
                             hx-vals='{"session_id": "{{ session.id }}"}'
                             hx-target="#sidebar-sessions"
                             hx-swap="innerHTML"
-                            class="w-8 p-0 m-0 bg-surface-elevated flex items-center justify-center text-xs opacity-60 hover:opacity-100 cursor-pointer hover:text-yellow-400"
+                            class="w-8 p-0 m-0 bg-surface-elevated flex items-center justify-center opacity-60 hover:opacity-100 cursor-pointer"
                             title="Pin chat">
-                        ☆
+                        {% include 'icons/star-outline.html' with class='w-4 h-4' %}
                     </button>
-                    <button class="w-8 p-0 m-0 bg-surface-elevated rounded-r flex items-center justify-center text-xs opacity-60 hover:bg-danger hover:opacity-100 cursor-pointer"
+                    <button class="w-8 p-0 m-0 bg-surface-elevated rounded-r flex items-center justify-center opacity-60 hover:bg-danger hover:opacity-100 cursor-pointer"
                             onclick="openDeleteModal('{{ session.id }}', '{{ session.title|escapejs }}')"
                             title="Delete chat">
-                        🗑️
+                        {% include 'icons/trash.html' with class='w-4 h-4' %}
                     </button>
                 </div>
             {% endfor %}

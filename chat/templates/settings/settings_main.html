@@ -7,7 +7,7 @@
 <!-- Settings Content -->
 <div class="flex-1 overflow-y-auto p-5">
     {% if success %}
-    <div class="p-3 px-4 rounded mb-4 bg-success text-surface">✅ {{ success }}</div>
+    <div class="p-3 px-4 rounded mb-4 bg-success text-surface flex items-center gap-2">{% include 'icons/check-circle.html' with class='w-5 h-5' %} {{ success }}</div>
     {% endif %}
 
     <!-- Theme Section -->
@@ -15,11 +15,11 @@
     <div class="mb-6">
         <p class="text-foreground-secondary text-sm mb-3">Choose your preferred color theme:</p>
         <div class="flex gap-3">
-            <button onclick="setTheme('dark')" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" id="theme-dark-btn">
-                🌙 Dark
+            <button onclick="setTheme('dark')" class="flex items-center gap-2 px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" id="theme-dark-btn">
+                {% include 'icons/moon.html' with class='w-5 h-5' %} Dark
             </button>
-            <button onclick="setTheme('light')" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" id="theme-light-btn">
-                ☀️ Light
+            <button onclick="setTheme('light')" class="flex items-center gap-2 px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" id="theme-light-btn">
+                {% include 'icons/sun.html' with class='w-5 h-5' %} Light
             </button>
         </div>
         <script>
@@ -126,7 +126,7 @@
                     <span x-show="!validating">Validate</span>
                     <span x-show="validating">...</span>
                 </button>
-                <span x-show="apiKeyValid && !apiKeyModified" class="text-success text-xl">✓</span>
+                <span x-show="apiKeyValid && !apiKeyModified" class="text-success">{% include 'icons/check.html' with class='w-6 h-6' %}</span>
             </div>
             <p x-show="apiKeyError" class="text-danger text-sm mt-1" x-text="apiKeyError"></p>
         </div>
