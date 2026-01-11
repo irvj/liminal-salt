@@ -2,7 +2,6 @@
 <!-- Header -->
 <header class="bg-surface-secondary px-5 py-4 border-b border-border">
     <h1 class="text-2xl text-accent-cyan">Settings</h1>
-    <div class="text-xs text-foreground-secondary mt-1">Model: {{ model }}</div>
 </header>
 
 <!-- Settings Content -->
@@ -200,8 +199,9 @@
 
                 <!-- Trigger button -->
                 <button type="button"
-                        @click="open = !open"
-                        class="flex items-center gap-2 px-4 py-2.5 border border-border rounded bg-surface text-foreground cursor-pointer hover:border-accent-cyan">
+                        @click.stop="open = !open"
+                        class="w-full max-w-md p-3 border rounded text-left flex items-center justify-between cursor-pointer"
+                        :class="selected ? 'border-accent-cyan bg-surface' : 'border-border bg-surface-secondary'">
                     <span x-text="selected.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())"></span>
                     <svg class="w-4 h-4 text-foreground-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -209,11 +209,12 @@
                 </button>
 
                 <!-- Popup menu -->
-                <div x-show="open"
+                <div x-cloak
+                     x-show="open"
                      x-transition:enter="transition ease-out duration-100"
                      x-transition:leave="transition ease-in duration-75"
                      @click.away="open = false"
-                     class="absolute top-full left-0 mt-2 bg-surface-secondary border border-border rounded-lg shadow-lg overflow-hidden min-w-[200px] z-10">
+                     class="absolute w-full max-w-md mt-1 bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
                     {% for p in personalities %}
                     <button type="button"
                             @click="selected = '{{ p }}'; open = false"
