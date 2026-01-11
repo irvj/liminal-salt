@@ -29,7 +29,8 @@
   --color-assistant-bubble: var(--assistant-bubble);
 
   /* Custom widths */
-  --width-sidebar: 300px;
+  --width-sidebar: 400px;
+  --width-sidebar-collapsed: 60px;
 
   /* Custom max-widths */
   --max-width-modal: 400px;

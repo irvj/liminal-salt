@@ -202,36 +202,52 @@
 </div>
 
 <!-- Sidebar -->
-<aside class="w-sidebar bg-surface-secondary p-5 overflow-y-auto border-r border-border">
-    <h2 class="text-accent-cyan mb-4 text-xl">🧂 Liminal Salt</h2>
+<aside x-data="{ collapsed: localStorage.getItem('sidebarCollapsed') === 'true' }"
+       x-init="$watch('collapsed', val => localStorage.setItem('sidebarCollapsed', val))"
+       :class="collapsed ? 'w-sidebar-collapsed' : 'w-sidebar'"
+       class="bg-surface-secondary p-5 overflow-y-auto border-r border-border transition-all duration-200">
 
-    <div id="new-chat-button">
-    {% include "chat/new_chat_button.html" %}
+    <!-- Header with toggle -->
+    <div class="flex items-center mb-4" :class="collapsed ? 'justify-center' : 'justify-between'">
+        <h2 x-show="!collapsed" class="text-accent-cyan text-xl">🧂 Liminal Salt</h2>
+        <button @click="collapsed = !collapsed"
+                class="text-foreground-secondary hover:text-foreground cursor-pointer text-xl"
+                :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'">
+            <span x-show="collapsed">☰</span>
+            <span x-show="!collapsed">«</span>
+        </button>
     </div>
 
-    <div class="h-px bg-border my-3"></div>
+    <!-- Sidebar content (hidden when collapsed) -->
+    <div x-show="!collapsed" x-transition>
+        <div id="new-chat-button">
+        {% include "chat/new_chat_button.html" %}
+        </div>
 
-    <!-- Sessions grouped by personality -->
-    <div id="sidebar-sessions">
-    {% include "chat/sidebar_sessions.html" %}
+        <div class="h-px bg-border my-3"></div>
+
+        <!-- Sessions grouped by personality -->
+        <div id="sidebar-sessions">
+        {% include "chat/sidebar_sessions.html" %}
+        </div>
+
+        <div class="h-px bg-border my-3"></div>
+
+        <button hx-get="{% url 'memory' %}"
+                hx-target="#main-content"
+                hx-swap="innerHTML"
+                onclick="updateSidebarHighlight(this)"
+                class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
+            User Memory
+        </button>
+        <button hx-get="{% url 'settings' %}"
+                hx-target="#main-content"
+                hx-swap="innerHTML"
+                onclick="updateSidebarHighlight(this)"
+                class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
+            Settings
+        </button>
     </div>
-
-    <div class="h-px bg-border my-3"></div>
-
-    <button hx-get="{% url 'memory' %}"
-            hx-target="#main-content"
-            hx-swap="innerHTML"
-            onclick="updateSidebarHighlight(this)"
-            class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
-        User Memory
-    </button>
-    <button hx-get="{% url 'settings' %}"
-            hx-target="#main-content"
-            hx-swap="innerHTML"
-            onclick="updateSidebarHighlight(this)"
-            class="session-item block w-full p-2.5 my-1 bg-surface-elevated text-foreground rounded text-left text-sm cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
-        Settings
-    </button>
 </aside>
 
 <!-- Main Chat Area -->
