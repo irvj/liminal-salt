@@ -1,5 +1,9 @@
 {% load markdown_extras %}
 
+{% if pinned_sessions or grouped_sessions %}
+<div class="h-px bg-border my-3"></div>
+{% endif %}
+
 {% if pinned_sessions %}
 <!-- Pinned Section -->
 <div x-data="{ open: true }">
