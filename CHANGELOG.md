@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.6] - 2026-01-11
+
+### Changes
+- move personality picker on new chat page
+- convert all emojis to svgs
+- add sidebar footer, migrate existing buttons
+- fix style and functionality issues when all chat threads deleted
+- add ability to edit chat thread title
+- add pinned session feature
+
 ## [0.2.5] - 2026-01-11
 
 ### Changes
