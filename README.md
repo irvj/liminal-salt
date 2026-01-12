@@ -53,6 +53,8 @@ Open source and easy to extend. Personas are just Markdown files. Themes are JSO
 
 ## Screenshots
 
+![Chat](docs/images/chat.png)
+
 ![User Memory](docs/images/user-memory.png)
 
 ![Persona Settings](docs/images/persona-settings.png)
