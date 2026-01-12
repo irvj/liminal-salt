@@ -1,4 +1,7 @@
 {% load markdown_extras %}
+<!-- Session ID for draft persistence -->
+<div data-session-id-for-draft="{{ session_id }}" class="hidden"></div>
+
 <!-- Header -->
 <header class="bg-surface-secondary px-5 py-4 border-b border-border">
     <div class="flex items-center gap-2">
@@ -88,7 +91,7 @@
             autofocus
             rows="1"
             onkeydown="handleTextareaKeydown(event)"
-            oninput="autoResizeTextarea(this)"
+            oninput="autoResizeTextarea(this); saveDraftDebounced()"
             class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base font-sans resize-none min-h-[24px] max-h-[200px] overflow-y-auto focus:outline-none focus:border-accent-cyan"
         ></textarea>
         <button type="submit" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Send</button>
@@ -103,6 +106,9 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
     })();
+
+    // Restore draft if one exists
+    restoreDraft("{{ draft|escapejs }}");
 </script>
 
 {% if is_htmx %}

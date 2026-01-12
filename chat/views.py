@@ -293,14 +293,16 @@ def chat(request):
     site_url = config.get("SITE_URL")
     site_name = config.get("SITE_NAME")
 
-    # Try to load persona from session file
+    # Try to load persona and draft from session file
     session_persona = None
+    session_draft = ''
     if os.path.exists(session_path):
         try:
             with open(session_path, 'r') as f:
                 data = json.load(f)
                 if isinstance(data, dict):
                     session_persona = data.get("persona")
+                    session_draft = data.get("draft", '')
         except:
             pass
 
@@ -378,6 +380,7 @@ def chat(request):
         'persona': chat_core.persona,
         'model': model,
         'messages': chat_core.messages,
+        'draft': session_draft,
         'sessions': sessions,
         'pinned_sessions': pinned_sessions,
         'grouped_sessions': grouped_sessions,
@@ -750,6 +753,37 @@ def rename_chat(request):
     return render(request, 'chat/sidebar_sessions.html', context)
 
 
+def save_draft(request):
+    """Save draft text for a session (POST) - returns minimal response"""
+    from django.conf import settings
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    session_id = request.POST.get('session_id')
+    draft = request.POST.get('draft', '')
+
+    if not session_id:
+        return HttpResponse(status=400)
+
+    session_path = settings.SESSIONS_DIR / session_id
+    if not os.path.exists(session_path):
+        return HttpResponse(status=404)
+
+    try:
+        with open(session_path, 'r') as f:
+            data = json.load(f)
+
+        data['draft'] = draft
+
+        with open(session_path, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        return HttpResponse(f"Error: {e}", status=500)
+
+    return HttpResponse(status=204)  # No content
+
+
 def send_message(request):
     """Send message to chat (HTMX endpoint) - returns HTML fragment"""
     from datetime import datetime
@@ -848,6 +882,17 @@ def send_message(request):
 
     # Send message and get response
     assistant_message = chat_core.send_message(user_message, skip_user_save=skip_user_save)
+
+    # Clear draft after successful send
+    try:
+        with open(session_path, 'r') as f:
+            data = json.load(f)
+        if 'draft' in data:
+            data['draft'] = ''
+            with open(session_path, 'w') as f:
+                json.dump(data, f, indent=2)
+    except:
+        pass  # Ignore errors clearing draft
 
     # Handle title generation (same logic as chat view)
     summarizer = Summarizer(api_key, model, site_url, site_name)

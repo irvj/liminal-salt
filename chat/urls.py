@@ -14,6 +14,7 @@ urlpatterns = [
     path('chat/delete/', views.delete_chat, name='delete_chat'),
     path('chat/pin/', views.toggle_pin_chat, name='toggle_pin_chat'),
     path('chat/rename/', views.rename_chat, name='rename_chat'),
+    path('chat/save-draft/', views.save_draft, name='save_draft'),
     path('chat/send/', views.send_message, name='send_message'),
     path('memory/', views.memory, name='memory'),
     path('memory/update/', views.update_memory, name='update_memory'),

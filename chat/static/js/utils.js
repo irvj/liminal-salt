@@ -701,3 +701,68 @@ function handleMessageError(event) {
     messagesDiv.appendChild(errorDiv);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
+
+// =============================================================================
+// Draft Persistence
+// =============================================================================
+
+// Debounce timer for draft saving
+let draftSaveTimer = null;
+
+/**
+ * Save draft to server (debounced).
+ * Call this on textarea input events.
+ */
+function saveDraftDebounced() {
+    // Clear any pending save
+    if (draftSaveTimer) {
+        clearTimeout(draftSaveTimer);
+    }
+
+    // Debounce: wait 500ms after last keystroke
+    draftSaveTimer = setTimeout(() => {
+        saveDraftNow();
+    }, 500);
+}
+
+/**
+ * Save draft immediately (no debounce).
+ * Call this before session switches.
+ */
+function saveDraftNow() {
+    const input = document.getElementById('message-input');
+    const sessionIdEl = document.querySelector('[data-session-id-for-draft]');
+
+    if (!input || !sessionIdEl) return;
+
+    const sessionId = sessionIdEl.dataset.sessionIdForDraft;
+    const draft = input.value || '';
+
+    // Don't save empty drafts if there was nothing before
+    // (but do save empty to clear a previous draft)
+
+    fetch('/chat/save-draft/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: `session_id=${encodeURIComponent(sessionId)}&draft=${encodeURIComponent(draft)}`
+    }).catch(() => {
+        // Silently ignore errors
+    });
+}
+
+/**
+ * Restore draft to textarea on page load.
+ * @param {string} draft - The draft text to restore
+ */
+function restoreDraft(draft) {
+    if (!draft) return;
+
+    const input = document.getElementById('message-input');
+    if (input) {
+        input.value = draft;
+        autoResizeTextarea(input);
+    }
+}
