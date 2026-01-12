@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3] - 2026-01-12
+
+### Changes
+- update readme
+- update claude file with new liminal salt default
+- add liminal salt theme, make it default, various theme style tweaks
+
 ## [0.5.2] - 2026-01-12
 
 ### Changes
