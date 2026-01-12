@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.8] - 2026-01-11
+
+### Changes
+- add custom model setting for personalities
+
 ## [0.2.7] - 2026-01-11
 
 ### Changes
