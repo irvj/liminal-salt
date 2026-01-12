@@ -243,6 +243,8 @@ def chat(request):
     ltm_file = str(settings.LTM_FILE)
     api_key = config.get("OPENROUTER_API_KEY")
     max_history = config.get("MAX_HISTORY", 50)
+    site_url = config.get("SITE_URL")
+    site_name = config.get("SITE_NAME")
 
     # Try to load personality from session file
     session_personality = None
@@ -274,8 +276,8 @@ def chat(request):
     chat_core = ChatCore(
         api_key=api_key,
         model=model,
-        site_url=config.get("SITE_URL"),
-        site_name=config.get("SITE_NAME"),
+        site_url=site_url,
+        site_name=site_name,
         system_prompt=system_prompt,
         max_history=max_history,
         history_file=str(session_path),
@@ -290,7 +292,7 @@ def chat(request):
             response = chat_core.send_message(user_message)
 
             # Handle title generation (3-tier logic)
-            summarizer = Summarizer(api_key, model)
+            summarizer = Summarizer(api_key, model, site_url, site_name)
 
             # Get first user message
             first_user_msg = ""
@@ -519,6 +521,8 @@ def delete_chat(request):
                 ltm_file = str(settings.LTM_FILE)
                 api_key = config.get("OPENROUTER_API_KEY")
                 max_history = config.get("MAX_HISTORY", 50)
+                site_url = config.get("SITE_URL")
+                site_name = config.get("SITE_NAME")
 
                 # Load new session's personality
                 new_session_path = settings.SESSIONS_DIR / new_session_id
@@ -546,8 +550,8 @@ def delete_chat(request):
                 chat_core = ChatCore(
                     api_key=api_key,
                     model=model,
-                    site_url=config.get("SITE_URL"),
-                    site_name=config.get("SITE_NAME"),
+                    site_url=site_url,
+                    site_name=site_name,
                     system_prompt=system_prompt,
                     max_history=max_history,
                     history_file=str(new_session_path),
@@ -749,6 +753,8 @@ def send_message(request):
     ltm_file = str(settings.LTM_FILE)
     api_key = config.get("OPENROUTER_API_KEY")
     max_history = config.get("MAX_HISTORY", 50)
+    site_url = config.get("SITE_URL")
+    site_name = config.get("SITE_NAME")
 
     # Load personality from session file
     session_personality = None
@@ -779,8 +785,8 @@ def send_message(request):
     chat_core = ChatCore(
         api_key=api_key,
         model=model,
-        site_url=config.get("SITE_URL"),
-        site_name=config.get("SITE_NAME"),
+        site_url=site_url,
+        site_name=site_name,
         system_prompt=system_prompt,
         max_history=max_history,
         history_file=str(session_path),
@@ -795,7 +801,7 @@ def send_message(request):
     assistant_message = chat_core.send_message(user_message, skip_user_save=skip_user_save)
 
     # Handle title generation (same logic as chat view)
-    summarizer = Summarizer(api_key, model)
+    summarizer = Summarizer(api_key, model, site_url, site_name)
     first_user_msg = ""
     for msg in chat_core.messages:
         if msg["role"] == "user":
@@ -917,6 +923,8 @@ def update_memory(request):
         ltm_file = settings.LTM_FILE
         api_key = config.get("OPENROUTER_API_KEY")
         model = config.get("MODEL")
+        site_url = config.get("SITE_URL")
+        site_name = config.get("SITE_NAME")
 
         success_msg = None
         error_msg = None
@@ -929,7 +937,7 @@ def update_memory(request):
                 error_msg = "No messages found in any session"
             else:
                 # Update memory
-                summarizer = Summarizer(api_key, model)
+                summarizer = Summarizer(api_key, model, site_url, site_name)
                 summarizer.update_long_term_memory(all_messages, str(ltm_file))
                 success_msg = "Memory Updated"
 
@@ -1014,10 +1022,12 @@ def modify_memory(request):
 
     api_key = config.get("OPENROUTER_API_KEY")
     model = config.get("MODEL")
+    site_url = config.get("SITE_URL")
+    site_name = config.get("SITE_NAME")
     ltm_file = settings.LTM_FILE
 
     # Call the summarizer to modify memory
-    summarizer = Summarizer(api_key, model)
+    summarizer = Summarizer(api_key, model, site_url, site_name)
     updated_memory = summarizer.modify_memory_with_command(command, str(ltm_file))
 
     # Get last update time

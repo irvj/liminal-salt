@@ -3,9 +3,11 @@ import json
 import os
 
 class Summarizer:
-    def __init__(self, api_key, model):
+    def __init__(self, api_key, model, site_url=None, site_name=None):
         self.api_key = api_key
         self.model = model
+        self.site_url = site_url
+        self.site_name = site_name
 
     def generate_title(self, user_prompt, assistant_response):
         """
@@ -63,6 +65,10 @@ class Summarizer:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+        if self.site_url:
+            headers["HTTP-Referer"] = self.site_url
+        if self.site_name:
+            headers["X-Title"] = self.site_name
 
         payload = {
             "model": self.model,
@@ -259,6 +265,10 @@ class Summarizer:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+        if self.site_url:
+            headers["HTTP-Referer"] = self.site_url
+        if self.site_name:
+            headers["X-Title"] = self.site_name
 
         payload = {
             "model": self.model,
@@ -275,7 +285,7 @@ class Summarizer:
             response.raise_for_status()
             data = response.json()
             updated_ltm = data['choices'][0]['message']['content'].strip()
-            
+
             # Clean up tokens
             updated_ltm = updated_ltm.replace('<s>', '').replace('</s>', '').strip()
             
@@ -331,6 +341,10 @@ class Summarizer:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+        if self.site_url:
+            headers["HTTP-Referer"] = self.site_url
+        if self.site_name:
+            headers["X-Title"] = self.site_name
 
         payload = {
             "model": self.model,
