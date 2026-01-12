@@ -1,8 +1,10 @@
 {% load markdown_extras %}
-<script>
-    window.personaModelsData = {{ persona_models_json|default:"{}"|safe }};
-    window.defaultModelData = '{{ default_model|default:""|escapejs }}';
-</script>
+<!-- Data element for Alpine access -->
+<div id="home-data"
+     data-persona-models='{{ persona_models_json|default:"{}" }}'
+     data-default-model="{{ default_model|default:""|escapejs }}"
+     class="hidden"></div>
+
 <!-- Centered content -->
 <div class="flex-1 flex flex-col items-center justify-center p-5">
     <form method="POST"
@@ -16,8 +18,8 @@
               selectedDisplay: '',
               highlightedIndex: 0,
               personas: [{% for p in personas %}{ id: '{{ p }}', display: '{{ p|display_name|escapejs }}' }{% if not forloop.last %}, {% endif %}{% endfor %}],
-              personaModels: window.personaModelsData || {},
-              defaultModel: window.defaultModelData || '',
+              personaModels: {},
+              defaultModel: '',
               get filteredPersonas() {
                   return this.personas;
               },
@@ -70,8 +72,21 @@
                   });
               },
               init() {
+                  // Load data from hidden element (survives HTMX swaps)
+                  const dataEl = document.getElementById('home-data');
+                  if (dataEl) {
+                      try {
+                          this.personaModels = JSON.parse(dataEl.dataset.personaModels || '{}');
+                      } catch (e) {
+                          this.personaModels = {};
+                      }
+                      this.defaultModel = dataEl.dataset.defaultModel || '';
+                  }
                   const found = this.personas.find(p => p.id === this.selected);
                   if (found) this.selectedDisplay = found.display;
+                  // Set timezone
+                  const tzInput = document.getElementById('timezone-input');
+                  if (tzInput) tzInput.value = Intl.DateTimeFormat().resolvedOptions().timeZone;
               }
           }">
         {% csrf_token %}
@@ -135,16 +150,6 @@
         </div>
     </form>
 </div>
-
-<script>
-    // Set timezone
-    (function() {
-        const tzInput = document.getElementById('timezone-input');
-        if (tzInput) {
-            tzInput.value = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        }
-    })();
-</script>
 
 {% if is_htmx %}
 <!-- OOB: Update sidebar sessions -->
