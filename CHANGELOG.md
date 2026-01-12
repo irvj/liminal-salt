@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.2] - 2026-01-12
+
+### Changes
+- add more themes
+
 ## [0.5.1] - 2026-01-12
 
 ### Changes
