@@ -12,6 +12,8 @@
         })();
     </script>
     <link rel="stylesheet" href="{% static 'css/output.css' %}">
+    <script src="{% static 'js/utils.js' %}"></script>
+    <script src="{% static 'js/components.js' %}"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body class="font-sans bg-surface text-foreground">
@@ -25,7 +27,10 @@
         <div class="p-3 px-4 rounded mb-4 bg-danger text-white">{{ error }}</div>
         {% endif %}
 
-        <form method="POST" x-data="providerPicker()">
+        <form method="POST"
+              x-data="providerPicker"
+              data-selected-provider="{{ selected_provider|default:'openrouter' }}"
+              data-providers='[{% for provider in providers %}{ "id": "{{ provider.id }}", "name": "{{ provider.name }}", "api_key_url": "{{ provider.api_key_url }}", "api_key_placeholder": "{{ provider.api_key_placeholder }}" }{% if not forloop.last %}, {% endif %}{% endfor %}]'>
             {% csrf_token %}
             <input type="hidden" name="provider" :value="selectedId">
 
@@ -81,37 +86,6 @@
             </div>
             <button type="submit" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover">Validate & Continue</button>
         </form>
-
-        <script>
-            function providerPicker() {
-                return {
-                    open: false,
-                    selectedId: '{{ selected_provider|default:"openrouter" }}',
-                    selectedName: '',
-                    selectedProvider: null,
-                    providers: [
-                        {% for provider in providers %}
-                        { id: '{{ provider.id }}', name: '{{ provider.name }}', api_key_url: '{{ provider.api_key_url }}', api_key_placeholder: '{{ provider.api_key_placeholder }}' },
-                        {% endfor %}
-                    ],
-                    init() {
-                        // Auto-select first provider if only one, or find selected
-                        if (this.providers.length === 1) {
-                            this.selectProvider(this.providers[0]);
-                        } else if (this.selectedId) {
-                            const found = this.providers.find(p => p.id === this.selectedId);
-                            if (found) this.selectProvider(found);
-                        }
-                    },
-                    selectProvider(provider) {
-                        this.selectedId = provider.id;
-                        this.selectedName = provider.name;
-                        this.selectedProvider = provider;
-                        this.open = false;
-                    }
-                }
-            }
-        </script>
     </div>
 </body>
 </html>

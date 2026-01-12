@@ -13,6 +13,8 @@
     </script>
     <link rel="stylesheet" href="{% static 'css/output.css' %}">
     <style>[x-cloak] { display: none !important; }</style>
+    <script src="{% static 'js/utils.js' %}"></script>
+    <script src="{% static 'js/components.js' %}"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body class="font-sans bg-surface text-foreground">
@@ -28,7 +30,10 @@
 
         <form method="POST" id="modelForm">
             {% csrf_token %}
-            <div class="mb-5" x-data="modelPicker()">
+            <div class="mb-5"
+                 x-data="modelPicker"
+                 data-selected-model="{{ selected_model|default:'' }}"
+                 data-models='[{% for model_id, display_name in model_options %}{ "id": "{{ model_id }}", "display": "{{ display_name|escapejs }}" }{% if not forloop.last %}, {% endif %}{% endfor %}]'>
                 <label class="block mb-2 font-medium">Select a model:</label>
                 <input type="hidden" name="model" :value="selectedId">
 
@@ -72,88 +77,6 @@
                 Complete Setup
             </button>
         </form>
-
-        <script>
-            function modelPicker() {
-                return {
-                    open: false,
-                    search: '',
-                    selectedId: '{{ selected_model|default:"" }}',
-                    selectedDisplay: '',
-                    highlightedIndex: 0,
-                    models: [
-                        {% for model_id, display_name in model_options %}
-                        { id: '{{ model_id }}', display: '{{ display_name|escapejs }}' },
-                        {% endfor %}
-                    ],
-                    init() {
-                        // If there's a pre-selected model, set the display and search
-                        if (this.selectedId) {
-                            const found = this.models.find(m => m.id === this.selectedId);
-                            if (found) {
-                                this.selectedDisplay = found.display;
-                                this.search = found.display;
-                            }
-                        }
-                        this.updateButton();
-                    },
-                    get filteredModels() {
-                        if (!this.search) return this.models;
-                        const s = this.search.toLowerCase();
-                        return this.models.filter(m =>
-                            m.display.toLowerCase().includes(s) || m.id.toLowerCase().includes(s)
-                        );
-                    },
-                    selectModel(model) {
-                        this.selectedId = model.id;
-                        this.selectedDisplay = model.display;
-                        this.search = model.display;
-                        this.open = false;
-                        this.updateButton();
-                    },
-                    selectHighlighted() {
-                        if (this.filteredModels.length > 0) {
-                            this.selectModel(this.filteredModels[this.highlightedIndex]);
-                        }
-                    },
-                    highlightNext() {
-                        if (this.highlightedIndex < this.filteredModels.length - 1) {
-                            this.highlightedIndex++;
-                            this.scrollToHighlighted();
-                        }
-                    },
-                    highlightPrev() {
-                        if (this.highlightedIndex > 0) {
-                            this.highlightedIndex--;
-                            this.scrollToHighlighted();
-                        }
-                    },
-                    scrollToHighlighted() {
-                        this.$nextTick(() => {
-                            const dropdown = this.$root.querySelector('.max-h-64');
-                            const buttons = dropdown?.querySelectorAll('button');
-                            const highlighted = buttons?.[this.highlightedIndex];
-                            if (dropdown && highlighted) {
-                                const itemTop = highlighted.offsetTop;
-                                const itemBottom = itemTop + highlighted.offsetHeight;
-                                const viewTop = dropdown.scrollTop;
-                                const viewBottom = viewTop + dropdown.clientHeight;
-
-                                if (itemBottom > viewBottom) {
-                                    dropdown.scrollTop = itemBottom - dropdown.clientHeight;
-                                } else if (itemTop < viewTop) {
-                                    dropdown.scrollTop = itemTop;
-                                }
-                            }
-                        });
-                    },
-                    updateButton() {
-                        const btn = document.getElementById('submitBtn');
-                        btn.disabled = !this.selectedId;
-                    }
-                }
-            }
-        </script>
     </div>
 </body>
 </html>

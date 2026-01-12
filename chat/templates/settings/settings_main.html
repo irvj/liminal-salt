@@ -15,33 +15,18 @@
     <div class="mb-6">
         <p class="text-foreground-secondary text-sm mb-3">Choose your preferred color theme:</p>
         <div class="flex gap-3">
-            <button onclick="setTheme('dark')" class="flex items-center gap-2 px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" id="theme-dark-btn">
+            <button onclick="setThemeWithButtons('dark')" class="flex items-center gap-2 px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" id="theme-dark-btn">
                 {% include 'icons/moon.html' with class='w-5 h-5' %} Dark
             </button>
-            <button onclick="setTheme('light')" class="flex items-center gap-2 px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" id="theme-light-btn">
+            <button onclick="setThemeWithButtons('light')" class="flex items-center gap-2 px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" id="theme-light-btn">
                 {% include 'icons/sun.html' with class='w-5 h-5' %} Light
             </button>
         </div>
         <script>
-            function setTheme(theme) {
-                document.documentElement.setAttribute('data-theme', theme);
-                localStorage.setItem('theme', theme);
+            // Wrapper to update theme buttons when theme is set from this page
+            function setThemeWithButtons(theme) {
+                setTheme(theme);
                 updateThemeButtons(theme);
-            }
-            function updateThemeButtons(theme) {
-                const darkBtn = document.getElementById('theme-dark-btn');
-                const lightBtn = document.getElementById('theme-light-btn');
-                if (theme === 'dark') {
-                    darkBtn.classList.add('bg-accent', 'text-foreground-on-accent');
-                    darkBtn.classList.remove('bg-surface-elevated');
-                    lightBtn.classList.remove('bg-accent', 'text-foreground-on-accent');
-                    lightBtn.classList.add('bg-surface-elevated');
-                } else {
-                    lightBtn.classList.add('bg-accent', 'text-foreground-on-accent');
-                    lightBtn.classList.remove('bg-surface-elevated');
-                    darkBtn.classList.remove('bg-accent', 'text-foreground-on-accent');
-                    darkBtn.classList.add('bg-surface-elevated');
-                }
             }
             // Initialize button state
             (function() {
@@ -54,7 +39,7 @@
     <!-- Provider & Model Section -->
     <h2 class="text-accent-cyan text-xl mb-4">Provider & Model</h2>
     <div class="mb-6"
-         x-data="providerModelSettings()"
+         x-data="providerModelSettings"
          data-provider="{{ provider }}"
          data-provider-name="{% for p in providers %}{% if p.id == provider %}{{ p.name }}{% endif %}{% endfor %}"
          data-model="{{ model }}"
