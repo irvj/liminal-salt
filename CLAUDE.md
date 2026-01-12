@@ -177,9 +177,12 @@ liminal-salt/
 │   │   └── summarizer.py        # Title & memory generation
 │   │
 │   ├── static/                  # Static assets
-│   │   └── css/
-│   │       ├── input.css        # Tailwind source & theme config
-│   │       └── output.css       # Compiled CSS (minified)
+│   │   ├── css/
+│   │   │   ├── input.css        # Tailwind source & theme config
+│   │   │   └── output.css       # Compiled CSS (minified)
+│   │   └── js/
+│   │       ├── utils.js         # Shared utility functions
+│   │       └── components.js    # Alpine.js component definitions
 │   │
 │   └── templates/               # Django templates
 │       ├── base.html            # Base template with HTMX/Alpine
@@ -309,18 +312,80 @@ Views check `request.headers.get('HX-Request')` to return either:
 
 **Base Template (`base.html`):**
 - Loads HTMX and Alpine.js from CDN
+- Loads `utils.js` and `components.js` before Alpine (for component registration)
 - Loads compiled Tailwind CSS from `static/css/output.css`
 - Configures CSRF token for HTMX requests
 - Uses semantic Tailwind classes (bg-surface, text-foreground, etc.)
 
 **Main Chat (`chat/chat.html`):**
 - Full page with sidebar + main content area
-- Alpine.js modals for new chat, delete confirmation, wipe memory
+- Uses registered Alpine.js components (modals, sidebar, dropdowns)
 - HTMX attributes for reactive session switching
+- Minimal inline JS - components defined in `components.js`
 
 **Partials (`*_main.html`):**
 - Content fragments returned by HTMX requests
 - Swapped into `#main-content` div
+
+### 6. JavaScript Architecture (`chat/static/js/`)
+
+**Purpose:** Centralized Alpine.js components and utility functions, extracted from inline scripts for better maintainability and reusability.
+
+**`utils.js` - Shared Utility Functions:**
+- `setTheme()` / `toggleTheme()` / `initTheme()` - Theme management with localStorage
+- `getCsrfToken()` - Centralized CSRF token retrieval
+- `handleTextareaKeydown()` / `autoResizeTextarea()` - Textarea helpers
+- `scrollToBottom()` / `updateScrollButtonVisibility()` - Scroll management
+- `addUserMessage()` / `removeThinkingIndicator()` - Message UI helpers
+- `animateAssistantResponse()` / `typewriterReveal()` - Response animation
+- `convertTimestamps()` / `insertDateSeparators()` - Date formatting
+- `scrollDropdownToHighlighted()` - Dropdown keyboard navigation
+- `toDisplayName()` / `toFolderName()` - Persona name conversion
+- `updateThemeButtons()` - Theme button state management
+
+**`components.js` - Alpine.js Component Definitions:**
+
+Components are registered via `Alpine.data()` in the `alpine:init` event, making them available across all templates.
+
+| Component | Purpose |
+|-----------|---------|
+| `searchableDropdown` | Reusable dropdown with search and keyboard navigation |
+| `collapsibleSection` | Simple toggle for sidebar groups |
+| `sidebarState` | Responsive sidebar with localStorage persistence |
+| `deleteModal` | Chat deletion confirmation modal |
+| `renameModal` | Chat rename form modal |
+| `wipeMemoryModal` | Memory wipe confirmation modal |
+| `editPersonaModal` | Persona content editor modal |
+| `deletePersonaModal` | Persona deletion confirmation modal |
+| `editPersonaModelModal` | Persona model override modal with lazy loading |
+| `contextFilesModal` | Context file upload/management modal |
+| `providerModelSettings` | Provider and model configuration (settings page) |
+| `homePersonaPicker` | Persona picker on home page |
+| `personaSettingsPicker` | Persona picker on persona settings page |
+| `providerPicker` | Provider selector (setup step 1) |
+| `modelPicker` | Model selector (setup step 2) |
+
+**Global Helper Functions:**
+Modal components expose global functions for cross-component communication:
+- `openDeleteModal(sessionId, title)` - Open delete confirmation
+- `openRenameModal(sessionId, title)` - Open rename form
+- `openNewPersonaModal()` / `openEditPersonaModal()` - Persona modals
+- `openDeletePersonaModal()` / `openEditPersonaModelModal()` - Persona modals
+- `openContextFilesModal()` / `openWipeMemoryModal()` - Memory modals
+
+**Data Attribute Pattern:**
+Components receive Django template data via `data-*` attributes:
+```html
+<div x-data="deleteModal"
+     data-delete-url="{% url 'delete_chat' %}">
+```
+
+Components read these in their `init()` method:
+```javascript
+init() {
+    this.deleteUrl = this.$el.dataset.deleteUrl;
+}
+```
 
 ---
 
@@ -582,30 +647,52 @@ Icons are stored as reusable Django template includes in `chat/templates/icons/`
 
 ### Alpine.js Patterns Used
 
+**Registered Components (preferred):**
+Components are defined in `components.js` and registered via `Alpine.data()`. Templates reference them by name with data attributes for initialization:
+
 ```html
-<!-- Modal component -->
-<div x-data="{ showModal: false }">
-    <button @click="showModal = true">Open</button>
-    <div x-show="showModal" class="modal">
-        <button @click="showModal = false">Close</button>
-    </div>
+<!-- Using a registered modal component -->
+<div x-data="deleteModal"
+     data-delete-url="{% url 'delete_chat' %}"
+     data-csrf-token="{{ csrf_token }}">
+    <!-- Component handles its own state and logic -->
 </div>
 
-<!-- Collapsible group with icons -->
-<div x-data="{ open: true }">
-    <button @click="open = !open">
+<!-- Using a registered searchable dropdown -->
+<div x-data="homePersonaPicker"
+     data-default-persona="{{ default_persona }}"
+     data-personas='{{ personas_json|safe }}'>
+    <input type="text" x-model="search" @focus="open = true">
+    <!-- Dropdown renders from component's filteredItems -->
+</div>
+
+<!-- Collapsible section with registered component -->
+<div x-data="collapsibleSection">
+    <button @click="toggle()">
         <span x-show="open">{% include 'icons/chevron-down.html' %}</span>
         <span x-show="!open">{% include 'icons/chevron-right.html' %}</span>
-        Title
     </button>
     <div x-show="open">Content</div>
 </div>
+```
 
-<!-- Theme toggle -->
-<button @click="toggleTheme()">
-    <span x-show="isDark">{% include 'icons/moon.html' %}</span>
-    <span x-show="!isDark">{% include 'icons/sun.html' %}</span>
-</button>
+**Simple Inline Patterns (for one-off toggles):**
+```html
+<!-- Simple toggle (no need for registered component) -->
+<div x-data="{ open: false }">
+    <button @click="open = !open">Toggle</button>
+    <div x-show="open">Content</div>
+</div>
+```
+
+**Global Functions:**
+Utility functions from `utils.js` are available globally:
+```html
+<!-- Theme toggle using global function -->
+<button onclick="toggleTheme()">Toggle Theme</button>
+
+<!-- Opening modals via global helpers -->
+<button onclick="openDeleteModal('session-123', 'Chat Title')">Delete</button>
 ```
 
 ### Testing Checklist
@@ -646,6 +733,8 @@ Icons are stored as reusable Django template includes in `chat/templates/icons/`
 | `chat/views.py` | All view logic |
 | `chat/services/chat_core.py` | LLM API calls |
 | `chat/templates/chat/chat.html` | Main UI template |
+| `chat/static/js/components.js` | Alpine.js component definitions |
+| `chat/static/js/utils.js` | Shared utility functions |
 | `chat/static/css/input.css` | Tailwind source & theme config |
 | `liminal_salt/settings.py` | Django config |
 | `config.json` | App configuration |
