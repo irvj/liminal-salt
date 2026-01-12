@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0] - 2026-01-12
+
+### Changes
+- Merge branch 'javascript-refactor'
+- update claude file for new javascript architecture
+- separate inline javascript to static component and utils files for better separation of concerns
+
 ## [0.4.0] - 2026-01-12
 
 ### Changes
