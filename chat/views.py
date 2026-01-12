@@ -41,7 +41,7 @@ def _get_theme_context(config=None):
     if config is None:
         config = load_config()
     return {
-        'color_theme': config.get('THEME', 'nord'),
+        'color_theme': config.get('THEME', 'liminal-salt'),
         'theme_mode': config.get('THEME_MODE', 'dark')
     }
 
@@ -136,7 +136,7 @@ def setup_wizard(request):
 
         if request.method == 'POST':
             selected_model = request.POST.get('model', '').strip()
-            selected_theme = request.POST.get('theme', 'nord').strip()
+            selected_theme = request.POST.get('theme', 'liminal-salt').strip()
             selected_mode = request.POST.get('theme_mode', 'dark').strip()
 
             if not selected_model:
@@ -196,7 +196,7 @@ def setup_wizard(request):
             'model_options': model_options,
             'themes': themes,
             'themes_json': json.dumps(themes),
-            'selected_theme': 'nord',
+            'selected_theme': 'liminal-salt',
             'selected_mode': 'dark'
         })
 
@@ -1932,7 +1932,7 @@ def get_available_themes(request):
 @require_http_methods(["POST"])
 def save_theme(request):
     """Save theme preference to config.json"""
-    color_theme = request.POST.get('colorTheme', 'nord')
+    color_theme = request.POST.get('colorTheme', 'liminal-salt')
     theme_mode = request.POST.get('themeMode', 'dark')
 
     config = load_config()

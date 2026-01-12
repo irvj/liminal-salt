@@ -12,7 +12,7 @@
 
     // Try localStorage first, then data attributes (server config), then defaults
     const mode = localStorage.getItem('theme') || root.dataset.themeMode || 'dark';
-    const colorTheme = localStorage.getItem('colorTheme') || root.dataset.colorTheme || 'nord';
+    const colorTheme = localStorage.getItem('colorTheme') || root.dataset.colorTheme || 'liminal-salt';
     root.setAttribute('data-theme', mode);
 
     // Apply cached color theme colors if available
@@ -45,14 +45,14 @@ async function getAvailableThemes() {
         const response = await fetch('/api/themes/');
         if (!response.ok) {
             console.error('Failed to fetch themes');
-            return [{ id: 'nord', name: 'Nord' }];
+            return [{ id: 'liminal-salt', name: 'Liminal Salt' }];
         }
         const data = await response.json();
         return data.themes;
     } catch (error) {
         console.error('Error fetching themes:', error);
         // Fallback to prevent complete failure
-        return [{ id: 'nord', name: 'Nord' }];
+        return [{ id: 'liminal-salt', name: 'Liminal Salt' }];
     }
 }
 
@@ -81,11 +81,11 @@ async function saveThemePreference(colorTheme, themeMode) {
 }
 
 /**
- * Get the current color theme from localStorage or default to 'nord'.
+ * Get the current color theme from localStorage or default to 'liminal-salt'.
  * @returns {string} The current color theme id
  */
 function getColorTheme() {
-    return localStorage.getItem('colorTheme') || 'nord';
+    return localStorage.getItem('colorTheme') || 'liminal-salt';
 }
 
 /**

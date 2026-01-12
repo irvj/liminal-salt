@@ -50,12 +50,12 @@
             <label class="block mb-2 font-medium">Mode:</label>
             <div class="flex gap-3">
                 <button @click="setMode('dark')"
-                        :class="isDark ? 'bg-accent text-foreground-on-accent' : 'bg-surface-elevated text-foreground hover:bg-accent hover:text-foreground-on-accent'"
+                        :class="isDark ? 'bg-accent text-foreground-on-accent' : 'bg-border text-foreground hover:bg-accent hover:text-foreground-on-accent'"
                         class="flex items-center gap-2 px-4 py-2 rounded font-medium cursor-pointer">
                     {% include 'icons/moon.html' with class='w-5 h-5' %} Dark
                 </button>
                 <button @click="setMode('light')"
-                        :class="!isDark ? 'bg-accent text-foreground-on-accent' : 'bg-surface-elevated text-foreground hover:bg-accent hover:text-foreground-on-accent'"
+                        :class="!isDark ? 'bg-accent text-foreground-on-accent' : 'bg-border text-foreground hover:bg-accent hover:text-foreground-on-accent'"
                         class="flex items-center gap-2 px-4 py-2 rounded font-medium cursor-pointer">
                     {% include 'icons/sun.html' with class='w-5 h-5' %} Light
                 </button>
@@ -183,7 +183,7 @@
         <button type="button"
                 @click="saveProviderModel()"
                 :disabled="!canSave || saving"
-                class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover disabled:bg-surface-elevated disabled:cursor-not-allowed">
+                class="px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:bg-border disabled:text-foreground-muted disabled:cursor-not-allowed">
             <span x-show="!saving">Save Provider & Model</span>
             <span x-show="saving">Saving...</span>
         </button>

@@ -22,8 +22,8 @@
                         hx-swap="innerHTML"
                         @click="if (isMobile) collapsed = true; updateSidebarHighlight($el)"
                         data-session-id="{{ session.id }}"
-                        class="session-item flex-1 m-0 pl-5 p-2.5 text-sm rounded-l text-left cursor-pointer {% if session.id == current_session %}bg-accent text-foreground-on-accent font-bold{% else %}bg-surface-elevated text-foreground{% endif %} hover:bg-accent hover:text-foreground-on-accent">
-                    {{ session.title }} <span class="text-foreground-secondary text-xs">({{ session.persona|display_name }})</span>
+                        class="group session-item flex-1 m-0 pl-5 p-2.5 text-sm rounded-l text-left cursor-pointer {% if session.id == current_session %}bg-accent text-foreground-on-accent font-bold{% else %}bg-surface-elevated text-foreground{% endif %} hover:bg-accent hover:text-foreground-on-accent">
+                    {{ session.title }} <span class="text-xs text-foreground-muted group-hover:text-foreground-on-accent/80 {% if session.id == current_session %}!text-foreground-on-accent/80{% endif %}">({{ session.persona|display_name }})</span>
                 </button>
                 <button hx-post="{% url 'toggle_pin_chat' %}"
                         hx-vals='{"session_id": "{{ session.id }}"}'

@@ -58,88 +58,88 @@
   }
 }
 
-/* ===== DARK THEME (Nord) - Default ===== */
+/* ===== DARK THEME (Liminal Salt) - Default ===== */
 :root {
   /* Surfaces/Backgrounds */
-  --surface: #2E3440;
-  --surface-secondary: #3B4252;
-  --surface-elevated: #4C566A;
+  --surface: #1a1c1b;
+  --surface-secondary: #141615;
+  --surface-elevated: #242726;
 
   /* Text/Foreground */
-  --foreground: #ECEFF4;
-  --foreground-secondary: #D8DEE9;
-  --foreground-muted: #8a93a3;
-  --foreground-on-accent: #ECEFF4;  /* nord6 - light text on accent backgrounds */
+  --foreground: #e8e4dc;
+  --foreground-secondary: #c5c1b8;
+  --foreground-muted: #7a7870;
+  --foreground-on-accent: #1a1c1b;
 
   /* Accent colors */
-  --accent: #5E81AC;
-  --accent-hover: #81A1C1;
-  --accent-cyan: #88C0D0;
+  --accent: #8fac98;
+  --accent-hover: #a3bfac;
+  --accent-cyan: #7a9e9e;
 
   /* Status colors */
-  --success: #A3BE8C;
-  --danger: #BF616A;
-  --danger-hover: #d08088;
-  --warning: #D08770;
+  --success: #8fac98;
+  --danger: #c47a7a;
+  --danger-hover: #d48a8a;
+  --warning: #c9a86c;
 
   /* Borders */
-  --border: #4C566A;
+  --border: #2e312f;
 
   /* Message bubbles */
-  --user-bubble: #5E81AC;
-  --assistant-bubble: #4C566A;
+  --user-bubble: #8fac98;
+  --assistant-bubble: #242726;
 }
 
-/* ===== LIGHT THEME ===== */
+/* ===== LIGHT THEME (Liminal Salt) ===== */
 [data-theme="light"] {
   /* Surfaces */
-  --surface: #ECEFF4;           /* nord6 */
-  --surface-secondary: #E5E9F0; /* nord5 */
-  --surface-elevated: #D8DEE9;  /* nord4 */
+  --surface: #f5f2ed;
+  --surface-secondary: #ebe7e0;
+  --surface-elevated: #fdfcfa;
 
   /* Text */
-  --foreground: #2E3440;        /* nord0 */
-  --foreground-secondary: #4C566A; /* nord3 */
-  --foreground-muted: #8a93a3;  /* lighter gray for subtle text */
-  --foreground-on-accent: #ECEFF4;  /* nord6 - light text on accent backgrounds */
+  --foreground: #2d2b28;
+  --foreground-secondary: #5a5753;
+  --foreground-muted: #9a9590;
+  --foreground-on-accent: #f5f2ed;
 
-  /* Accents - darker for light background readability */
-  --accent: #5E81AC;            /* nord10 */
-  --accent-hover: #81A1C1;      /* nord9 */
-  --accent-cyan: #5E81AC;       /* nord10 - darker for contrast */
+  /* Accents */
+  --accent: #5d7a65;
+  --accent-hover: #4a6b52;
+  --accent-cyan: #4a7a7a;
 
   /* Status colors */
-  --success: #A3BE8C;           /* nord14 */
-  --danger: #BF616A;            /* nord11 */
-  --danger-hover: #d08088;      /* lighter red for hover */
-  --warning: #D08770;           /* nord12 */
+  --success: #5d7a65;
+  --danger: #b85c5c;
+  --danger-hover: #a64e4e;
+  --warning: #b8923d;
 
   /* Borders */
-  --border: #D8DEE9;            /* nord4 */
+  --border: #ddd8d0;
 
   /* Bubbles */
-  --user-bubble: #5E81AC;       /* nord10 */
-  --assistant-bubble: #D8DEE9;  /* nord4 */
+  --user-bubble: #5d7a65;
+  --assistant-bubble: #ebe7e0;
 }
 
 /* Fix prose/typography colors in light mode */
 [data-theme="light"] .prose {
-  --tw-prose-body: #2E3440;
-  --tw-prose-headings: #2E3440;
-  --tw-prose-links: #5E81AC;
-  --tw-prose-bold: #2E3440;
-  --tw-prose-code: #2E3440;
-  --tw-prose-quotes: #4C566A;
+  --tw-prose-body: #2d2b28;
+  --tw-prose-headings: #2d2b28;
+  --tw-prose-links: #5d7a65;
+  --tw-prose-bold: #2d2b28;
+  --tw-prose-code: #2d2b28;
+  --tw-prose-quotes: #5a5753;
 }
 
 /* Keep light text for user bubbles in light mode */
 [data-theme="light"] .bg-user-bubble .prose {
-  --tw-prose-body: #ECEFF4;
-  --tw-prose-headings: #ECEFF4;
-  --tw-prose-links: #D8DEE9;
-  --tw-prose-bold: #ECEFF4;
-  --tw-prose-code: #ECEFF4;
-  --tw-prose-quotes: #D8DEE9;
+  --tw-prose-body: #f5f2ed;
+  --tw-prose-headings: #f5f2ed;
+  --tw-prose-links: #ebe7e0;
+  --tw-prose-bold: #f5f2ed;
+  --tw-prose-code: #f5f2ed;
+  --tw-prose-quotes: #ebe7e0;
 }
 
 /* ===== Custom Component Classes ===== */

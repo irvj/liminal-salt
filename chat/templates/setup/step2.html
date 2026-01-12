@@ -70,13 +70,13 @@
                     <div class="flex gap-2">
                         <button type="button"
                                 @click="setMode('dark')"
-                                :class="selectedMode === 'dark' ? 'bg-accent text-foreground-on-accent' : 'bg-surface-elevated text-foreground hover:bg-accent hover:text-foreground-on-accent'"
+                                :class="selectedMode === 'dark' ? 'bg-accent text-foreground-on-accent' : 'bg-border text-foreground hover:bg-accent hover:text-foreground-on-accent'"
                                 class="flex items-center gap-2 px-4 py-2 rounded font-medium cursor-pointer">
                             {% include 'icons/moon.html' with class='w-5 h-5' %} Dark
                         </button>
                         <button type="button"
                                 @click="setMode('light')"
-                                :class="selectedMode === 'light' ? 'bg-accent text-foreground-on-accent' : 'bg-surface-elevated text-foreground hover:bg-accent hover:text-foreground-on-accent'"
+                                :class="selectedMode === 'light' ? 'bg-accent text-foreground-on-accent' : 'bg-border text-foreground hover:bg-accent hover:text-foreground-on-accent'"
                                 class="flex items-center gap-2 px-4 py-2 rounded font-medium cursor-pointer">
                             {% include 'icons/sun.html' with class='w-5 h-5' %} Light
                         </button>
@@ -128,7 +128,7 @@
             </div>
 
             <button type="submit" id="submitBtn" disabled
-                    class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover disabled:bg-surface-elevated disabled:cursor-not-allowed">
+                    class="px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:bg-border disabled:text-foreground-muted disabled:cursor-not-allowed">
                 Complete Setup
             </button>
         </form>

@@ -1390,12 +1390,16 @@ function setupThemePicker() {
                 this.themes = [];
             }
 
-            this.selectedTheme = el.dataset.selectedTheme || 'nord';
-            this.selectedMode = el.dataset.selectedMode || 'dark';
+            // Check localStorage first for user's actual preference
+            this.selectedTheme = localStorage.getItem('colorTheme') || el.dataset.selectedTheme || 'liminal-salt';
+            this.selectedMode = localStorage.getItem('theme') || el.dataset.selectedMode || 'dark';
 
             // Find and set display name
             const found = this.themes.find(t => t.id === this.selectedTheme);
             if (found) this.selectedDisplay = found.name;
+
+            // Apply the theme to ensure UI matches
+            loadTheme(this.selectedTheme);
         }
     };
 }

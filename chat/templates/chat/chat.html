@@ -21,7 +21,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="session_id" x-bind:value="sessionId">
                 <div class="flex gap-3 justify-end">
-                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Delete</button>
                 </div>
             </form>
@@ -54,7 +54,7 @@
                 <input type="hidden" name="session_id" x-bind:value="sessionId">
                 <input type="hidden" name="new_title" x-bind:value="newTitle">
                 <div class="flex gap-3 justify-end">
-                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover">Save</button>
                 </div>
             </form>
@@ -73,7 +73,7 @@
             <h3 class="text-foreground mb-3">Wipe Memory?</h3>
             <p class="text-foreground-secondary mb-5">Are you sure you want to wipe your entire long-term memory? This action cannot be undone.</p>
             <div class="flex gap-3 justify-end">
-                <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
                 <button @click="confirmWipe()" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Wipe</button>
             </div>
         </div>
@@ -101,7 +101,7 @@
             <label class="block mb-2 font-medium text-foreground-secondary">Persona File:</label>
             <textarea x-model="content" class="w-full h-[400px] bg-surface border border-border rounded text-foreground font-mono text-sm p-3 resize-y mb-4 focus:outline-none focus:border-accent-cyan"></textarea>
             <div class="flex gap-3 justify-end">
-                <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
                 <button @click="savePersona()" class="px-4 py-2 bg-success text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-success/80">Save</button>
             </div>
         </div>
@@ -119,7 +119,7 @@
             <h3 class="text-foreground mb-3">Delete Persona?</h3>
             <p class="text-foreground-secondary mb-5">Are you sure you want to delete "<span x-text="displayName"></span>"? This cannot be undone.</p>
             <div class="flex gap-3 justify-end">
-                <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
                 <button @click="confirmDelete()" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Delete</button>
             </div>
         </div>
@@ -198,8 +198,8 @@
             </div>
 
             <div class="flex gap-3 justify-end">
-                <button @click="clearModel()" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Use Default</button>
-                <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="clearModel()" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Use Default</button>
+                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
                 <button @click="saveModel()" :disabled="saving" class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
                     <span x-show="!saving">Save</span>
                     <span x-show="saving">...</span>
@@ -282,7 +282,7 @@
                 <span x-text="editModal.status"></span>
             </div>
             <div class="flex justify-end gap-3">
-                <button @click="editModal.show = false" class="px-6 py-2.5 bg-surface-elevated text-foreground rounded font-medium hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="editModal.show = false" class="px-6 py-2.5 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
                 <button @click="saveEditFile()" class="px-6 py-2.5 bg-accent text-white rounded font-medium hover:bg-accent-hover">Save</button>
             </div>
         </div>
