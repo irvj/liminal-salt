@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.7] - 2026-01-12
+
+### Changes
+- add draft feature for new chat page
+- add draft feature for chat threads
+- add better error handling to chat
+
 ## [0.5.6] - 2026-01-12
 
 ### Changes
