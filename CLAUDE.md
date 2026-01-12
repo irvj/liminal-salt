@@ -32,7 +32,7 @@
 - **Smart Titles**: Multi-tier auto-generation of session titles with artifact detection
 - **User Memory View**: Dedicated pane for viewing and managing long-term memory
 - **Persona Settings**: Dedicated page for managing personas and model overrides
-- **Theme Toggle**: Switch between dark and light modes (Nord color scheme)
+- **Dynamic Theme System**: Multiple color themes (Nord, Dracula, Monokai, Gruvbox, Solarized) with dark/light modes, server-side persistence
 - **SVG Icon System**: Consistent, theme-aware icons throughout the UI
 - **Reactive UI**: HTMX-powered updates without full page reloads
 
@@ -47,7 +47,7 @@
 - **HTTP Client:** requests
 - **Data Storage:** JSON files for sessions, Markdown for memory and personas
 - **Sessions:** Django signed cookie sessions (no database required)
-- **UI Theme:** Nord color scheme (dark and light modes)
+- **UI Themes:** Dynamic theme system with multiple color schemes (Nord, Dracula, Monokai, Gruvbox, Solarized)
 
 ---
 
@@ -180,9 +180,15 @@ liminal-salt/
 │   │   ├── css/
 │   │   │   ├── input.css        # Tailwind source & theme config
 │   │   │   └── output.css       # Compiled CSS (minified)
-│   │   └── js/
-│   │       ├── utils.js         # Shared utility functions
-│   │       └── components.js    # Alpine.js component definitions
+│   │   ├── js/
+│   │   │   ├── utils.js         # Shared utility functions
+│   │   │   └── components.js    # Alpine.js component definitions
+│   │   └── themes/              # Color theme JSON files
+│   │       ├── nord.json        # Nord theme (default)
+│   │       ├── dracula.json     # Dracula theme
+│   │       ├── monokai.json     # Monokai theme
+│   │       ├── gruvbox.json     # Gruvbox theme
+│   │       └── solarized.json   # Solarized theme
 │   │
 │   └── templates/               # Django templates
 │       ├── base.html            # Base template with HTMX/Alpine
@@ -332,7 +338,10 @@ Views check `request.headers.get('HX-Request')` to return either:
 **Purpose:** Centralized Alpine.js components and utility functions, extracted from inline scripts for better maintainability and reusability.
 
 **`utils.js` - Shared Utility Functions:**
-- `setTheme()` / `toggleTheme()` / `initTheme()` - Theme management with localStorage
+- `getAvailableThemes()` - Fetches theme list from backend API
+- `loadTheme()` / `setTheme()` / `getTheme()` - Color theme and mode management
+- `saveThemePreference()` - Persists theme to backend config.json
+- `applyThemeColors()` / `cacheThemeColors()` - CSS custom property management
 - `getCsrfToken()` - Centralized CSRF token retrieval
 - `handleTextareaKeydown()` / `autoResizeTextarea()` - Textarea helpers
 - `scrollToBottom()` / `updateScrollButtonVisibility()` - Scroll management
@@ -363,6 +372,9 @@ Components are registered via `Alpine.data()` in the `alpine:init` event, making
 | `personaSettingsPicker` | Persona picker on persona settings page |
 | `providerPicker` | Provider selector (setup step 1) |
 | `modelPicker` | Model selector (setup step 2) |
+| `themePicker` | Color theme dropdown (settings page) |
+| `setupThemePicker` | Theme picker for setup wizard step 2 |
+| `themeModeToggle` | Dark/light mode toggle buttons (settings page) |
 
 **Global Helper Functions:**
 Modal components expose global functions for cross-component communication:
@@ -505,7 +517,9 @@ This runs both the Tailwind CSS watcher and Django server concurrently.
     "SITE_NAME": "Liminal Salt",
     "DEFAULT_PERSONA": "assistant",
     "PERSONAS_DIR": "personas",
-    "MAX_HISTORY": 50
+    "MAX_HISTORY": 50,
+    "THEME": "nord",
+    "THEME_MODE": "dark"
 }
 ```
 
@@ -515,6 +529,8 @@ This runs both the Tailwind CSS watcher and Django server concurrently.
 - `DEFAULT_PERSONA`: Default persona for new chats
 - `PERSONAS_DIR`: Directory containing persona definitions
 - `MAX_HISTORY`: Number of message pairs to keep in context
+- `THEME`: Color theme identifier (nord, dracula, monokai, gruvbox, solarized)
+- `THEME_MODE`: Light or dark mode preference
 
 ### Django Settings (`liminal_salt/settings.py`)
 
@@ -526,6 +542,48 @@ Key customizations:
 ---
 
 ## Development Notes
+
+### Code Standards
+
+**No Inline JavaScript:**
+- All JavaScript must be placed in dedicated files (`utils.js` or `components.js`)
+- Alpine.js components should be defined in `components.js` and registered via `Alpine.data()`
+- Use data attributes (`data-*`) to pass Django template values to components
+- Exception: Simple Alpine.js state objects like `x-data="{ open: false }"` are acceptable for one-off toggles
+
+**No Inline CSS:**
+- All styles must be defined in Tailwind classes or `input.css`
+- Use Tailwind's utility classes for styling
+- Custom CSS goes in `chat/static/css/input.css`
+- Never use `style` attributes in HTML
+
+**Architectural Best Practices:**
+
+*Python/Django:*
+- Keep views thin; business logic belongs in `services/`
+- Use `load_config()` and `save_config()` for all config.json access
+- Validate user input at view boundaries
+- Use Django's CSRF protection for all POST requests
+- Return appropriate HTTP status codes
+
+*HTML/Templates:*
+- Use Django template inheritance (`{% extends %}`, `{% block %}`)
+- Create reusable partials for HTMX responses (`*_main.html` pattern)
+- Use `{% include %}` for reusable components (icons, buttons)
+- Pass data to Alpine components via `data-*` attributes, not inline JS
+
+*JavaScript:*
+- Define Alpine components as functions in `components.js`
+- Register components in the `alpine:init` event
+- Use `utils.js` for shared utility functions
+- Dispatch custom events for cross-component communication
+- Handle async operations properly with try/catch
+
+*Security:*
+- Never expose API keys in frontend code
+- Validate and sanitize all user inputs
+- Use Django's built-in CSRF protection
+- Escape user content in templates (Django does this by default)
 
 ### Adding a New Persona
 
@@ -553,6 +611,61 @@ Key customizations:
    ```
 
 4. Restart server (persona appears in dropdown automatically)
+
+### Adding a New Theme
+
+1. Create a new JSON file in `chat/static/themes/`:
+   ```bash
+   touch chat/static/themes/mytheme.json
+   ```
+
+2. Define the theme with dark and light variants:
+   ```json
+   {
+     "name": "My Theme",
+     "id": "mytheme",
+     "dark": {
+       "surface": "#1a1a2e",
+       "surface-secondary": "#16213e",
+       "surface-elevated": "#0f3460",
+       "foreground": "#eaeaea",
+       "foreground-secondary": "#b8b8b8",
+       "foreground-muted": "#666666",
+       "foreground-on-accent": "#ffffff",
+       "accent": "#e94560",
+       "accent-hover": "#ff6b6b",
+       "accent-cyan": "#4ecdc4",
+       "success": "#2ecc71",
+       "danger": "#e74c3c",
+       "danger-hover": "#c0392b",
+       "warning": "#f39c12",
+       "border": "#0f3460",
+       "user-bubble": "#e94560",
+       "assistant-bubble": "#0f3460"
+     },
+     "light": {
+       "surface": "#f8f9fa",
+       "surface-secondary": "#e9ecef",
+       "surface-elevated": "#dee2e6",
+       "foreground": "#212529",
+       "foreground-secondary": "#495057",
+       "foreground-muted": "#adb5bd",
+       "foreground-on-accent": "#ffffff",
+       "accent": "#e94560",
+       "accent-hover": "#ff6b6b",
+       "accent-cyan": "#4ecdc4",
+       "success": "#2ecc71",
+       "danger": "#e74c3c",
+       "danger-hover": "#c0392b",
+       "warning": "#f39c12",
+       "border": "#dee2e6",
+       "user-bubble": "#e94560",
+       "assistant-bubble": "#dee2e6"
+     }
+   }
+   ```
+
+3. Theme appears automatically in all theme pickers (setup wizard, settings page)
 
 ### SVG Icon System
 
@@ -622,6 +735,8 @@ Icons are stored as reusable Django template includes in `chat/templates/icons/`
 /settings/create-persona/      → create_persona
 /settings/delete-persona/      → delete_persona
 /settings/save-persona-model/  → save_persona_model
+/api/themes/                   → get_available_themes (JSON list of themes)
+/api/save-theme/               → save_theme (POST theme preference)
 ```
 
 ### HTMX Patterns Used
@@ -702,7 +817,14 @@ Utility functions from `utils.js` are available globally:
 - [ ] Switch between sessions (HTMX)
 - [ ] Delete session with confirmation
 - [ ] Pin/unpin chat sessions
-- [ ] Toggle theme (dark/light)
+
+**Theme System:**
+- [ ] Select theme during setup wizard (step 2)
+- [ ] Change color theme in Settings
+- [ ] Toggle dark/light mode (sidebar and settings stay in sync)
+- [ ] Theme persists after page refresh
+- [ ] Theme persists in new browser (server-side storage)
+- [ ] No flash of wrong theme on page load
 
 **Memory & Settings:**
 - [ ] View User Memory in main pane
@@ -734,7 +856,8 @@ Utility functions from `utils.js` are available globally:
 | `chat/templates/chat/chat.html` | Main UI template |
 | `chat/static/js/components.js` | Alpine.js component definitions |
 | `chat/static/js/utils.js` | Shared utility functions |
-| `chat/static/css/input.css` | Tailwind source & theme config |
+| `chat/static/css/input.css` | Tailwind source & CSS variables |
+| `chat/static/themes/*.json` | Color theme definitions |
 | `liminal_salt/settings.py` | Django config |
 | `config.json` | App configuration |
 
