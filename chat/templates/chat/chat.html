@@ -553,6 +553,9 @@
         const messagesDiv = document.getElementById('messages');
         if (!messagesDiv) return;
 
+        // Scroll to show the new response (once, before typewriter starts)
+        scrollToBottom();
+
         // Get the last assistant message (the newly inserted one)
         const assistantMessages = messagesDiv.querySelectorAll('.message.assistant:not(.thinking)');
         const lastMessage = assistantMessages[assistantMessages.length - 1];
@@ -614,12 +617,12 @@
                 if (index % 20 === 0) {
                     updateScrollButtonVisibility();
                 }
-            }, index * 50);
+            }, index * 25);
         });
 
         // Final visibility check after all words revealed
         if (allWords.length > 0) {
-            setTimeout(() => updateScrollButtonVisibility(), allWords.length * 50 + 100);
+            setTimeout(() => updateScrollButtonVisibility(), allWords.length * 25 + 100);
         }
     }
 
@@ -634,13 +637,6 @@
         clickedButton.classList.add('current', 'bg-accent', 'text-foreground-on-accent', 'font-bold');
         clickedButton.classList.remove('bg-surface-elevated', 'text-foreground');
     }
-
-    // Delete modal state (shared with Alpine)
-    let deleteModalState = {
-        showModal: false,
-        sessionId: '',
-        sessionTitle: ''
-    };
 
     // Alpine.js component for delete modal
     function deleteModal() {
