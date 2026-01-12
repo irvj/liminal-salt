@@ -38,8 +38,8 @@ def save_config(config_data):
 
 def get_sessions_with_titles():
     """
-    Get list of all sessions with their titles, personalities, and pinned status
-    Returns list of dicts: [{"id": "session_*.json", "title": "...", "personality": "...", "pinned": bool}]
+    Get list of all sessions with their titles, personas, and pinned status
+    Returns list of dicts: [{"id": "session_*.json", "title": "...", "persona": "...", "pinned": bool}]
     """
     sessions_dir = settings.SESSIONS_DIR
     os.makedirs(sessions_dir, exist_ok=True)
@@ -53,19 +53,19 @@ def get_sessions_with_titles():
             with open(path, 'r') as file:
                 data = json.load(file)
                 title = data.get("title", "New Chat") if isinstance(data, dict) else "Old Session"
-                personality = data.get("personality", "assistant") if isinstance(data, dict) else "assistant"
+                persona = data.get("persona", "assistant") if isinstance(data, dict) else "assistant"
                 pinned = data.get("pinned", False) if isinstance(data, dict) else False
-                sessions.append({"id": f, "title": title, "personality": personality, "pinned": pinned})
+                sessions.append({"id": f, "title": title, "persona": persona, "pinned": pinned})
         except Exception:
-            sessions.append({"id": f, "title": "Error Loading", "personality": "assistant", "pinned": False})
+            sessions.append({"id": f, "title": "Error Loading", "persona": "assistant", "pinned": False})
 
     return sorted(sessions, key=lambda x: x['id'], reverse=True)
 
 
-def group_sessions_by_personality(sessions):
+def group_sessions_by_persona(sessions):
     """
-    Group sessions by personality, maintaining chronological order within groups.
-    Order personalities by most recent thread. Also returns pinned sessions separately.
+    Group sessions by persona, maintaining chronological order within groups.
+    Order personas by most recent thread. Also returns pinned sessions separately.
 
     Args:
         sessions: List of session dicts from get_sessions_with_titles()
@@ -73,19 +73,19 @@ def group_sessions_by_personality(sessions):
     Returns:
         Tuple of (pinned_sessions, ordered_groups)
         - pinned_sessions: List of pinned sessions (sorted newest-first)
-        - ordered_groups: OrderedDict mapping personality -> list of non-pinned sessions
+        - ordered_groups: OrderedDict mapping persona -> list of non-pinned sessions
     """
     # Separate pinned and unpinned sessions
     pinned_sessions = [s for s in sessions if s.get("pinned", False)]
     unpinned_sessions = [s for s in sessions if not s.get("pinned", False)]
 
-    # Group unpinned sessions by personality
+    # Group unpinned sessions by persona
     groups = defaultdict(list)
     for session in unpinned_sessions:
-        groups[session["personality"]].append(session)
+        groups[session["persona"]].append(session)
 
-    # Sort personalities by most recent thread (sessions already sorted newest-first)
-    personality_order = sorted(
+    # Sort personas by most recent thread (sessions already sorted newest-first)
+    persona_order = sorted(
         groups.keys(),
         key=lambda p: groups[p][0]["id"] if groups[p] else "",
         reverse=True
@@ -93,8 +93,8 @@ def group_sessions_by_personality(sessions):
 
     # Create ordered dict
     ordered_groups = OrderedDict()
-    for personality in personality_order:
-        ordered_groups[personality] = groups[personality]
+    for persona in persona_order:
+        ordered_groups[persona] = groups[persona]
 
     return pinned_sessions, ordered_groups
 
@@ -110,23 +110,23 @@ def set_current_session(request, session_id):
     request.session.modified = True
 
 
-def get_collapsed_personalities(request):
-    """Get collapsed personalities dict from Django session"""
-    return request.session.get('collapsed_personalities', {})
+def get_collapsed_personas(request):
+    """Get collapsed personas dict from Django session"""
+    return request.session.get('collapsed_personas', {})
 
 
-def set_collapsed_personalities(request, collapsed_dict):
-    """Set collapsed personalities dict in Django session"""
-    request.session['collapsed_personalities'] = collapsed_dict
+def set_collapsed_personas(request, collapsed_dict):
+    """Set collapsed personas dict in Django session"""
+    request.session['collapsed_personas'] = collapsed_dict
     request.session.modified = True
 
 
-def toggle_personality_group(request, personality):
-    """Toggle collapse state for a personality group"""
-    collapsed = get_collapsed_personalities(request)
-    current = collapsed.get(personality, False)
-    collapsed[personality] = not current
-    set_collapsed_personalities(request, collapsed)
+def toggle_persona_group(request, persona):
+    """Toggle collapse state for a persona group"""
+    collapsed = get_collapsed_personas(request)
+    current = collapsed.get(persona, False)
+    collapsed[persona] = not current
+    set_collapsed_personas(request, collapsed)
 
 
 def aggregate_all_sessions_messages():

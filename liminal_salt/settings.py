@@ -96,7 +96,7 @@ SESSION_COOKIE_AGE = 1209600  # 2 weeks
 # Paths to data directories
 DATA_DIR = BASE_DIR / 'data'
 SESSIONS_DIR = DATA_DIR / 'sessions'
-PERSONALITIES_DIR = DATA_DIR / 'personalities'
+PERSONAS_DIR = DATA_DIR / 'personas'
 LTM_FILE = DATA_DIR / 'long_term_memory.md'
 CONFIG_FILE = BASE_DIR / 'config.json'  # Config stays at root
 

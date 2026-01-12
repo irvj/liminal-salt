@@ -1,6 +1,6 @@
 {% load markdown_extras %}
 <script>
-    window.personalityModelsData = {{ personality_models_json|default:"{}"|safe }};
+    window.personaModelsData = {{ persona_models_json|default:"{}"|safe }};
     window.defaultModelData = '{{ default_model|default:""|escapejs }}';
 </script>
 <!-- Centered content -->
@@ -12,35 +12,35 @@
           class="w-full max-w-xl"
           x-data="{
               open: false,
-              selected: '{{ default_personality }}',
+              selected: '{{ default_persona }}',
               selectedDisplay: '',
               highlightedIndex: 0,
-              personalities: [{% for p in personalities %}{ id: '{{ p }}', display: '{{ p|display_name|escapejs }}' }{% if not forloop.last %}, {% endif %}{% endfor %}],
-              personalityModels: window.personalityModelsData || {},
+              personas: [{% for p in personas %}{ id: '{{ p }}', display: '{{ p|display_name|escapejs }}' }{% if not forloop.last %}, {% endif %}{% endfor %}],
+              personaModels: window.personaModelsData || {},
               defaultModel: window.defaultModelData || '',
-              get filteredPersonalities() {
-                  return this.personalities;
+              get filteredPersonas() {
+                  return this.personas;
               },
               get currentModel() {
-                  return this.personalityModels[this.selected] || this.defaultModel;
+                  return this.personaModels[this.selected] || this.defaultModel;
               },
               get currentModelDisplay() {
                   const model = this.currentModel;
                   // Extract just the model name (after the slash)
                   return model.includes('/') ? model.split('/').pop() : model;
               },
-              selectPersonality(p) {
+              selectPersona(p) {
                   this.selected = p.id;
                   this.selectedDisplay = p.display;
                   this.open = false;
               },
               selectHighlighted() {
-                  if (this.filteredPersonalities.length > 0) {
-                      this.selectPersonality(this.filteredPersonalities[this.highlightedIndex]);
+                  if (this.filteredPersonas.length > 0) {
+                      this.selectPersona(this.filteredPersonas[this.highlightedIndex]);
                   }
               },
               highlightNext() {
-                  if (this.highlightedIndex < this.filteredPersonalities.length - 1) {
+                  if (this.highlightedIndex < this.filteredPersonas.length - 1) {
                       this.highlightedIndex++;
                       this.scrollToHighlighted();
                   }
@@ -70,13 +70,13 @@
                   });
               },
               init() {
-                  const found = this.personalities.find(p => p.id === this.selected);
+                  const found = this.personas.find(p => p.id === this.selected);
                   if (found) this.selectedDisplay = found.display;
               }
           }">
         {% csrf_token %}
         <input type="hidden" name="timezone" id="timezone-input" value="">
-        <input type="hidden" name="personality" :value="selected">
+        <input type="hidden" name="persona" :value="selected">
 
         <!-- Title -->
         <h1 class="text-4xl text-accent-cyan mb-6">Liminal Salt</h1>
@@ -94,7 +94,7 @@
             <button type="submit" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Send</button>
         </div>
 
-        <!-- Personality picker and model display -->
+        <!-- Persona picker and model display -->
         <div class="flex items-center gap-4">
             <div class="relative">
                 <button type="button"
@@ -115,9 +115,9 @@
                  @keydown.arrow-up.prevent="highlightPrev()"
                  @keydown.enter.prevent="selectHighlighted()"
                  class="absolute bottom-full left-0 mb-1 min-w-[200px] max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
-                <template x-for="(p, index) in filteredPersonalities" :key="p.id">
+                <template x-for="(p, index) in filteredPersonas" :key="p.id">
                     <button type="button"
-                            @click="selectPersonality(p)"
+                            @click="selectPersona(p)"
                             @mouseenter="highlightedIndex = index"
                             :class="index === highlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
                             class="block w-full px-4 py-2 text-left text-sm cursor-pointer">

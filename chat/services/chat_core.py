@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 class ChatCore:
-    def __init__(self, api_key, model, site_url=None, site_name=None, system_prompt="", max_history=50, history_file=None, personality="assistant", user_timezone="UTC", assistant_timezone=None):
+    def __init__(self, api_key, model, site_url=None, site_name=None, system_prompt="", max_history=50, history_file=None, persona="assistant", user_timezone="UTC", assistant_timezone=None):
         self.api_key = api_key
         self.model = model
         self.site_url = site_url
@@ -14,7 +14,7 @@ class ChatCore:
         self.system_prompt = system_prompt
         self.max_history = max_history
         self.history_file = history_file
-        self.personality = personality
+        self.persona = persona
         self.user_timezone = user_timezone
         self.assistant_timezone = assistant_timezone
         self.title = "New Chat"
@@ -27,7 +27,7 @@ class ChatCore:
                     data = json.load(f)
                     if isinstance(data, dict):
                         self.title = data.get("title", "New Chat")
-                        self.personality = data.get("personality", self.personality)
+                        self.persona = data.get("persona", self.persona)
                         return data.get("messages", [])
                     return data
             except Exception:
@@ -41,7 +41,7 @@ class ChatCore:
             window_size = self.max_history * 2
             to_save = {
                 "title": self.title,
-                "personality": self.personality,
+                "persona": self.persona,
                 "messages": self.messages[-window_size:]
             }
             with open(self.history_file, 'w') as f:

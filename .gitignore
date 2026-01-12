@@ -15,8 +15,8 @@ user_context/
 # API keys and secrets
 config.json
 
-# Beta personalities
-data/personalities/lottie/
+# Beta personas
+data/personas/lottie/
 
 # =============================================================================
 # Python

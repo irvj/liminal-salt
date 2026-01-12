@@ -23,7 +23,7 @@
                         @click="if (isMobile) collapsed = true; updateSidebarHighlight($el)"
                         data-session-id="{{ session.id }}"
                         class="session-item flex-1 m-0 pl-5 p-2.5 text-sm rounded-l text-left cursor-pointer {% if session.id == current_session %}bg-accent text-foreground-on-accent font-bold{% else %}bg-surface-elevated text-foreground{% endif %} hover:bg-accent hover:text-foreground-on-accent">
-                    {{ session.title }} <span class="text-foreground-secondary text-xs">({{ session.personality|display_name }})</span>
+                    {{ session.title }} <span class="text-foreground-secondary text-xs">({{ session.persona|display_name }})</span>
                 </button>
                 <button hx-post="{% url 'toggle_pin_chat' %}"
                         hx-vals='{"session_id": "{{ session.id }}"}'
@@ -44,17 +44,17 @@
 </div>
 {% endif %}
 
-{% for personality, personality_sessions in grouped_sessions.items %}
+{% for persona, persona_sessions in grouped_sessions.items %}
     <!-- Using Alpine.js for collapsible groups -->
     <div x-data="{ open: true }">
         <button @click="open = !open" class="flex items-center gap-1 w-full p-2.5 mt-3 bg-surface-elevated text-accent-cyan font-semibold rounded text-left text-sm cursor-pointer">
             <span x-show="open">{% include 'icons/chevron-down.html' with class='w-4 h-4' %}</span>
             <span x-show="!open">{% include 'icons/chevron-right.html' with class='w-4 h-4' %}</span>
-            {{ personality|display_name }} ({{ personality_sessions|length }})
+            {{ persona|display_name }} ({{ persona_sessions|length }})
         </button>
 
         <div x-show="open">
-            {% for session in personality_sessions %}
+            {% for session in persona_sessions %}
                 <div class="session-row flex items-stretch my-1 gap-0.5" data-session-id="{{ session.id }}">
                     <button hx-post="{% url 'switch_session' %}"
                             hx-vals='{"session_id": "{{ session.id }}"}'

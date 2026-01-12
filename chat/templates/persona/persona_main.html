@@ -1,0 +1,171 @@
+{% load markdown_extras %}
+<!-- Header -->
+<header class="bg-surface-secondary px-5 py-4 border-b border-border">
+    <h1 class="text-2xl text-accent-cyan">Persona Settings</h1>
+</header>
+
+<!-- Persona Settings Content -->
+<div class="flex-1 overflow-y-auto p-5">
+    {% if success %}
+    <div class="p-3 px-4 rounded mb-4 bg-success text-surface flex items-center gap-2">{% include 'icons/check-circle.html' with class='w-5 h-5' %} {{ success }}</div>
+    {% endif %}
+
+    <button type="button" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover mb-4" onclick="openNewPersonaModal()">New Persona</button>
+
+    {% if not personas %}
+    <div class="p-3 px-4 rounded mb-4 bg-danger text-white">
+        No personas found in 'personas/' directory.
+        Create persona folders with .md files to define chatbot personas.
+    </div>
+    {% else %}
+
+    <p class="text-foreground-secondary text-sm mb-4"><strong>Default persona for new chats:</strong> {{ default_persona|display_name }}</p>
+
+    <form hx-post="{% url 'save_settings' %}"
+          hx-target="#main-content"
+          hx-swap="innerHTML">
+        {% csrf_token %}
+        <input type="hidden" name="redirect_to" value="persona">
+        <div class="mb-4"
+             x-data="{
+                 open: false,
+                 search: '',
+                 selected: '{{ selected_persona }}',
+                 highlightedIndex: 0,
+                 personas: [{% for p in personas %}{ id: '{{ p }}', display: '{{ p|display_name|escapejs }}' }{% if not forloop.last %}, {% endif %}{% endfor %}],
+                 settingsUrl: '{% url 'persona_settings' %}',
+                 get filteredPersonas() {
+                     const found = this.personas.find(p => p.id === this.selected);
+                     if (found && this.search === found.display) return this.personas;
+                     if (!this.search) return this.personas;
+                     const s = this.search.toLowerCase();
+                     return this.personas.filter(p => p.display.toLowerCase().includes(s) || p.id.toLowerCase().includes(s));
+                 },
+                 selectPersona(p) {
+                     this.selected = p.id;
+                     this.search = p.display;
+                     this.open = false;
+                     // Trigger HTMX preview (preserve scroll position)
+                     const scrollContainer = document.querySelector('#main-content .overflow-y-auto');
+                     const scrollPos = scrollContainer ? scrollContainer.scrollTop : 0;
+                     htmx.ajax('GET', this.settingsUrl + '?preview=' + p.id, {target: '#main-content', swap: 'innerHTML'}).then(() => {
+                         if (scrollContainer) {
+                             const newScrollContainer = document.querySelector('#main-content .overflow-y-auto');
+                             if (newScrollContainer) newScrollContainer.scrollTop = scrollPos;
+                         }
+                     });
+                 },
+                 selectHighlighted() {
+                     if (this.filteredPersonas.length > 0) {
+                         this.selectPersona(this.filteredPersonas[this.highlightedIndex]);
+                     }
+                 },
+                 highlightNext() {
+                     if (this.highlightedIndex < this.filteredPersonas.length - 1) {
+                         this.highlightedIndex++;
+                         this.scrollToHighlighted();
+                     }
+                 },
+                 highlightPrev() {
+                     if (this.highlightedIndex > 0) {
+                         this.highlightedIndex--;
+                         this.scrollToHighlighted();
+                     }
+                 },
+                 scrollToHighlighted() {
+                     this.$nextTick(() => {
+                         const dropdown = this.$root.querySelector('.max-h-64');
+                         const buttons = dropdown?.querySelectorAll('button');
+                         const highlighted = buttons?.[this.highlightedIndex];
+                         if (dropdown && highlighted) {
+                             const itemTop = highlighted.offsetTop;
+                             const itemBottom = itemTop + highlighted.offsetHeight;
+                             const viewTop = dropdown.scrollTop;
+                             const viewBottom = viewTop + dropdown.clientHeight;
+                             if (itemBottom > viewBottom) {
+                                 dropdown.scrollTop = itemBottom - dropdown.clientHeight;
+                             } else if (itemTop < viewTop) {
+                                 dropdown.scrollTop = itemTop;
+                             }
+                         }
+                     });
+                 },
+                 init() {
+                     const found = this.personas.find(p => p.id === this.selected);
+                     if (found) this.search = found.display;
+                 }
+             }">
+            <label class="block mb-2 font-medium">Select a persona:</label>
+            <input type="hidden" name="persona" id="persona" :value="selected">
+            <div class="relative max-w-md">
+                <input type="text"
+                       x-model="search"
+                       @input="highlightedIndex = 0"
+                       @focus="open = true"
+                       @click.stop="open = true"
+                       @keydown.escape="open = false"
+                       @keydown.enter.prevent="selectHighlighted()"
+                       @keydown.arrow-down.prevent="highlightNext()"
+                       @keydown.arrow-up.prevent="highlightPrev()"
+                       placeholder="Search personas..."
+                       :class="selected ? 'border-accent-cyan bg-surface' : 'border-border bg-surface-secondary'"
+                       class="w-full p-3 pr-10 border rounded text-foreground text-base focus:outline-none focus:border-accent-cyan">
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-secondary pointer-events-none">{% include 'icons/chevron-down.html' with class='w-4 h-4' %}</span>
+
+                <!-- Dropdown -->
+                <div x-cloak
+                     x-show="open && filteredPersonas.length > 0"
+                     x-transition:enter="transition ease-out duration-100"
+                     x-transition:leave="transition ease-in duration-75"
+                     @click.away="open = false"
+                     class="absolute w-full mt-1 max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
+                    <template x-for="(p, index) in filteredPersonas" :key="p.id">
+                        <button type="button"
+                                @click="selectPersona(p)"
+                                @mouseenter="highlightedIndex = index"
+                                :class="index === highlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                                class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
+                            <span x-text="p.display"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <div class="flex gap-3 flex-wrap mt-4">
+                <button type="submit" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover">Set as Default</button>
+                <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openEditPersonaModal()">Edit Persona</button>
+                <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openEditPersonaModelModal()">Edit Model</button>
+                <button type="button"
+                        class="px-6 py-3 bg-surface-elevated rounded font-medium"
+                        :class="selected === 'assistant' ? 'text-foreground-secondary cursor-not-allowed opacity-50' : 'text-foreground cursor-pointer hover:bg-danger hover:text-foreground-on-accent'"
+                        :disabled="selected === 'assistant'"
+                        :title="selected === 'assistant' ? 'Cannot delete the default Assistant persona' : 'Delete Persona'"
+                        @click="selected !== 'assistant' && openDeletePersonaModal()">Delete Persona</button>
+            </div>
+        </div>
+    </form>
+
+    <!-- Data element for modal access (survives HTMX swaps) -->
+    <div id="persona-data"
+         data-selected-id="{{ selected_persona }}"
+         data-persona-model="{{ persona_model }}"
+         data-available-models='{{ available_models_json|safe }}'
+         data-default-model="{{ model }}"
+         class="hidden">
+        <template id="persona-raw-content">{{ persona_preview }}</template>
+    </div>
+
+    {% if persona_model %}
+    <div class="text-sm text-foreground-secondary mt-4 mb-2">
+        <strong>Model override:</strong> <span class="text-accent-cyan">{{ persona_model }}</span>
+    </div>
+    {% endif %}
+
+    {% if persona_preview %}
+    <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent mt-2 prose prose-invert max-w-none">
+        {{ persona_preview|markdown }}
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>

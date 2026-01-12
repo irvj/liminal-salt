@@ -80,43 +80,43 @@
     </div>
 </div>
 
-<!-- Edit/New Personality Modal (Alpine.js) -->
-<div x-data="editPersonalityModal()" x-cloak>
+<!-- Edit/New Persona Modal (Alpine.js) -->
+<div x-data="editPersonaModal()" x-cloak>
     <div x-show="showModal"
          x-transition:enter="transition ease-out duration-200"
          x-transition:leave="transition ease-in duration-150"
          class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
         <div class="bg-surface-secondary rounded-lg p-6 max-w-modal-xl w-[90%] border border-border">
-            <h3 class="text-foreground mb-3" x-text="isNew ? 'New Personality' : 'Edit Personality'"></h3>
+            <h3 class="text-foreground mb-3" x-text="isNew ? 'New Persona' : 'Edit Persona'"></h3>
             <div class="mb-4">
-                <label for="personality-name" class="block mb-2 font-medium text-foreground-secondary">Display Name:</label>
-                <input type="text" id="personality-name" x-model="displayName"
+                <label for="persona-name" class="block mb-2 font-medium text-foreground-secondary">Display Name:</label>
+                <input type="text" id="persona-name" x-model="displayName"
                        :disabled="isAssistant"
                        :class="isAssistant ? 'opacity-50 cursor-not-allowed' : ''"
                        class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-cyan"
                        @input="displayName = displayName.replace(/[^a-zA-Z0-9 ]/g, '')">
-                <p x-show="isAssistant" class="text-foreground-secondary text-xs mt-1">The default personality cannot be renamed.</p>
+                <p x-show="isAssistant" class="text-foreground-secondary text-xs mt-1">The default persona cannot be renamed.</p>
             </div>
-            <label class="block mb-2 font-medium text-foreground-secondary">Personality File:</label>
+            <label class="block mb-2 font-medium text-foreground-secondary">Persona File:</label>
             <textarea x-model="content" class="w-full h-[400px] bg-surface border border-border rounded text-foreground font-mono text-sm p-3 resize-y mb-4 focus:outline-none focus:border-accent-cyan"></textarea>
             <div class="flex gap-3 justify-end">
                 <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
-                <button @click="savePersonality()" class="px-4 py-2 bg-success text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-success/80">Save</button>
+                <button @click="savePersona()" class="px-4 py-2 bg-success text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-success/80">Save</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Delete Personality Modal (Alpine.js) -->
-<div x-data="deletePersonalityModal()" x-cloak>
+<!-- Delete Persona Modal (Alpine.js) -->
+<div x-data="deletePersonaModal()" x-cloak>
     <div x-show="showModal"
          x-transition:enter="transition ease-out duration-200"
          x-transition:leave="transition ease-in duration-150"
          class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
         <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
-            <h3 class="text-foreground mb-3">Delete Personality?</h3>
+            <h3 class="text-foreground mb-3">Delete Persona?</h3>
             <p class="text-foreground-secondary mb-5">Are you sure you want to delete "<span x-text="displayName"></span>"? This cannot be undone.</p>
             <div class="flex gap-3 justify-end">
                 <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
@@ -126,8 +126,8 @@
     </div>
 </div>
 
-<!-- Edit Personality Model Modal (Alpine.js) -->
-<div x-data="editPersonalityModelModal()" x-cloak>
+<!-- Edit Persona Model Modal (Alpine.js) -->
+<div x-data="editPersonaModelModal()" x-cloak>
     <div x-show="showModal"
          x-transition:enter="transition ease-out duration-200"
          x-transition:leave="transition ease-in duration-150"
@@ -135,7 +135,7 @@
          @click.self="showModal = false">
         <div class="bg-surface-secondary rounded-lg p-6 max-w-[500px] w-[90%] border border-border">
             <h3 class="text-foreground mb-2">Edit Model for <span class="text-accent-cyan" x-text="displayName"></span></h3>
-            <p class="text-foreground-secondary text-sm mb-4">Select a model for this personality, or clear to use the default.</p>
+            <p class="text-foreground-secondary text-sm mb-4">Select a model for this persona, or clear to use the default.</p>
 
             <!-- Status Messages -->
             <div x-show="statusMessage" x-transition
@@ -349,7 +349,7 @@
             {% include "chat/new_chat_button.html" %}
             </div>
 
-            <!-- Sessions grouped by personality -->
+            <!-- Sessions grouped by persona -->
             <div id="sidebar-sessions">
             {% include "chat/sidebar_sessions.html" %}
             </div>
@@ -375,6 +375,15 @@
                         class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
                         title="User Memory">
                     {% include 'icons/brain-cog.html' with class='w-6 h-6' %}
+                </button>
+                <!-- Persona -->
+                <button hx-get="{% url 'persona_settings' %}"
+                        hx-target="#main-content"
+                        hx-swap="innerHTML"
+                        @click="if (isMobile) collapsed = true"
+                        class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+                        title="Persona Settings">
+                    {% include 'icons/user-pen.html' with class='w-6 h-6' %}
                 </button>
                 <!-- Settings -->
                 <button hx-get="{% url 'settings' %}"
@@ -726,19 +735,19 @@
         }
     }
 
-    // Alpine.js component for edit/new personality modal
-    function editPersonalityModal() {
+    // Alpine.js component for edit/new persona modal
+    function editPersonaModal() {
         return {
             showModal: false,
-            isNew: false,         // true for new personality, false for edit
-            isAssistant: false,   // true if editing the "assistant" personality (cannot rename)
-            personality: '',      // Original folder name (empty for new)
+            isNew: false,         // true for new persona, false for edit
+            isAssistant: false,   // true if editing the "assistant" persona (cannot rename)
+            persona: '',          // Original folder name (empty for new)
             displayName: '',      // User-editable display name
             content: '',
             init() {
-                window.editPersonalityModalComponent = this;
+                window.editPersonaModalComponent = this;
             },
-            savePersonality() {
+            savePersona() {
                 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
                 // Convert display name to folder name format
@@ -747,13 +756,13 @@
                     .replace(/\s+/g, '_')
                     .replace(/[^a-z0-9_]/g, '');
 
-                const url = this.isNew ? '{% url "create_personality" %}' : '{% url "save_personality_file" %}';
-                // Don't send new_name for assistant personality (cannot be renamed)
+                const url = this.isNew ? '{% url "create_persona" %}' : '{% url "save_persona_file" %}';
+                // Don't send new_name for assistant persona (cannot be renamed)
                 const body = this.isNew
                     ? `name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`
                     : this.isAssistant
-                        ? `personality=${encodeURIComponent(this.personality)}&content=${encodeURIComponent(this.content)}`
-                        : `personality=${encodeURIComponent(this.personality)}&new_name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`;
+                        ? `persona=${encodeURIComponent(this.persona)}&content=${encodeURIComponent(this.content)}`
+                        : `persona=${encodeURIComponent(this.persona)}&new_name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`;
 
                 fetch(url, {
                     method: 'POST',
@@ -775,57 +784,60 @@
         };
     }
 
-    // Open edit personality modal (called from settings page)
-    function openEditPersonalityModal() {
-        if (window.editPersonalityModalComponent) {
-            const select = document.getElementById('personality');
-            const personality = select ? select.value : '';
-            const content = window.personalityRawContent || '';
+    // Open edit persona modal (called from persona settings page)
+    function openEditPersonaModal() {
+        if (window.editPersonaModalComponent) {
+            const select = document.getElementById('persona');
+            const persona = select ? select.value : '';
+
+            // Read content from template element (survives HTMX swaps, preserves formatting)
+            const contentTemplate = document.getElementById('persona-raw-content');
+            const content = contentTemplate ? contentTemplate.innerHTML : '';
 
             // Convert folder name to display name for editing
-            const displayName = personality.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const displayName = persona.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-            window.editPersonalityModalComponent.isNew = false;
-            window.editPersonalityModalComponent.isAssistant = (personality === 'assistant');
-            window.editPersonalityModalComponent.personality = personality;
-            window.editPersonalityModalComponent.displayName = displayName;
-            window.editPersonalityModalComponent.content = content;
-            window.editPersonalityModalComponent.showModal = true;
+            window.editPersonaModalComponent.isNew = false;
+            window.editPersonaModalComponent.isAssistant = (persona === 'assistant');
+            window.editPersonaModalComponent.persona = persona;
+            window.editPersonaModalComponent.displayName = displayName;
+            window.editPersonaModalComponent.content = content;
+            window.editPersonaModalComponent.showModal = true;
         }
     }
 
-    // Open new personality modal (called from settings page)
-    function openNewPersonalityModal() {
-        if (window.editPersonalityModalComponent) {
-            window.editPersonalityModalComponent.isNew = true;
-            window.editPersonalityModalComponent.isAssistant = false;
-            window.editPersonalityModalComponent.personality = '';
-            window.editPersonalityModalComponent.displayName = '';
-            window.editPersonalityModalComponent.content = '';
-            window.editPersonalityModalComponent.showModal = true;
+    // Open new persona modal (called from settings page)
+    function openNewPersonaModal() {
+        if (window.editPersonaModalComponent) {
+            window.editPersonaModalComponent.isNew = true;
+            window.editPersonaModalComponent.isAssistant = false;
+            window.editPersonaModalComponent.persona = '';
+            window.editPersonaModalComponent.displayName = '';
+            window.editPersonaModalComponent.content = '';
+            window.editPersonaModalComponent.showModal = true;
         }
     }
 
-    // Alpine.js component for delete personality modal
-    function deletePersonalityModal() {
+    // Alpine.js component for delete persona modal
+    function deletePersonaModal() {
         return {
             showModal: false,
-            personality: '',
+            persona: '',
             displayName: '',
             init() {
-                window.deletePersonalityModalComponent = this;
+                window.deletePersonaModalComponent = this;
             },
             confirmDelete() {
                 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
-                fetch('{% url "delete_personality" %}', {
+                fetch('{% url "delete_persona" %}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'X-CSRFToken': csrfToken,
                         'HX-Request': 'true'
                     },
-                    body: `personality=${encodeURIComponent(this.personality)}`
+                    body: `persona=${encodeURIComponent(this.persona)}`
                 })
                 .then(response => response.text())
                 .then(html => {
@@ -838,24 +850,24 @@
         };
     }
 
-    // Open delete personality modal (called from settings page)
-    function openDeletePersonalityModal() {
-        if (window.deletePersonalityModalComponent) {
-            const select = document.getElementById('personality');
-            const personality = select ? select.value : '';
-            const displayName = personality.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    // Open delete persona modal (called from persona settings page)
+    function openDeletePersonaModal() {
+        if (window.deletePersonaModalComponent) {
+            const select = document.getElementById('persona');
+            const persona = select ? select.value : '';
+            const displayName = persona.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-            window.deletePersonalityModalComponent.personality = personality;
-            window.deletePersonalityModalComponent.displayName = displayName;
-            window.deletePersonalityModalComponent.showModal = true;
+            window.deletePersonaModalComponent.persona = persona;
+            window.deletePersonaModalComponent.displayName = displayName;
+            window.deletePersonaModalComponent.showModal = true;
         }
     }
 
-    // Alpine.js component for edit personality model modal
-    function editPersonalityModelModal() {
+    // Alpine.js component for edit persona model modal
+    function editPersonaModelModal() {
         return {
             showModal: false,
-            personality: '',
+            persona: '',
             displayName: '',
             currentModel: '',
             selectedModel: '',
@@ -869,7 +881,7 @@
             saving: false,
 
             init() {
-                window.editPersonalityModelModalComponent = this;
+                window.editPersonaModelModalComponent = this;
             },
 
             get filteredModels() {
@@ -917,10 +929,10 @@
 
                 try {
                     const formData = new FormData();
-                    formData.append('personality', this.personality);
+                    formData.append('persona', this.persona);
                     formData.append('model', this.selectedModel);
 
-                    const response = await fetch('{% url "save_personality_model" %}', {
+                    const response = await fetch('{% url "save_persona_model" %}', {
                         method: 'POST',
                         headers: { 'X-CSRFToken': csrfToken },
                         body: formData
@@ -932,10 +944,10 @@
                         this.statusType = 'success';
                         this.currentModel = data.model || '';
 
-                        // Refresh settings page to show updated model
+                        // Refresh persona page to show updated model
                         setTimeout(() => {
                             this.showModal = false;
-                            htmx.ajax('GET', '/settings/?preview=' + this.personality, {target: '#main-content', swap: 'innerHTML'});
+                            htmx.ajax('GET', '/persona/?preview=' + this.persona, {target: '#main-content', swap: 'innerHTML'});
                         }, 1000);
                     } else {
                         this.statusMessage = data.error || 'Failed to save model';
@@ -951,29 +963,40 @@
         };
     }
 
-    // Open edit personality model modal (called from settings page)
-    function openEditPersonalityModelModal() {
-        if (window.editPersonalityModelModalComponent) {
-            const personality = window.selectedPersonalityId || '';
-            const displayName = personality.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-
-            window.editPersonalityModelModalComponent.personality = personality;
-            window.editPersonalityModelModalComponent.displayName = displayName;
-            window.editPersonalityModelModalComponent.currentModel = window.personalityModel || '';
-            window.editPersonalityModelModalComponent.selectedModel = window.personalityModel || '';
-            window.editPersonalityModelModalComponent.models = window.availableModels || [];
-            window.editPersonalityModelModalComponent.defaultModel = window.defaultModel || '';
-            window.editPersonalityModelModalComponent.statusMessage = '';
-
-            // Set modelSearch to display name of current model if set
-            if (window.personalityModel) {
-                const model = window.availableModels?.find(m => m.id === window.personalityModel);
-                window.editPersonalityModelModalComponent.modelSearch = model ? model.display : window.personalityModel;
-            } else {
-                window.editPersonalityModelModalComponent.modelSearch = '';
+    // Open edit persona model modal (called from persona settings page)
+    function openEditPersonaModelModal() {
+        if (window.editPersonaModelModalComponent) {
+            // Read from data attributes (survives HTMX swaps)
+            const personaData = document.getElementById('persona-data');
+            const persona = personaData ? personaData.dataset.selectedId : '';
+            const personaModel = personaData ? personaData.dataset.personaModel : '';
+            const defaultModel = personaData ? personaData.dataset.defaultModel : '';
+            let availableModels = [];
+            try {
+                availableModels = personaData ? JSON.parse(personaData.dataset.availableModels || '[]') : [];
+            } catch (e) {
+                availableModels = [];
             }
 
-            window.editPersonalityModelModalComponent.showModal = true;
+            const displayName = persona.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+            window.editPersonaModelModalComponent.persona = persona;
+            window.editPersonaModelModalComponent.displayName = displayName;
+            window.editPersonaModelModalComponent.currentModel = personaModel;
+            window.editPersonaModelModalComponent.selectedModel = personaModel;
+            window.editPersonaModelModalComponent.models = availableModels;
+            window.editPersonaModelModalComponent.defaultModel = defaultModel;
+            window.editPersonaModelModalComponent.statusMessage = '';
+
+            // Set modelSearch to display name of current model if set
+            if (personaModel) {
+                const model = availableModels.find(m => m.id === personaModel);
+                window.editPersonaModelModalComponent.modelSearch = model ? model.display : personaModel;
+            } else {
+                window.editPersonaModelModalComponent.modelSearch = '';
+            }
+
+            window.editPersonaModelModalComponent.showModal = true;
         }
     }
 

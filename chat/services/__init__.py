@@ -1,7 +1,7 @@
 # Business logic services
 from .chat_core import ChatCore
 from .config_manager import fetch_available_models, validate_api_key, get_providers
-from .context_manager import load_context, get_available_personalities, get_personality_config, get_personality_model
+from .context_manager import load_context, get_available_personas, get_persona_config, get_persona_model
 from .summarizer import Summarizer
 from .user_context import (
     list_files as list_context_files,

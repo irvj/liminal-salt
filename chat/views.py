@@ -70,8 +70,8 @@ def setup_wizard(request):
                 "MODEL": "",  # To be filled in step 2
                 "SITE_URL": "https://liminalsalt.app",
                 "SITE_NAME": "Liminal Salt",
-                "DEFAULT_PERSONALITY": "assistant",
-                "PERSONALITIES_DIR": "personalities",
+                "DEFAULT_PERSONA": "assistant",
+                "PERSONAS_DIR": "personas",
                 "MAX_HISTORY": 50,
                 "SESSIONS_DIR": "sessions",
                 "LTM_FILE": "long_term_memory.md"
@@ -157,13 +157,13 @@ def setup_wizard(request):
 def chat(request):
     """Main chat view - session determined from Django session storage"""
     from datetime import datetime
-    from .services import load_context, get_available_personalities
+    from .services import load_context, get_available_personas
     from .services import ChatCore
     from .services import Summarizer
     from django.conf import settings
     from .utils import (
-        get_sessions_with_titles, group_sessions_by_personality,
-        get_current_session, set_current_session, get_collapsed_personalities,
+        get_sessions_with_titles, group_sessions_by_persona,
+        get_current_session, set_current_session, get_collapsed_personas,
         title_has_artifacts, ensure_sessions_dir
     )
 
@@ -180,24 +180,24 @@ def chat(request):
     # For HTMX requests (session switching), load the session
     if not is_htmx:
         # Full page load - show home page
-        from .services import get_personality_model
+        from .services import get_persona_model
         sessions = get_sessions_with_titles()
-        available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
-        default_personality = config.get("DEFAULT_PERSONALITY", "")
+        available_personas = get_available_personas(str(settings.PERSONAS_DIR))
+        default_persona = config.get("DEFAULT_PERSONA", "")
         default_model = config.get("MODEL", "")
-        pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
+        pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
 
-        # Build personality -> model mapping
-        personality_models = {}
-        for p in available_personalities:
-            pm = get_personality_model(p, str(settings.PERSONALITIES_DIR))
-            personality_models[p] = pm or default_model
+        # Build persona -> model mapping
+        persona_models = {}
+        for p in available_personas:
+            pm = get_persona_model(p, str(settings.PERSONAS_DIR))
+            persona_models[p] = pm or default_model
 
         context = {
-            'personalities': available_personalities,
-            'default_personality': default_personality,
+            'personas': available_personas,
+            'default_persona': default_persona,
             'default_model': default_model,
-            'personality_models_json': json.dumps(personality_models),
+            'persona_models_json': json.dumps(persona_models),
             'pinned_sessions': pinned_sessions,
             'grouped_sessions': grouped_sessions,
             'current_session': None,
@@ -213,23 +213,23 @@ def chat(request):
             set_current_session(request, session_id)
         else:
             # No sessions - show home page partial
-            from .services import get_personality_model
-            available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
-            default_personality = config.get("DEFAULT_PERSONALITY", "")
+            from .services import get_persona_model
+            available_personas = get_available_personas(str(settings.PERSONAS_DIR))
+            default_persona = config.get("DEFAULT_PERSONA", "")
             default_model = config.get("MODEL", "")
-            pinned_sessions, grouped_sessions = group_sessions_by_personality([])
+            pinned_sessions, grouped_sessions = group_sessions_by_persona([])
 
-            # Build personality -> model mapping
-            personality_models = {}
-            for p in available_personalities:
-                pm = get_personality_model(p, str(settings.PERSONALITIES_DIR))
-                personality_models[p] = pm or default_model
+            # Build persona -> model mapping
+            persona_models = {}
+            for p in available_personas:
+                pm = get_persona_model(p, str(settings.PERSONAS_DIR))
+                persona_models[p] = pm or default_model
 
             context = {
-                'personalities': available_personalities,
-                'default_personality': default_personality,
+                'personas': available_personas,
+                'default_persona': default_persona,
                 'default_model': default_model,
-                'personality_models_json': json.dumps(personality_models),
+                'persona_models_json': json.dumps(persona_models),
                 'pinned_sessions': pinned_sessions,
                 'grouped_sessions': grouped_sessions,
                 'current_session': None,
@@ -239,30 +239,30 @@ def chat(request):
 
     # Load session data
     session_path = settings.SESSIONS_DIR / session_id
-    personalities_dir = str(settings.PERSONALITIES_DIR)
+    personas_dir = str(settings.PERSONAS_DIR)
     ltm_file = str(settings.LTM_FILE)
     api_key = config.get("OPENROUTER_API_KEY")
     max_history = config.get("MAX_HISTORY", 50)
     site_url = config.get("SITE_URL")
     site_name = config.get("SITE_NAME")
 
-    # Try to load personality from session file
-    session_personality = None
+    # Try to load persona from session file
+    session_persona = None
     if os.path.exists(session_path):
         try:
             with open(session_path, 'r') as f:
                 data = json.load(f)
                 if isinstance(data, dict):
-                    session_personality = data.get("personality")
+                    session_persona = data.get("persona")
         except:
             pass
 
     # Fallback to default
-    if not session_personality:
-        session_personality = config.get("DEFAULT_PERSONALITY", "assistant") or "assistant"
+    if not session_persona:
+        session_persona = config.get("DEFAULT_PERSONA", "assistant") or "assistant"
 
-    # Get model for this personality (may be personality-specific or default)
-    model = get_model_for_personality(config, session_personality, settings.PERSONALITIES_DIR)
+    # Get model for this persona (may be persona-specific or default)
+    model = get_model_for_persona(config, session_persona, settings.PERSONAS_DIR)
 
     # Capture user timezone from POST or session
     user_timezone = request.POST.get('timezone') or request.session.get('user_timezone', 'UTC')
@@ -270,8 +270,8 @@ def chat(request):
         request.session['user_timezone'] = user_timezone
 
     # Load context and create ChatCore
-    personality_path = os.path.join(personalities_dir, session_personality)
-    system_prompt = load_context(personality_path, ltm_file=ltm_file)
+    persona_path = os.path.join(personas_dir, session_persona)
+    system_prompt = load_context(persona_path, ltm_file=ltm_file)
 
     chat_core = ChatCore(
         api_key=api_key,
@@ -281,7 +281,7 @@ def chat(request):
         system_prompt=system_prompt,
         max_history=max_history,
         history_file=str(session_path),
-        personality=session_personality,
+        persona=session_persona,
         user_timezone=user_timezone
     )
 
@@ -318,26 +318,26 @@ def chat(request):
 
     # Prepare sidebar data
     sessions = get_sessions_with_titles()
-    pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
-    collapsed_personalities = get_collapsed_personalities(request)
+    pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
+    collapsed_personas = get_collapsed_personas(request)
 
     # Get available personalities for new chat modal
-    available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
-    default_personality = config.get("DEFAULT_PERSONALITY", "")
+    available_personas = get_available_personas(str(settings.PERSONAS_DIR))
+    default_persona = config.get("DEFAULT_PERSONA", "")
 
     context = {
         'session_id': session_id,
         'title': chat_core.title,
-        'personality': chat_core.personality,
+        'persona': chat_core.persona,
         'model': model,
         'messages': chat_core.messages,
         'sessions': sessions,
         'pinned_sessions': pinned_sessions,
         'grouped_sessions': grouped_sessions,
-        'collapsed_personalities': collapsed_personalities,
+        'collapsed_personas': collapsed_personas,
         'current_session': session_id,
-        'available_personalities': available_personalities,
-        'default_personality': default_personality,
+        'available_personas': available_personas,
+        'default_persona': default_persona,
         'is_htmx': request.headers.get('HX-Request') == 'true',
     }
 
@@ -363,8 +363,8 @@ def switch_session(request):
 
 def new_chat(request):
     """Show new chat home page (clears current session)"""
-    from .services import get_available_personalities, get_personality_model
-    from .utils import set_current_session, get_sessions_with_titles, group_sessions_by_personality
+    from .services import get_available_personas, get_persona_model
+    from .utils import set_current_session, get_sessions_with_titles, group_sessions_by_persona
     from django.conf import settings
 
     config = load_config()
@@ -375,23 +375,23 @@ def new_chat(request):
     set_current_session(request, None)
 
     # Get data for home page
-    available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
-    default_personality = config.get("DEFAULT_PERSONALITY", "")
+    available_personas = get_available_personas(str(settings.PERSONAS_DIR))
+    default_persona = config.get("DEFAULT_PERSONA", "")
     default_model = config.get("MODEL", "")
     sessions = get_sessions_with_titles()
-    pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
+    pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
 
-    # Build personality -> model mapping
-    personality_models = {}
-    for p in available_personalities:
-        pm = get_personality_model(p, str(settings.PERSONALITIES_DIR))
-        personality_models[p] = pm or default_model
+    # Build persona -> model mapping
+    persona_models = {}
+    for p in available_personas:
+        pm = get_persona_model(p, str(settings.PERSONAS_DIR))
+        persona_models[p] = pm or default_model
 
     context = {
-        'personalities': available_personalities,
-        'default_personality': default_personality,
+        'personas': available_personas,
+        'default_persona': default_persona,
         'default_model': default_model,
-        'personality_models_json': json.dumps(personality_models),
+        'persona_models_json': json.dumps(persona_models),
         'pinned_sessions': pinned_sessions,
         'grouped_sessions': grouped_sessions,
         'current_session': None,
@@ -408,8 +408,8 @@ def new_chat(request):
 def start_chat(request):
     """Start a new chat - creates session, saves user message, returns chat view with thinking indicator"""
     from datetime import datetime
-    from .services import load_context, get_available_personalities
-    from .utils import set_current_session, get_sessions_with_titles, group_sessions_by_personality
+    from .services import load_context, get_available_personas
+    from .utils import set_current_session, get_sessions_with_titles, group_sessions_by_persona
     from django.conf import settings
 
     if request.method != 'POST':
@@ -423,8 +423,8 @@ def start_chat(request):
     if not user_message:
         return redirect('chat')
 
-    # Get personality from form
-    selected_personality = request.POST.get('personality', config.get("DEFAULT_PERSONALITY", "assistant")) or "assistant"
+    # Get persona from form
+    selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant")) or "assistant"
 
     # Create new session
     session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -446,7 +446,7 @@ def start_chat(request):
     # Create session with user message
     initial_data = {
         "title": "New Chat",
-        "personality": selected_personality,
+        "persona": selected_persona,
         "messages": [
             {"role": "user", "content": user_message, "timestamp": timestamp}
         ]
@@ -459,22 +459,22 @@ def start_chat(request):
 
     # Build context for chat_main.html
     sessions = get_sessions_with_titles()
-    pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
-    available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
-    default_personality = config.get("DEFAULT_PERSONALITY", "")
-    model = get_model_for_personality(config, selected_personality, settings.PERSONALITIES_DIR)
+    pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
+    available_personas = get_available_personas(str(settings.PERSONAS_DIR))
+    default_persona = config.get("DEFAULT_PERSONA", "")
+    model = get_model_for_persona(config, selected_persona, settings.PERSONAS_DIR)
 
     context = {
         'session_id': session_id,
         'title': 'New Chat',
-        'personality': selected_personality,
+        'persona': selected_persona,
         'model': model,
         'messages': initial_data['messages'],
         'pinned_sessions': pinned_sessions,
         'grouped_sessions': grouped_sessions,
         'current_session': session_id,
-        'available_personalities': available_personalities,
-        'default_personality': default_personality,
+        'available_personas': available_personas,
+        'default_persona': default_persona,
         'is_htmx': True,
         'pending_message': user_message,  # Signal to show thinking indicator and auto-trigger LLM
     }
@@ -485,10 +485,10 @@ def start_chat(request):
 def delete_chat(request):
     """Delete chat session (POST) - supports HTMX for reactive updates"""
     from django.conf import settings
-    from .services import load_context, get_available_personalities, ChatCore
+    from .services import load_context, get_available_personas, ChatCore
     from .utils import (
         get_sessions_with_titles, set_current_session, get_current_session,
-        group_sessions_by_personality
+        group_sessions_by_persona
     )
     from datetime import datetime
 
@@ -511,7 +511,7 @@ def delete_chat(request):
         # For HTMX requests, return updated main content + sidebar OOB
         if request.headers.get('HX-Request'):
             config = load_config()
-            personalities_dir = str(settings.PERSONALITIES_DIR)
+            personas_dir = str(settings.PERSONAS_DIR)
 
             if remaining:
                 # Switch to another existing session
@@ -524,27 +524,27 @@ def delete_chat(request):
                 site_url = config.get("SITE_URL")
                 site_name = config.get("SITE_NAME")
 
-                # Load new session's personality
+                # Load new session's persona
                 new_session_path = settings.SESSIONS_DIR / new_session_id
-                session_personality = None
+                session_persona = None
                 if os.path.exists(new_session_path):
                     try:
                         with open(new_session_path, 'r') as f:
                             data = json.load(f)
                             if isinstance(data, dict):
-                                session_personality = data.get("personality")
+                                session_persona = data.get("persona")
                     except:
                         pass
 
-                if not session_personality:
-                    session_personality = config.get("DEFAULT_PERSONALITY", "") or "assistant"
+                if not session_persona:
+                    session_persona = config.get("DEFAULT_PERSONA", "") or "assistant"
 
-                # Get model for this personality (may be personality-specific or default)
-                model = get_model_for_personality(config, session_personality, settings.PERSONALITIES_DIR)
+                # Get model for this persona (may be persona-specific or default)
+                model = get_model_for_persona(config, session_persona, settings.PERSONAS_DIR)
 
                 # Load context and create ChatCore for new session
-                personality_path = os.path.join(personalities_dir, session_personality)
-                system_prompt = load_context(personality_path, ltm_file=ltm_file)
+                persona_path = os.path.join(personas_dir, session_persona)
+                system_prompt = load_context(persona_path, ltm_file=ltm_file)
                 user_timezone = request.session.get('user_timezone', 'UTC')
 
                 chat_core = ChatCore(
@@ -555,53 +555,53 @@ def delete_chat(request):
                     system_prompt=system_prompt,
                     max_history=max_history,
                     history_file=str(new_session_path),
-                    personality=session_personality,
+                    persona=session_persona,
                     user_timezone=user_timezone
                 )
 
                 # Build context for template
                 sessions = get_sessions_with_titles()
-                pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
-                available_personalities = get_available_personalities(personalities_dir)
-                default_personality = config.get("DEFAULT_PERSONALITY", "")
+                pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
+                available_personas = get_available_personas(personas_dir)
+                default_persona = config.get("DEFAULT_PERSONA", "")
 
                 context = {
                     'session_id': new_session_id,
                     'title': chat_core.title,
-                    'personality': chat_core.personality,
+                    'persona': chat_core.persona,
                     'model': model,
                     'messages': chat_core.messages,
                     'pinned_sessions': pinned_sessions,
                     'grouped_sessions': grouped_sessions,
                     'current_session': new_session_id,
-                    'available_personalities': available_personalities,
-                    'default_personality': default_personality,
+                    'available_personas': available_personas,
+                    'default_persona': default_persona,
                     'is_htmx': True,
                 }
 
                 return render(request, 'chat/chat_main.html', context)
             else:
                 # No sessions remaining - show home page
-                from .services import get_personality_model
+                from .services import get_persona_model
                 set_current_session(request, None)
 
                 sessions = get_sessions_with_titles()
-                pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
-                available_personalities = get_available_personalities(personalities_dir)
-                default_personality = config.get("DEFAULT_PERSONALITY", "") or "assistant"
+                pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
+                available_personas = get_available_personas(personas_dir)
+                default_persona = config.get("DEFAULT_PERSONA", "") or "assistant"
                 default_model = config.get("MODEL", "")
 
-                # Build personality -> model mapping
-                personality_models = {}
-                for p in available_personalities:
-                    pm = get_personality_model(p, personalities_dir)
-                    personality_models[p] = pm or default_model
+                # Build persona -> model mapping
+                persona_models = {}
+                for p in available_personas:
+                    pm = get_persona_model(p, personas_dir)
+                    persona_models[p] = pm or default_model
 
                 context = {
-                    'personalities': available_personalities,
-                    'default_personality': default_personality,
+                    'personas': available_personas,
+                    'default_persona': default_persona,
                     'default_model': default_model,
-                    'personality_models_json': json.dumps(personality_models),
+                    'persona_models_json': json.dumps(persona_models),
                     'pinned_sessions': pinned_sessions,
                     'grouped_sessions': grouped_sessions,
                     'current_session': None,
@@ -618,7 +618,7 @@ def delete_chat(request):
 def toggle_pin_chat(request):
     """Toggle pinned status of a chat session (POST) - returns updated sidebar"""
     from django.conf import settings
-    from .utils import get_sessions_with_titles, group_sessions_by_personality, get_current_session
+    from .utils import get_sessions_with_titles, group_sessions_by_persona, get_current_session
 
     if request.method != 'POST':
         return HttpResponse(status=405)
@@ -645,7 +645,7 @@ def toggle_pin_chat(request):
 
     # Return updated sidebar
     sessions = get_sessions_with_titles()
-    pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
+    pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
     current_session = get_current_session(request)
 
     context = {
@@ -660,7 +660,7 @@ def toggle_pin_chat(request):
 def rename_chat(request):
     """Rename a chat session (POST) - returns updated sidebar"""
     from django.conf import settings
-    from .utils import get_sessions_with_titles, group_sessions_by_personality, get_current_session
+    from .utils import get_sessions_with_titles, group_sessions_by_persona, get_current_session
 
     if request.method != 'POST':
         return HttpResponse(status=405)
@@ -689,7 +689,7 @@ def rename_chat(request):
 
     # Return updated sidebar
     sessions = get_sessions_with_titles()
-    pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
+    pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
     current_session = get_current_session(request)
 
     context = {
@@ -731,14 +731,14 @@ def send_message(request):
         from datetime import datetime
         from .utils import set_current_session
 
-        selected_personality = request.POST.get('personality', config.get("DEFAULT_PERSONALITY", "assistant")) or "assistant"
+        selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant")) or "assistant"
         session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
 
         # Create initial session file
         session_path = settings.SESSIONS_DIR / session_id
         initial_data = {
             "title": "New Chat",
-            "personality": selected_personality,
+            "persona": selected_persona,
             "messages": []
         }
         with open(session_path, 'w') as f:
@@ -749,29 +749,29 @@ def send_message(request):
 
     # Load session data (same as chat view)
     session_path = settings.SESSIONS_DIR / session_id
-    personalities_dir = str(settings.PERSONALITIES_DIR)
+    personas_dir = str(settings.PERSONAS_DIR)
     ltm_file = str(settings.LTM_FILE)
     api_key = config.get("OPENROUTER_API_KEY")
     max_history = config.get("MAX_HISTORY", 50)
     site_url = config.get("SITE_URL")
     site_name = config.get("SITE_NAME")
 
-    # Load personality from session file
-    session_personality = None
+    # Load persona from session file
+    session_persona = None
     if os.path.exists(session_path):
         try:
             with open(session_path, 'r') as f:
                 data = json.load(f)
                 if isinstance(data, dict):
-                    session_personality = data.get("personality")
+                    session_persona = data.get("persona")
         except:
             pass
 
-    if not session_personality:
-        session_personality = config.get("DEFAULT_PERSONALITY", "assistant") or "assistant"
+    if not session_persona:
+        session_persona = config.get("DEFAULT_PERSONA", "assistant") or "assistant"
 
-    # Get model for this personality (may be personality-specific or default)
-    model = get_model_for_personality(config, session_personality, settings.PERSONALITIES_DIR)
+    # Get model for this persona (may be persona-specific or default)
+    model = get_model_for_persona(config, session_persona, settings.PERSONAS_DIR)
 
     # Capture user timezone from POST or session
     user_timezone = request.POST.get('timezone') or request.session.get('user_timezone', 'UTC')
@@ -779,8 +779,8 @@ def send_message(request):
         request.session['user_timezone'] = user_timezone
 
     # Load context and create ChatCore
-    personality_path = os.path.join(personalities_dir, session_personality)
-    system_prompt = load_context(personality_path, ltm_file=ltm_file)
+    persona_path = os.path.join(personas_dir, session_persona)
+    system_prompt = load_context(persona_path, ltm_file=ltm_file)
 
     chat_core = ChatCore(
         api_key=api_key,
@@ -790,7 +790,7 @@ def send_message(request):
         system_prompt=system_prompt,
         max_history=max_history,
         history_file=str(session_path),
-        personality=session_personality,
+        persona=session_persona,
         user_timezone=user_timezone
     )
 
@@ -829,25 +829,25 @@ def send_message(request):
 
     # If this was a new chat, return full chat_main.html (targets #main-content)
     if is_new_chat:
-        from .utils import get_sessions_with_titles, group_sessions_by_personality
-        from .services import get_available_personalities
+        from .utils import get_sessions_with_titles, group_sessions_by_persona
+        from .services import get_available_personas
 
         sessions = get_sessions_with_titles()
-        pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
-        available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
-        default_personality = config.get("DEFAULT_PERSONALITY", "")
+        pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
+        available_personas = get_available_personas(str(settings.PERSONAS_DIR))
+        default_persona = config.get("DEFAULT_PERSONA", "")
 
         context = {
             'session_id': session_id,
             'title': chat_core.title,
-            'personality': chat_core.personality,
+            'persona': chat_core.persona,
             'model': model,
             'messages': chat_core.messages,
             'pinned_sessions': pinned_sessions,
             'grouped_sessions': grouped_sessions,
             'current_session': session_id,
-            'available_personalities': available_personalities,
-            'default_personality': default_personality,
+            'available_personas': available_personas,
+            'default_persona': default_persona,
             'is_htmx': True,
         }
         return render(request, 'chat/chat_main.html', context)
@@ -1238,19 +1238,53 @@ def save_context_file_content(request):
 
 def settings(request):
     """Settings view"""
-    from .services import get_available_personalities, get_personality_model
+    from .services import get_available_personas
     from django.conf import settings as django_settings
 
     config = load_config()
     if not config:
         return redirect('setup')
 
-    personalities_dir = str(django_settings.PERSONALITIES_DIR)
-    available_personalities = get_available_personalities(personalities_dir)
-    default_personality = config.get("DEFAULT_PERSONALITY", "")
     model = config.get("MODEL", "")
     provider = config.get("PROVIDER", "openrouter")
     providers = get_providers()
+
+    # Check if API key exists for current provider
+    has_api_key = False
+    if provider == 'openrouter':
+        api_key = config.get("OPENROUTER_API_KEY")
+        has_api_key = bool(api_key)
+
+    context = {
+        'model': model,
+        'provider': provider,
+        'providers': providers,
+        'providers_json': json.dumps(providers),
+        'has_api_key': has_api_key,
+        'success': request.GET.get('success'),
+    }
+
+    # Return partial for HTMX requests, redirect others to chat
+    if request.headers.get('HX-Request'):
+        return render(request, 'settings/settings_main.html', context)
+
+    return redirect('chat')
+
+
+def persona_settings(request):
+    """Persona settings view"""
+    from .services import get_available_personas, get_persona_model
+    from django.conf import settings as django_settings
+
+    config = load_config()
+    if not config:
+        return redirect('setup')
+
+    personas_dir = str(django_settings.PERSONAS_DIR)
+    available_personas = get_available_personas(personas_dir)
+    default_persona = config.get("DEFAULT_PERSONA", "")
+    model = config.get("MODEL", "")
+    provider = config.get("PROVIDER", "openrouter")
 
     # Check if API key exists for current provider
     has_api_key = False
@@ -1268,35 +1302,31 @@ def settings(request):
             model_options = flatten_models_with_provider_prefix(grouped)
             available_models = [{'id': m[0], 'display': m[1]} for m in model_options]
 
-    # Read first personality file preview
-    personality_preview = ""
-    selected_personality = default_personality
-    personality_model = None
-    if available_personalities:
-        selected_personality = request.GET.get('personality', request.GET.get('preview', default_personality))
-        # Only load preview if a personality is actually selected
-        if selected_personality:
-            personality_path = os.path.join(personalities_dir, selected_personality)
-            if os.path.exists(personality_path):
-                md_files = [f for f in os.listdir(personality_path) if f.endswith(".md")]
+    # Read first persona file preview
+    persona_preview = ""
+    selected_persona = default_persona
+    persona_model = None
+    if available_personas:
+        selected_persona = request.GET.get('persona', request.GET.get('preview', default_persona))
+        # Only load preview if a persona is actually selected
+        if selected_persona:
+            persona_path = os.path.join(personas_dir, selected_persona)
+            if os.path.exists(persona_path):
+                md_files = [f for f in os.listdir(persona_path) if f.endswith(".md")]
                 if md_files:
-                    with open(os.path.join(personality_path, md_files[0]), 'r') as f:
+                    with open(os.path.join(persona_path, md_files[0]), 'r') as f:
                         content = f.read()
-                        personality_preview = content
-            # Get personality-specific model if set
-            personality_model = get_personality_model(selected_personality, personalities_dir)
+                        persona_preview = content
+            # Get persona-specific model if set
+            persona_model = get_persona_model(selected_persona, personas_dir)
 
     context = {
         'model': model,
-        'provider': provider,
-        'providers': providers,
-        'providers_json': json.dumps(providers),
-        'has_api_key': has_api_key,
-        'personalities': available_personalities,
-        'default_personality': default_personality,
-        'selected_personality': selected_personality,
-        'personality_preview': personality_preview,
-        'personality_model': personality_model or '',
+        'personas': available_personas,
+        'default_persona': default_persona,
+        'selected_persona': selected_persona,
+        'persona_preview': persona_preview,
+        'persona_model': persona_model or '',
         'available_models': available_models,
         'available_models_json': json.dumps(available_models),
         'success': request.GET.get('success'),
@@ -1304,40 +1334,39 @@ def settings(request):
 
     # Return partial for HTMX requests, redirect others to chat
     if request.headers.get('HX-Request'):
-        return render(request, 'settings/settings_main.html', context)
+        return render(request, 'persona/persona_main.html', context)
 
     return redirect('chat')
 
 
 def save_settings(request):
-    """Save settings (POST)"""
-    from .services import get_available_personalities
+    """Save settings (POST) - handles saving default persona"""
+    from .services import get_available_personas, get_persona_model
     from django.conf import settings as django_settings
 
     if request.method == 'POST':
-        selected_personality = request.POST.get('personality', '').strip()
+        selected_persona = request.POST.get('persona', '').strip()
+        redirect_to = request.POST.get('redirect_to', 'settings')
         config = load_config()
         success_msg = None
 
         # Personality is required - fall back to "assistant" if empty
-        if not selected_personality:
-            selected_personality = "assistant"
+        if not selected_persona:
+            selected_persona = "assistant"
 
         # Update if different from current
-        if selected_personality != config.get("DEFAULT_PERSONALITY", ""):
-            config["DEFAULT_PERSONALITY"] = selected_personality
+        if selected_persona != config.get("DEFAULT_PERSONA", ""):
+            config["DEFAULT_PERSONA"] = selected_persona
             save_config(config)
-            success_msg = "Default personality updated"
+            success_msg = "Default persona updated"
 
-        # For HTMX requests, return the partial directly
+        # For HTMX requests, return the appropriate partial
         if request.headers.get('HX-Request'):
-            from .services import get_personality_model
-            personalities_dir = str(django_settings.PERSONALITIES_DIR)
-            available_personalities = get_available_personalities(personalities_dir)
-            default_personality = config.get("DEFAULT_PERSONALITY", "")
+            personas_dir = str(django_settings.PERSONAS_DIR)
+            available_personas = get_available_personas(personas_dir)
+            default_persona = config.get("DEFAULT_PERSONA", "")
             model = config.get("MODEL", "")
             provider = config.get("PROVIDER", "openrouter")
-            providers = get_providers()
 
             # Check if API key exists and fetch models
             has_api_key = False
@@ -1353,38 +1382,51 @@ def save_settings(request):
                     model_options = flatten_models_with_provider_prefix(grouped)
                     available_models = [{'id': m[0], 'display': m[1]} for m in model_options]
 
-            # Read personality preview for the newly set default (if set)
-            personality_preview = ""
-            personality_model = None
-            if default_personality:
-                personality_path = os.path.join(personalities_dir, default_personality)
-                if os.path.exists(personality_path):
-                    md_files = [f for f in os.listdir(personality_path) if f.endswith(".md")]
+            # Read persona preview for the newly set default (if set)
+            persona_preview = ""
+            persona_model = None
+            if default_persona:
+                persona_path = os.path.join(personas_dir, default_persona)
+                if os.path.exists(persona_path):
+                    md_files = [f for f in os.listdir(persona_path) if f.endswith(".md")]
                     if md_files:
-                        with open(os.path.join(personality_path, md_files[0]), 'r') as f:
+                        with open(os.path.join(persona_path, md_files[0]), 'r') as f:
                             content = f.read()
-                            personality_preview = content
-                personality_model = get_personality_model(default_personality, personalities_dir)
+                            persona_preview = content
+                persona_model = get_persona_model(default_persona, personas_dir)
 
+            # Return persona page if redirecting there
+            if redirect_to == 'persona':
+                context = {
+                    'model': model,
+                    'personas': available_personas,
+                    'default_persona': default_persona,
+                    'selected_persona': default_persona,
+                    'persona_preview': persona_preview,
+                    'persona_model': persona_model or '',
+                    'available_models': available_models,
+                    'available_models_json': json.dumps(available_models),
+                    'success': success_msg,
+                }
+                return render(request, 'persona/persona_main.html', context)
+
+            # Otherwise return settings page
+            providers = get_providers()
             context = {
                 'model': model,
                 'provider': provider,
                 'providers': providers,
                 'providers_json': json.dumps(providers),
                 'has_api_key': has_api_key,
-                'personalities': available_personalities,
-                'default_personality': default_personality,
-                'selected_personality': default_personality,
-                'personality_preview': personality_preview,
-                'personality_model': personality_model or '',
-                'available_models': available_models,
-                'available_models_json': json.dumps(available_models),
                 'success': success_msg,
             }
             return render(request, 'settings/settings_main.html', context)
 
+        # Non-HTMX redirect
+        redirect_url = 'persona_settings' if redirect_to == 'persona' else 'settings'
         if success_msg:
-            return redirect('settings' + '?success=' + success_msg)
+            return redirect(redirect_url + '?success=' + success_msg)
+        return redirect(redirect_url)
 
     return redirect('settings')
 
@@ -1476,65 +1518,65 @@ def save_provider_model(request):
     })
 
 
-def save_personality_file(request):
-    """Save edited personality file content and optionally rename personality"""
+def save_persona_file(request):
+    """Save edited persona file content and optionally rename persona"""
     from django.conf import settings as django_settings
-    from .services import get_available_personalities
+    from .services import get_available_personas
 
     if request.method != 'POST':
         return HttpResponse(status=405)
 
-    personality = request.POST.get('personality', '').strip()
+    persona = request.POST.get('persona', '').strip()
     new_name = request.POST.get('new_name', '').strip()
     content = request.POST.get('content', '')
 
-    if not personality:
-        return HttpResponse("Personality name required", status=400)
+    if not persona:
+        return HttpResponse("Persona name required", status=400)
 
     config = load_config()
-    personalities_dir = str(django_settings.PERSONALITIES_DIR)
-    old_path = os.path.join(personalities_dir, personality)
+    personas_dir = str(django_settings.PERSONAS_DIR)
+    old_path = os.path.join(personas_dir, persona)
 
     # Determine if we're renaming
-    is_rename = new_name and new_name != personality
+    is_rename = new_name and new_name != persona
 
     if is_rename:
-        new_path = os.path.join(personalities_dir, new_name)
+        new_path = os.path.join(personas_dir, new_name)
 
         # Validate new name (only alphanumeric and underscores)
         if not all(c.isalnum() or c == '_' for c in new_name):
-            return HttpResponse("Invalid personality name. Use only letters, numbers, and underscores.", status=400)
+            return HttpResponse("Invalid persona name. Use only letters, numbers, and underscores.", status=400)
 
         # Check if new name already exists
         if os.path.exists(new_path):
-            return HttpResponse(f"A personality named '{new_name}' already exists.", status=400)
+            return HttpResponse(f"A persona named '{new_name}' already exists.", status=400)
 
         # Rename the folder
         if os.path.exists(old_path):
             shutil.move(old_path, new_path)
 
-            # Update all session files that reference the old personality
-            _update_sessions_personality(personality, new_name)
+            # Update all session files that reference the old persona
+            _update_sessions_persona(persona, new_name)
 
-            # Update config.json if DEFAULT_PERSONALITY matches old name
-            if config.get("DEFAULT_PERSONALITY") == personality:
-                config["DEFAULT_PERSONALITY"] = new_name
+            # Update config.json if DEFAULT_PERSONA matches old name
+            if config.get("DEFAULT_PERSONA") == persona:
+                config["DEFAULT_PERSONA"] = new_name
                 save_config(config)
 
             # Use new path for writing content
-            personality_path = new_path
-            final_personality = new_name
+            persona_path = new_path
+            final_persona = new_name
         else:
-            return HttpResponse("Original personality not found", status=404)
+            return HttpResponse("Original persona not found", status=404)
     else:
-        personality_path = old_path
-        final_personality = personality
+        persona_path = old_path
+        final_persona = persona
 
     # Write content to file
-    if os.path.exists(personality_path):
-        md_files = [f for f in os.listdir(personality_path) if f.endswith(".md")]
+    if os.path.exists(persona_path):
+        md_files = [f for f in os.listdir(persona_path) if f.endswith(".md")]
         if md_files:
-            filepath = os.path.join(personality_path, md_files[0])
+            filepath = os.path.join(persona_path, md_files[0])
             with open(filepath, 'w') as f:
                 f.write(content)
 
@@ -1542,9 +1584,9 @@ def save_personality_file(request):
     config = load_config()
 
     # Return updated settings partial
-    from .services import get_personality_model
-    available_personalities = get_available_personalities(personalities_dir)
-    default_personality = config.get("DEFAULT_PERSONALITY", "")
+    from .services import get_persona_model
+    available_personas = get_available_personas(personas_dir)
+    default_persona = config.get("DEFAULT_PERSONA", "")
     model = config.get("MODEL", "")
     provider = config.get("PROVIDER", "openrouter")
     providers = get_providers()
@@ -1563,8 +1605,8 @@ def save_personality_file(request):
             model_options = flatten_models_with_provider_prefix(grouped)
             available_models = [{'id': m[0], 'display': m[1]} for m in model_options]
 
-    # Get personality model
-    personality_model = get_personality_model(final_personality, personalities_dir)
+    # Get persona model
+    persona_model = get_persona_model(final_persona, personas_dir)
 
     context = {
         'model': model,
@@ -1572,20 +1614,20 @@ def save_personality_file(request):
         'providers': providers,
         'providers_json': json.dumps(providers),
         'has_api_key': has_api_key,
-        'personalities': available_personalities,
-        'default_personality': default_personality,
-        'selected_personality': final_personality,
-        'personality_preview': content,
-        'personality_model': personality_model or '',
+        'personas': available_personas,
+        'default_persona': default_persona,
+        'selected_persona': final_persona,
+        'persona_preview': content,
+        'persona_model': persona_model or '',
         'available_models': available_models,
         'available_models_json': json.dumps(available_models),
-        'success': "Personality saved" + (" and renamed" if is_rename else ""),
+        'success': "Persona saved" + (" and renamed" if is_rename else ""),
     }
-    return render(request, 'settings/settings_main.html', context)
+    return render(request, 'persona/persona_main.html', context)
 
 
-def _update_sessions_personality(old_name, new_name):
-    """Update all session files that reference the old personality name"""
+def _update_sessions_persona(old_name, new_name):
+    """Update all session files that reference the old persona name"""
     from django.conf import settings as django_settings
 
     sessions_dir = django_settings.SESSIONS_DIR
@@ -1599,8 +1641,8 @@ def _update_sessions_personality(old_name, new_name):
                 with open(filepath, 'r') as f:
                     data = json.load(f)
 
-                if isinstance(data, dict) and data.get('personality') == old_name:
-                    data['personality'] = new_name
+                if isinstance(data, dict) and data.get('persona') == old_name:
+                    data['persona'] = new_name
                     with open(filepath, 'w') as f:
                         json.dump(data, f, indent=4)
             except Exception as e:
@@ -1608,10 +1650,10 @@ def _update_sessions_personality(old_name, new_name):
                 continue
 
 
-def create_personality(request):
-    """Create a new personality"""
+def create_persona(request):
+    """Create a new persona"""
     from django.conf import settings as django_settings
-    from .services import get_available_personalities
+    from .services import get_available_personas
 
     if request.method != 'POST':
         return HttpResponse(status=405)
@@ -1624,25 +1666,25 @@ def create_personality(request):
 
     # Validate name (only alphanumeric and underscores)
     if not all(c.isalnum() or c == '_' for c in name):
-        return HttpResponse("Invalid personality name. Use only letters, numbers, and underscores.", status=400)
+        return HttpResponse("Invalid persona name. Use only letters, numbers, and underscores.", status=400)
 
     config = load_config()
-    personalities_dir = str(django_settings.PERSONALITIES_DIR)
-    personality_path = os.path.join(personalities_dir, name)
+    personas_dir = str(django_settings.PERSONAS_DIR)
+    persona_path = os.path.join(personas_dir, name)
 
     # Check if already exists
-    if os.path.exists(personality_path):
-        return HttpResponse(f"A personality named '{name}' already exists.", status=400)
+    if os.path.exists(persona_path):
+        return HttpResponse(f"A persona named '{name}' already exists.", status=400)
 
     # Create the folder and identity.md file
-    os.makedirs(personality_path)
-    filepath = os.path.join(personality_path, 'identity.md')
+    os.makedirs(persona_path)
+    filepath = os.path.join(persona_path, 'identity.md')
     with open(filepath, 'w') as f:
         f.write(content)
 
-    # Return updated settings partial with new personality selected
-    available_personalities = get_available_personalities(personalities_dir)
-    default_personality = config.get("DEFAULT_PERSONALITY", "")
+    # Return updated settings partial with new persona selected
+    available_personas = get_available_personas(personas_dir)
+    default_persona = config.get("DEFAULT_PERSONA", "")
     model = config.get("MODEL", "")
     provider = config.get("PROVIDER", "openrouter")
     providers = get_providers()
@@ -1667,65 +1709,65 @@ def create_personality(request):
         'providers': providers,
         'providers_json': json.dumps(providers),
         'has_api_key': has_api_key,
-        'personalities': available_personalities,
-        'default_personality': default_personality,
-        'selected_personality': name,
-        'personality_preview': content,
-        'personality_model': '',  # New personality has no model override
+        'personas': available_personas,
+        'default_persona': default_persona,
+        'selected_persona': name,
+        'persona_preview': content,
+        'persona_model': '',  # New persona has no model override
         'available_models': available_models,
         'available_models_json': json.dumps(available_models),
-        'success': "Personality created",
+        'success': "Persona created",
     }
-    return render(request, 'settings/settings_main.html', context)
+    return render(request, 'persona/persona_main.html', context)
 
 
-def delete_personality(request):
-    """Delete a personality"""
+def delete_persona(request):
+    """Delete a persona"""
     from django.conf import settings as django_settings
-    from .services import get_available_personalities
+    from .services import get_available_personas
 
     if request.method != 'POST':
         return HttpResponse(status=405)
 
-    personality = request.POST.get('personality', '').strip()
+    persona = request.POST.get('persona', '').strip()
 
-    if not personality:
-        return HttpResponse("Personality name required", status=400)
+    if not persona:
+        return HttpResponse("Persona name required", status=400)
 
     config = load_config()
-    personalities_dir = str(django_settings.PERSONALITIES_DIR)
-    personality_path = os.path.join(personalities_dir, personality)
+    personas_dir = str(django_settings.PERSONAS_DIR)
+    persona_path = os.path.join(personas_dir, persona)
 
-    # Check if personality exists
-    if not os.path.exists(personality_path):
-        return HttpResponse("Personality not found", status=404)
+    # Check if persona exists
+    if not os.path.exists(persona_path):
+        return HttpResponse("Persona not found", status=404)
 
-    # Get available personalities
-    available_personalities = get_available_personalities(personalities_dir)
+    # Get available personas
+    available_personas = get_available_personas(personas_dir)
 
-    # Can't delete if it's the only personality
-    if len(available_personalities) <= 1:
-        return HttpResponse("Cannot delete the only personality", status=400)
+    # Can't delete if it's the only persona
+    if len(available_personas) <= 1:
+        return HttpResponse("Cannot delete the only persona", status=400)
 
     # Delete the folder
-    shutil.rmtree(personality_path)
+    shutil.rmtree(persona_path)
 
-    # Update config if this was the default personality
-    default_personality = config.get("DEFAULT_PERSONALITY", "")
-    if default_personality == personality:
+    # Update config if this was the default persona
+    default_persona = config.get("DEFAULT_PERSONA", "")
+    if default_persona == persona:
         # Set a new default
-        available_personalities = get_available_personalities(personalities_dir)
-        if available_personalities:
-            config["DEFAULT_PERSONALITY"] = available_personalities[0]
+        available_personas = get_available_personas(personas_dir)
+        if available_personas:
+            config["DEFAULT_PERSONA"] = available_personas[0]
             save_config(config)
-            default_personality = available_personalities[0]
+            default_persona = available_personas[0]
 
-    # Update sessions that used this personality to use the default
-    _update_sessions_personality(personality, default_personality)
+    # Update sessions that used this persona to use the default
+    _update_sessions_persona(persona, default_persona)
 
     # Reload available personalities after deletion
-    from .services import get_personality_model
-    available_personalities = get_available_personalities(personalities_dir)
+    from .services import get_persona_model
+    available_personas = get_available_personas(personas_dir)
     model = config.get("MODEL", "")
     provider = config.get("PROVIDER", "openrouter")
     providers = get_providers()
@@ -1744,17 +1786,17 @@ def delete_personality(request):
             model_options = flatten_models_with_provider_prefix(grouped)
             available_models = [{'id': m[0], 'display': m[1]} for m in model_options]
 
-    # Read preview for default personality
-    personality_preview = ""
-    preview_path = os.path.join(personalities_dir, default_personality)
+    # Read preview for default persona
+    persona_preview = ""
+    preview_path = os.path.join(personas_dir, default_persona)
     if os.path.exists(preview_path):
         md_files = [f for f in os.listdir(preview_path) if f.endswith(".md")]
         if md_files:
             with open(os.path.join(preview_path, md_files[0]), 'r') as f:
-                personality_preview = f.read()
+                persona_preview = f.read()
 
-    # Get personality model for the new default
-    personality_model = get_personality_model(default_personality, personalities_dir)
+    # Get persona model for the new default
+    persona_model = get_persona_model(default_persona, personas_dir)
 
     context = {
         'model': model,
@@ -1762,52 +1804,52 @@ def delete_personality(request):
         'providers': providers,
         'providers_json': json.dumps(providers),
         'has_api_key': has_api_key,
-        'personalities': available_personalities,
-        'default_personality': default_personality,
-        'selected_personality': default_personality,
-        'personality_preview': personality_preview,
-        'personality_model': personality_model or '',
+        'personas': available_personas,
+        'default_persona': default_persona,
+        'selected_persona': default_persona,
+        'persona_preview': persona_preview,
+        'persona_model': persona_model or '',
         'available_models': available_models,
         'available_models_json': json.dumps(available_models),
-        'success': "Personality deleted",
+        'success': "Persona deleted",
     }
-    return render(request, 'settings/settings_main.html', context)
+    return render(request, 'persona/persona_main.html', context)
 
 
-def get_model_for_personality(config, personality, personalities_dir):
+def get_model_for_persona(config, persona, personas_dir):
     """
-    Get the model to use for a personality.
-    Returns personality-specific model if set, otherwise the default model.
+    Get the model to use for a persona.
+    Returns persona-specific model if set, otherwise the default model.
     """
-    from .services import get_personality_model
+    from .services import get_persona_model
 
     default_model = config.get("MODEL", "anthropic/claude-haiku-4.5")
-    personality_model = get_personality_model(personality, str(personalities_dir))
-    return personality_model or default_model
+    persona_model = get_persona_model(persona, str(personas_dir))
+    return persona_model or default_model
 
 
-def save_personality_model(request):
-    """Save model override for a personality (POST)"""
+def save_persona_model(request):
+    """Save model override for a persona (POST)"""
     from django.http import JsonResponse
     from django.conf import settings as django_settings
-    from .services import get_personality_config
+    from .services import get_persona_config
 
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
 
-    personality = request.POST.get('personality', '').strip()
+    persona = request.POST.get('persona', '').strip()
     model = request.POST.get('model', '').strip()
 
-    if not personality:
-        return JsonResponse({'error': 'Personality is required'}, status=400)
+    if not persona:
+        return JsonResponse({'error': 'Persona is required'}, status=400)
 
-    # Validate personality exists
-    personality_path = django_settings.PERSONALITIES_DIR / personality
-    if not personality_path.exists():
-        return JsonResponse({'error': 'Personality not found'}, status=404)
+    # Validate persona exists
+    persona_path = django_settings.PERSONAS_DIR / persona
+    if not persona_path.exists():
+        return JsonResponse({'error': 'Persona not found'}, status=404)
 
     # Load existing config or create new
-    config_path = personality_path / "config.json"
+    config_path = persona_path / "config.json"
     config = {}
     if config_path.exists():
         with open(config_path, 'r') as f:
