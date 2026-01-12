@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.4] - 2026-01-12
+
+### Changes
+- add screenshots, update readme
+
 ## [0.5.3] - 2026-01-12
 
 ### Changes
