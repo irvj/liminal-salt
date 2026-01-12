@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0] - 2026-01-12
+
+### Changes
+- rename personalities to personas, create standalone persona settings page
+- fix openrouter metadata submission
+- further tweaks to chat ux
+
 ## [0.2.9] - 2026-01-11
 
 ### Changes
