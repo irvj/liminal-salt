@@ -1,0 +1,42 @@
+{
+  "name": "Tokyo Night",
+  "id": "tokyo-night",
+  "dark": {
+    "surface": "#1a1b26",
+    "surface-secondary": "#16161e",
+    "surface-elevated": "#24283b",
+    "foreground": "#c0caf5",
+    "foreground-secondary": "#a9b1d6",
+    "foreground-muted": "#565f89",
+    "foreground-on-accent": "#1a1b26",
+    "accent": "#7aa2f7",
+    "accent-hover": "#bb9af7",
+    "accent-cyan": "#7dcfff",
+    "success": "#9ece6a",
+    "danger": "#f7768e",
+    "danger-hover": "#ff9e9e",
+    "warning": "#e0af68",
+    "border": "#24283b",
+    "user-bubble": "#7aa2f7",
+    "assistant-bubble": "#24283b"
+  },
+  "light": {
+    "surface": "#d5d6db",
+    "surface-secondary": "#cbccd1",
+    "surface-elevated": "#dfe0e5",
+    "foreground": "#343b58",
+    "foreground-secondary": "#4c505e",
+    "foreground-muted": "#9699a3",
+    "foreground-on-accent": "#d5d6db",
+    "accent": "#34548a",
+    "accent-hover": "#5a4a78",
+    "accent-cyan": "#166775",
+    "success": "#485e30",
+    "danger": "#8c4351",
+    "danger-hover": "#a5525e",
+    "warning": "#8f5e15",
+    "border": "#dfe0e5",
+    "user-bubble": "#34548a",
+    "assistant-bubble": "#dfe0e5"
+  }
+}

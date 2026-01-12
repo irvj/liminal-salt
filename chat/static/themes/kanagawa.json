@@ -1,0 +1,42 @@
+{
+  "name": "Kanagawa",
+  "id": "kanagawa",
+  "dark": {
+    "surface": "#1f1f28",
+    "surface-secondary": "#16161d",
+    "surface-elevated": "#2a2a37",
+    "foreground": "#dcd7ba",
+    "foreground-secondary": "#c8c093",
+    "foreground-muted": "#727169",
+    "foreground-on-accent": "#1f1f28",
+    "accent": "#7e9cd8",
+    "accent-hover": "#957fb8",
+    "accent-cyan": "#7aa89f",
+    "success": "#98bb6c",
+    "danger": "#e82424",
+    "danger-hover": "#ff5d62",
+    "warning": "#ff9e3b",
+    "border": "#363646",
+    "user-bubble": "#7e9cd8",
+    "assistant-bubble": "#2a2a37"
+  },
+  "light": {
+    "surface": "#f2ecbc",
+    "surface-secondary": "#e7dba0",
+    "surface-elevated": "#f9f3c9",
+    "foreground": "#545464",
+    "foreground-secondary": "#766b79",
+    "foreground-muted": "#a09cad",
+    "foreground-on-accent": "#f2ecbc",
+    "accent": "#4d699b",
+    "accent-hover": "#624c83",
+    "accent-cyan": "#597b75",
+    "success": "#6e915f",
+    "danger": "#c84053",
+    "danger-hover": "#d7474b",
+    "warning": "#cc6d00",
+    "border": "#d5cea3",
+    "user-bubble": "#4d699b",
+    "assistant-bubble": "#e7dba0"
+  }
+}

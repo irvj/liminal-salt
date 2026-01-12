@@ -32,7 +32,7 @@
 - **Smart Titles**: Multi-tier auto-generation of session titles with artifact detection
 - **User Memory View**: Dedicated pane for viewing and managing long-term memory
 - **Persona Settings**: Dedicated page for managing personas and model overrides
-- **Dynamic Theme System**: Multiple color themes (Nord, Dracula, Monokai, Gruvbox, Solarized) with dark/light modes, server-side persistence
+- **Dynamic Theme System**: 15 color themes with dark/light modes, server-side persistence
 - **SVG Icon System**: Consistent, theme-aware icons throughout the UI
 - **Reactive UI**: HTMX-powered updates without full page reloads
 
@@ -47,7 +47,7 @@
 - **HTTP Client:** requests
 - **Data Storage:** JSON files for sessions, Markdown for memory and personas
 - **Sessions:** Django signed cookie sessions (no database required)
-- **UI Themes:** Dynamic theme system with multiple color schemes (Nord, Dracula, Monokai, Gruvbox, Solarized)
+- **UI Themes:** 15 color themes (Nord, Dracula, Gruvbox, Monokai, Solarized, Rose Pine, Tokyo Night, One Dark, Night Owl, Catppuccin, Ayu, Everforest, Kanagawa, Palenight, Synthwave '84)
 
 ---
 
@@ -183,12 +183,22 @@ liminal-salt/
 │   │   ├── js/
 │   │   │   ├── utils.js         # Shared utility functions
 │   │   │   └── components.js    # Alpine.js component definitions
-│   │   └── themes/              # Color theme JSON files
-│   │       ├── nord.json        # Nord theme (default)
-│   │       ├── dracula.json     # Dracula theme
-│   │       ├── monokai.json     # Monokai theme
-│   │       ├── gruvbox.json     # Gruvbox theme
-│   │       └── solarized.json   # Solarized theme
+│   │   └── themes/              # Color theme JSON files (15 themes)
+│   │       ├── nord.json        # Nord (default)
+│   │       ├── dracula.json     # Dracula
+│   │       ├── gruvbox.json     # Gruvbox
+│   │       ├── monokai.json     # Monokai
+│   │       ├── solarized.json   # Solarized
+│   │       ├── rose-pine.json   # Rose Pine
+│   │       ├── tokyo-night.json # Tokyo Night
+│   │       ├── one-dark.json    # One Dark
+│   │       ├── night-owl.json   # Night Owl
+│   │       ├── catppuccin.json  # Catppuccin
+│   │       ├── ayu.json         # Ayu
+│   │       ├── everforest.json  # Everforest
+│   │       ├── kanagawa.json    # Kanagawa
+│   │       ├── palenight.json   # Palenight
+│   │       └── synthwave.json   # Synthwave '84
 │   │
 │   └── templates/               # Django templates
 │       ├── base.html            # Base template with HTMX/Alpine
@@ -529,7 +539,7 @@ This runs both the Tailwind CSS watcher and Django server concurrently.
 - `DEFAULT_PERSONA`: Default persona for new chats
 - `PERSONAS_DIR`: Directory containing persona definitions
 - `MAX_HISTORY`: Number of message pairs to keep in context
-- `THEME`: Color theme identifier (nord, dracula, monokai, gruvbox, solarized)
+- `THEME`: Color theme identifier (one of 15 themes: nord, dracula, gruvbox, monokai, solarized, rose-pine, tokyo-night, one-dark, night-owl, catppuccin, ayu, everforest, kanagawa, palenight, synthwave)
 - `THEME_MODE`: Light or dark mode preference
 
 ### Django Settings (`liminal_salt/settings.py`)

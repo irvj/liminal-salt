@@ -1,0 +1,42 @@
+{
+  "name": "Everforest",
+  "id": "everforest",
+  "dark": {
+    "surface": "#2d353b",
+    "surface-secondary": "#232a2e",
+    "surface-elevated": "#343f44",
+    "foreground": "#d3c6aa",
+    "foreground-secondary": "#9da9a0",
+    "foreground-muted": "#7a8478",
+    "foreground-on-accent": "#2d353b",
+    "accent": "#a7c080",
+    "accent-hover": "#83c092",
+    "accent-cyan": "#7fbbb3",
+    "success": "#a7c080",
+    "danger": "#e67e80",
+    "danger-hover": "#f08587",
+    "warning": "#dbbc7f",
+    "border": "#3d484d",
+    "user-bubble": "#a7c080",
+    "assistant-bubble": "#343f44"
+  },
+  "light": {
+    "surface": "#fdf6e3",
+    "surface-secondary": "#f4f0d9",
+    "surface-elevated": "#fffbef",
+    "foreground": "#5c6a72",
+    "foreground-secondary": "#829181",
+    "foreground-muted": "#a6b0a0",
+    "foreground-on-accent": "#fdf6e3",
+    "accent": "#8da101",
+    "accent-hover": "#35a77c",
+    "accent-cyan": "#3a94c5",
+    "success": "#8da101",
+    "danger": "#f85552",
+    "danger-hover": "#e04e50",
+    "warning": "#dfa000",
+    "border": "#e5dfc5",
+    "user-bubble": "#8da101",
+    "assistant-bubble": "#f4f0d9"
+  }
+}
