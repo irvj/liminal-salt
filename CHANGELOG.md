@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0] - 2026-01-12
+
+### Changes
+- update claude file
+- fix persona page load lag
+- fix issues with data parsing on window swaps
+
 ## [0.3.0] - 2026-01-12
 
 ### Changes
