@@ -1,18 +1,13 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme-mode="{{ theme_mode|default:'dark' }}" data-color-theme="{{ color_theme|default:'nord' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Liminal Salt{% endblock %}</title>
 
-    <!-- Apply saved theme immediately to prevent flash -->
-    <script>
-        (function() {
-            const theme = localStorage.getItem('theme') || 'dark';
-            document.documentElement.setAttribute('data-theme', theme);
-        })();
-    </script>
+    <!-- Load utils.js first for immediate theme initialization -->
+    <script src="{% static 'js/utils.js' %}"></script>
 
     <!-- Tailwind CSS -->
     <link rel="stylesheet" href="{% static 'css/output.css' %}">
@@ -35,8 +30,7 @@
         });
     </script>
 
-    <!-- Liminal Salt JavaScript (load before Alpine so components are registered) -->
-    <script src="{% static 'js/utils.js' %}"></script>
+    <!-- Liminal Salt JavaScript -->
     <script src="{% static 'js/components.js' %}"></script>
 
     <!-- Alpine.js - Lightweight reactivity for UI state -->

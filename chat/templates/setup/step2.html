@@ -5,15 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Liminal Salt</title>
-    <script>
-        (function() {
-            const theme = localStorage.getItem('theme') || 'dark';
-            document.documentElement.setAttribute('data-theme', theme);
-        })();
-    </script>
+    <!-- Load utils.js first for immediate theme initialization -->
+    <script src="{% static 'js/utils.js' %}"></script>
     <link rel="stylesheet" href="{% static 'css/output.css' %}">
     <style>[x-cloak] { display: none !important; }</style>
-    <script src="{% static 'js/utils.js' %}"></script>
     <script src="{% static 'js/components.js' %}"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
@@ -21,8 +16,8 @@
     <div class="max-w-xl mx-auto mt-12 p-5">
         <h1 class="text-accent-cyan text-2xl mb-4">Welcome to Liminal Salt</h1>
 
-        <h2 class="text-xl text-foreground mb-2">Step 2: Choose a Default Model</h2>
-        <p class="text-foreground-secondary text-sm mb-4">Found {{ model_count }} available models</p>
+        <h2 class="text-xl text-foreground mb-2">Step 2: Choose Your Preferences</h2>
+        <p class="text-foreground-secondary text-sm mb-4">Select a theme and model to get started</p>
 
         {% if error %}
         <div class="p-3 px-4 rounded mb-4 bg-danger text-white">{{ error }}</div>
@@ -30,6 +25,66 @@
 
         <form method="POST" id="modelForm">
             {% csrf_token %}
+
+            <!-- Theme Selection -->
+            <div class="mb-6"
+                 x-data="setupThemePicker"
+                 data-themes='{{ themes_json|safe }}'
+                 data-selected-theme="{{ selected_theme }}"
+                 data-selected-mode="{{ selected_mode }}">
+                <label class="block mb-2 font-medium">Theme:</label>
+                <input type="hidden" name="theme" :value="selectedTheme">
+                <input type="hidden" name="theme_mode" :value="selectedMode">
+
+                <div class="flex flex-col sm:flex-row gap-4 mb-4">
+                    <!-- Color Theme Dropdown -->
+                    <div class="relative flex-1">
+                        <button type="button"
+                                @click.stop="open = !open"
+                                class="w-full p-3 border rounded text-left flex items-center justify-between cursor-pointer"
+                                :class="selectedTheme ? 'border-accent-cyan bg-surface' : 'border-border bg-surface-secondary'">
+                            <span x-text="selectedDisplay || 'Select a theme...'"></span>
+                            <svg class="w-4 h-4 text-foreground-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+
+                        <div x-cloak
+                             x-show="open"
+                             x-transition:enter="transition ease-out duration-100"
+                             x-transition:leave="transition ease-in duration-75"
+                             @click.away="open = false"
+                             class="absolute w-full mt-1 bg-surface-secondary border border-border rounded-lg shadow-lg z-20">
+                            <template x-for="theme in themes" :key="theme.id">
+                                <button type="button"
+                                        @click="selectTheme(theme)"
+                                        :class="selectedTheme === theme.id ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                                        class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
+                                    <span x-text="theme.name"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Dark/Light Mode Toggle -->
+                    <div class="flex gap-2">
+                        <button type="button"
+                                @click="setMode('dark')"
+                                :class="selectedMode === 'dark' ? 'bg-accent text-foreground-on-accent' : 'bg-surface-elevated text-foreground hover:bg-accent hover:text-foreground-on-accent'"
+                                class="flex items-center gap-2 px-4 py-2 rounded font-medium cursor-pointer">
+                            {% include 'icons/moon.html' with class='w-5 h-5' %} Dark
+                        </button>
+                        <button type="button"
+                                @click="setMode('light')"
+                                :class="selectedMode === 'light' ? 'bg-accent text-foreground-on-accent' : 'bg-surface-elevated text-foreground hover:bg-accent hover:text-foreground-on-accent'"
+                                class="flex items-center gap-2 px-4 py-2 rounded font-medium cursor-pointer">
+                            {% include 'icons/sun.html' with class='w-5 h-5' %} Light
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Selection -->
             <div class="mb-5"
                  x-data="modelPicker"
                  data-selected-model="{{ selected_model|default:'' }}"

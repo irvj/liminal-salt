@@ -341,7 +341,6 @@ Views check `request.headers.get('HX-Request')` to return either:
 - `convertTimestamps()` / `insertDateSeparators()` - Date formatting
 - `scrollDropdownToHighlighted()` - Dropdown keyboard navigation
 - `toDisplayName()` / `toFolderName()` - Persona name conversion
-- `updateThemeButtons()` - Theme button state management
 
 **`components.js` - Alpine.js Component Definitions:**
 

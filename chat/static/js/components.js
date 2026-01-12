@@ -28,6 +28,9 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('personaSettingsPicker', personaSettingsPicker);
     Alpine.data('providerPicker', providerPicker);
     Alpine.data('modelPicker', modelPicker);
+    Alpine.data('themePicker', themePicker);
+    Alpine.data('setupThemePicker', setupThemePicker);
+    Alpine.data('themeModeToggle', themeModeToggle);
 });
 
 // =============================================================================
@@ -129,9 +132,12 @@ function sidebarState() {
         isMobile: window.innerWidth < 1024,
         isDark: localStorage.getItem('theme') !== 'light',
 
-        toggleTheme() {
+        async toggleTheme() {
             this.isDark = !this.isDark;
-            setTheme(this.isDark ? 'dark' : 'light');
+            const mode = this.isDark ? 'dark' : 'light';
+            setTheme(mode);
+            // Save preference to backend
+            await saveThemePreference(getColorTheme(), mode);
         },
 
         init() {
@@ -148,6 +154,11 @@ function sidebarState() {
                 if (!this.isMobile && wasMobile) {
                     this.collapsed = localStorage.getItem('sidebarCollapsed') === 'true';
                 }
+            });
+
+            // Listen for theme mode changes from other components
+            window.addEventListener('theme-mode-changed', (e) => {
+                this.isDark = e.detail.mode === 'dark';
             });
 
             // Persist collapsed state (desktop only)
@@ -1294,6 +1305,128 @@ function modelPicker() {
                 }
             }
             this.updateButton();
+        }
+    };
+}
+
+// =============================================================================
+// Theme Picker Component (Settings Page)
+// =============================================================================
+
+/**
+ * Theme picker dropdown for selecting color themes.
+ * Fetches themes from backend API and saves preference to config.json.
+ */
+function themePicker() {
+    return {
+        open: false,
+        themes: [],
+        selected: '',
+        selectedDisplay: '',
+        loading: true,
+
+        async selectTheme(theme) {
+            this.selected = theme.id;
+            this.selectedDisplay = theme.name;
+            this.open = false;
+            // Load and apply the theme
+            await loadTheme(theme.id);
+            // Save preference to backend
+            await saveThemePreference(theme.id, getTheme());
+        },
+
+        async init() {
+            // Fetch available themes from backend
+            this.themes = await getAvailableThemes();
+            this.loading = false;
+
+            // Get current theme from localStorage
+            this.selected = getColorTheme();
+
+            // Find and set display name
+            const found = this.themes.find(t => t.id === this.selected);
+            if (found) {
+                this.selectedDisplay = found.name;
+            }
+        }
+    };
+}
+
+// =============================================================================
+// Setup Theme Picker Component (Setup Wizard Step 2)
+// =============================================================================
+
+/**
+ * Theme picker for the setup wizard.
+ * Uses data attributes to receive theme list and initial selections.
+ */
+function setupThemePicker() {
+    return {
+        open: false,
+        themes: [],
+        selectedTheme: '',
+        selectedMode: '',
+        selectedDisplay: '',
+
+        selectTheme(theme) {
+            this.selectedTheme = theme.id;
+            this.selectedDisplay = theme.name;
+            this.open = false;
+            loadTheme(theme.id);
+        },
+
+        setMode(mode) {
+            this.selectedMode = mode;
+            setTheme(mode);
+        },
+
+        init() {
+            const el = this.$el;
+
+            // Parse themes from data attribute
+            try {
+                this.themes = JSON.parse(el.dataset.themes || '[]');
+            } catch (e) {
+                this.themes = [];
+            }
+
+            this.selectedTheme = el.dataset.selectedTheme || 'nord';
+            this.selectedMode = el.dataset.selectedMode || 'dark';
+
+            // Find and set display name
+            const found = this.themes.find(t => t.id === this.selectedTheme);
+            if (found) this.selectedDisplay = found.name;
+        }
+    };
+}
+
+// =============================================================================
+// Theme Mode Toggle Component (Settings Page Dark/Light buttons)
+// =============================================================================
+
+/**
+ * Dark/Light mode toggle buttons for the settings page.
+ * Syncs with sidebar theme toggle via theme-mode-changed event.
+ */
+function themeModeToggle() {
+    return {
+        isDark: true,
+
+        async setMode(mode) {
+            this.isDark = mode === 'dark';
+            setTheme(mode);
+            // Save preference to backend
+            await saveThemePreference(getColorTheme(), mode);
+        },
+
+        init() {
+            // Get current mode from localStorage
+            this.isDark = localStorage.getItem('theme') !== 'light';
+
+            // Listen for theme mode changes from sidebar or other components
+            window.addEventListener('theme-mode-changed', (e) => {
+                this.isDark = e.detail.mode === 'dark';
+            });
         }
     };
 }

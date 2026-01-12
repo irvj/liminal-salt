@@ -34,4 +34,6 @@ urlpatterns = [
     path('settings/create-persona/', views.create_persona, name='create_persona'),
     path('settings/delete-persona/', views.delete_persona, name='delete_persona'),
     path('settings/save-persona-model/', views.save_persona_model, name='save_persona_model'),
+    path('api/themes/', views.get_available_themes, name='get_themes'),
+    path('api/save-theme/', views.save_theme, name='save_theme'),
 ]

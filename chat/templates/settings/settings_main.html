@@ -13,27 +13,54 @@
     <!-- Theme Section -->
     <h2 class="text-accent-cyan text-xl mb-4">Theme</h2>
     <div class="mb-6">
-        <p class="text-foreground-secondary text-sm mb-3">Choose your preferred color theme:</p>
-        <div class="flex gap-3">
-            <button onclick="setThemeWithButtons('dark')" class="flex items-center gap-2 px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" id="theme-dark-btn">
-                {% include 'icons/moon.html' with class='w-5 h-5' %} Dark
-            </button>
-            <button onclick="setThemeWithButtons('light')" class="flex items-center gap-2 px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" id="theme-light-btn">
-                {% include 'icons/sun.html' with class='w-5 h-5' %} Light
-            </button>
+        <!-- Color Theme Picker -->
+        <div class="mb-4" x-data="themePicker">
+            <label class="block mb-2 font-medium">Color Theme:</label>
+            <div class="relative max-w-md">
+                <button type="button"
+                        @click.stop="open = !open"
+                        class="w-full p-3 border rounded text-left flex items-center justify-between cursor-pointer"
+                        :class="selected ? 'border-accent-cyan bg-surface' : 'border-border bg-surface-secondary'">
+                    <span x-text="selectedDisplay || 'Select a theme...'"></span>
+                    <svg class="w-4 h-4 text-foreground-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+
+                <div x-cloak
+                     x-show="open"
+                     x-transition:enter="transition ease-out duration-100"
+                     x-transition:leave="transition ease-in duration-75"
+                     @click.away="open = false"
+                     class="absolute w-full mt-1 bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
+                    <template x-for="theme in themes" :key="theme.id">
+                        <button type="button"
+                                @click="selectTheme(theme)"
+                                :class="selected === theme.id ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                                class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
+                            <span x-text="theme.name"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
         </div>
-        <script>
-            // Wrapper to update theme buttons when theme is set from this page
-            function setThemeWithButtons(theme) {
-                setTheme(theme);
-                updateThemeButtons(theme);
-            }
-            // Initialize button state
-            (function() {
-                const theme = localStorage.getItem('theme') || 'dark';
-                updateThemeButtons(theme);
-            })();
-        </script>
+
+        <!-- Dark/Light Mode Toggle -->
+        <div x-data="themeModeToggle">
+            <label class="block mb-2 font-medium">Mode:</label>
+            <div class="flex gap-3">
+                <button @click="setMode('dark')"
+                        :class="isDark ? 'bg-accent text-foreground-on-accent' : 'bg-surface-elevated text-foreground hover:bg-accent hover:text-foreground-on-accent'"
+                        class="flex items-center gap-2 px-4 py-2 rounded font-medium cursor-pointer">
+                    {% include 'icons/moon.html' with class='w-5 h-5' %} Dark
+                </button>
+                <button @click="setMode('light')"
+                        :class="!isDark ? 'bg-accent text-foreground-on-accent' : 'bg-surface-elevated text-foreground hover:bg-accent hover:text-foreground-on-accent'"
+                        class="flex items-center gap-2 px-4 py-2 rounded font-medium cursor-pointer">
+                    {% include 'icons/sun.html' with class='w-5 h-5' %} Light
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Provider & Model Section -->

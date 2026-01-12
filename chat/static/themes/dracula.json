@@ -1,0 +1,42 @@
+{
+  "name": "Dracula",
+  "id": "dracula",
+  "dark": {
+    "surface": "#282a36",
+    "surface-secondary": "#1e1f29",
+    "surface-elevated": "#44475a",
+    "foreground": "#f8f8f2",
+    "foreground-secondary": "#bfbfbf",
+    "foreground-muted": "#6272a4",
+    "foreground-on-accent": "#f8f8f2",
+    "accent": "#bd93f9",
+    "accent-hover": "#caa8fc",
+    "accent-cyan": "#8be9fd",
+    "success": "#50fa7b",
+    "danger": "#ff5555",
+    "danger-hover": "#ff7777",
+    "warning": "#ffb86c",
+    "border": "#44475a",
+    "user-bubble": "#bd93f9",
+    "assistant-bubble": "#44475a"
+  },
+  "light": {
+    "surface": "#f8f8f2",
+    "surface-secondary": "#e8e8e2",
+    "surface-elevated": "#d8d8d2",
+    "foreground": "#282a36",
+    "foreground-secondary": "#44475a",
+    "foreground-muted": "#6272a4",
+    "foreground-on-accent": "#f8f8f2",
+    "accent": "#9d6fdb",
+    "accent-hover": "#bd93f9",
+    "accent-cyan": "#0d96b0",
+    "success": "#2d9e4f",
+    "danger": "#d93636",
+    "danger-hover": "#e85555",
+    "warning": "#c98a3e",
+    "border": "#d8d8d2",
+    "user-bubble": "#9d6fdb",
+    "assistant-bubble": "#d8d8d2"
+  }
+}

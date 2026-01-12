@@ -4,16 +4,159 @@
  */
 
 // =============================================================================
+// Theme Initialization (runs immediately to prevent flash)
+// =============================================================================
+
+(function initThemeImmediate() {
+    const root = document.documentElement;
+
+    // Try localStorage first, then data attributes (server config), then defaults
+    const mode = localStorage.getItem('theme') || root.dataset.themeMode || 'dark';
+    const colorTheme = localStorage.getItem('colorTheme') || root.dataset.colorTheme || 'nord';
+    root.setAttribute('data-theme', mode);
+
+    // Apply cached color theme colors if available
+    const cachedColors = localStorage.getItem('themeColors_' + colorTheme + '_' + mode);
+    if (cachedColors) {
+        try {
+            const colors = JSON.parse(cachedColors);
+            for (const [key, value] of Object.entries(colors)) {
+                root.style.setProperty('--' + key, value);
+            }
+        } catch (e) {
+            // Silently fail - CSS fallback colors will be used
+        }
+    }
+})();
+
+// =============================================================================
 // Theme Management
 // =============================================================================
 
+// Theme cache to avoid re-fetching JSON
+const _loadedThemes = {};
+
 /**
- * Set the application theme and persist to localStorage.
- * @param {string} theme - 'dark' or 'light'
+ * Get list of available color themes from the server.
+ * @returns {Promise<Array>} Array of theme objects with id and name
  */
-function setTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
+async function getAvailableThemes() {
+    try {
+        const response = await fetch('/api/themes/');
+        if (!response.ok) {
+            console.error('Failed to fetch themes');
+            return [{ id: 'nord', name: 'Nord' }];
+        }
+        const data = await response.json();
+        return data.themes;
+    } catch (error) {
+        console.error('Error fetching themes:', error);
+        // Fallback to prevent complete failure
+        return [{ id: 'nord', name: 'Nord' }];
+    }
+}
+
+/**
+ * Save theme preference to the backend.
+ * @param {string} colorTheme - Theme identifier (e.g., 'nord')
+ * @param {string} themeMode - 'dark' or 'light'
+ * @returns {Promise<boolean>} True if save was successful
+ */
+async function saveThemePreference(colorTheme, themeMode) {
+    const csrfToken = getCsrfToken();
+    try {
+        const response = await fetch('/api/save-theme/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': csrfToken
+            },
+            body: `colorTheme=${encodeURIComponent(colorTheme)}&themeMode=${encodeURIComponent(themeMode)}`
+        });
+        return response.ok;
+    } catch (error) {
+        console.error('Failed to save theme preference:', error);
+        return false;
+    }
+}
+
+/**
+ * Get the current color theme from localStorage or default to 'nord'.
+ * @returns {string} The current color theme id
+ */
+function getColorTheme() {
+    return localStorage.getItem('colorTheme') || 'nord';
+}
+
+/**
+ * Apply theme colors to CSS custom properties.
+ * @param {Object} colors - Object with color name/value pairs
+ */
+function applyThemeColors(colors) {
+    const root = document.documentElement;
+    for (const [key, value] of Object.entries(colors)) {
+        root.style.setProperty(`--${key}`, value);
+    }
+}
+
+/**
+ * Cache theme colors in localStorage for flash-free page loads.
+ * @param {string} themeId - Theme identifier
+ * @param {string} mode - 'dark' or 'light'
+ * @param {Object} colors - Color values to cache
+ */
+function cacheThemeColors(themeId, mode, colors) {
+    localStorage.setItem(`themeColors_${themeId}_${mode}`, JSON.stringify(colors));
+}
+
+/**
+ * Load and apply a color theme.
+ * @param {string} themeId - Theme identifier (e.g., 'nord')
+ * @returns {Promise} Resolves when theme is loaded and applied
+ */
+async function loadTheme(themeId) {
+    // Fetch theme if not cached
+    if (!_loadedThemes[themeId]) {
+        try {
+            const response = await fetch(`/static/themes/${themeId}.json`);
+            if (!response.ok) {
+                console.error(`Failed to load theme: ${themeId}`);
+                return;
+            }
+            _loadedThemes[themeId] = await response.json();
+        } catch (error) {
+            console.error(`Error loading theme ${themeId}:`, error);
+            return;
+        }
+    }
+
+    const theme = _loadedThemes[themeId];
+    const mode = getTheme(); // 'dark' or 'light'
+    const colors = theme[mode];
+
+    if (colors) {
+        applyThemeColors(colors);
+        cacheThemeColors(themeId, mode, colors);
+        localStorage.setItem('colorTheme', themeId);
+    }
+}
+
+/**
+ * Set the application theme mode (dark/light) and persist to localStorage.
+ * Also re-applies current color theme with the new mode.
+ * Dispatches 'theme-mode-changed' event for reactive UI updates.
+ * @param {string} mode - 'dark' or 'light'
+ */
+function setTheme(mode) {
+    document.documentElement.setAttribute('data-theme', mode);
+    localStorage.setItem('theme', mode);
+
+    // Re-apply current color theme with new mode
+    const colorTheme = getColorTheme();
+    loadTheme(colorTheme);
+
+    // Dispatch event for reactive UI updates (sidebar, settings page, etc.)
+    window.dispatchEvent(new CustomEvent('theme-mode-changed', { detail: { mode } }));
 }
 
 /**
@@ -32,29 +175,6 @@ function initTheme() {
     const theme = getTheme();
     document.documentElement.setAttribute('data-theme', theme);
 }
-
-/**
- * Update theme toggle buttons to reflect current state.
- * @param {string} theme - 'dark' or 'light'
- */
-function updateThemeButtons(theme) {
-    const darkBtn = document.getElementById('theme-dark-btn');
-    const lightBtn = document.getElementById('theme-light-btn');
-    if (!darkBtn || !lightBtn) return;
-
-    if (theme === 'dark') {
-        darkBtn.classList.add('bg-accent', 'text-foreground-on-accent');
-        darkBtn.classList.remove('bg-surface-elevated');
-        lightBtn.classList.remove('bg-accent', 'text-foreground-on-accent');
-        lightBtn.classList.add('bg-surface-elevated');
-    } else {
-        lightBtn.classList.add('bg-accent', 'text-foreground-on-accent');
-        lightBtn.classList.remove('bg-surface-elevated');
-        darkBtn.classList.remove('bg-accent', 'text-foreground-on-accent');
-        darkBtn.classList.add('bg-surface-elevated');
-    }
-}
-
 // =============================================================================
 // CSRF Token
 // =============================================================================

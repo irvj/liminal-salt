@@ -13,6 +13,37 @@ from .utils import (
     load_config, save_config, group_models_by_provider,
     flatten_models_with_provider_prefix, ensure_sessions_dir
 )
+from django.conf import settings as django_settings
+
+
+def _get_theme_list():
+    """Helper function to get list of available themes from the themes directory"""
+    themes_dir = django_settings.BASE_DIR / 'chat' / 'static' / 'themes'
+    themes = []
+
+    if themes_dir.exists():
+        for theme_file in sorted(themes_dir.glob('*.json')):
+            try:
+                with open(theme_file) as f:
+                    data = json.load(f)
+                    themes.append({
+                        'id': data.get('id', theme_file.stem),
+                        'name': data.get('name', theme_file.stem.title())
+                    })
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+    return themes
+
+
+def _get_theme_context(config=None):
+    """Helper function to get theme context for templates"""
+    if config is None:
+        config = load_config()
+    return {
+        'color_theme': config.get('THEME', 'nord'),
+        'theme_mode': config.get('THEME_MODE', 'dark')
+    }
 
 def index(request):
     """Main entry point - redirects to chat or setup"""
@@ -105,18 +136,25 @@ def setup_wizard(request):
 
         if request.method == 'POST':
             selected_model = request.POST.get('model', '').strip()
+            selected_theme = request.POST.get('theme', 'nord').strip()
+            selected_mode = request.POST.get('theme_mode', 'dark').strip()
 
             if not selected_model:
-                # Re-fetch models for error display
+                # Re-fetch models and themes for error display
                 models = fetch_available_models(api_key)
                 if models:
                     grouped_models = group_models_by_provider(models)
                     model_options = flatten_models_with_provider_prefix(grouped_models)
+                    themes = _get_theme_list()
                     return render(request, 'setup/step2.html', {
                         'error': 'Please select a model',
                         'model_count': len(models),
                         'model_options': model_options,
-                        'selected_model': selected_model
+                        'selected_model': selected_model,
+                        'themes': themes,
+                        'themes_json': json.dumps(themes),
+                        'selected_theme': selected_theme,
+                        'selected_mode': selected_mode
                     })
                 else:
                     # API key is no longer valid, go back to step 1
@@ -125,10 +163,12 @@ def setup_wizard(request):
                     request.session.modified = True
                     return redirect('setup')
 
-            # Update config.json with selected model (config already has API key)
+            # Update config.json with selected model and theme
             config['MODEL'] = selected_model
+            config['THEME'] = selected_theme
+            config['THEME_MODE'] = selected_mode
             save_config(config)
-            logger.info(f"Setup complete: model {selected_model} saved to config.json")
+            logger.info(f"Setup complete: model {selected_model}, theme {selected_theme} ({selected_mode}) saved")
 
             # Clean up session
             del request.session['setup_step']
@@ -149,10 +189,15 @@ def setup_wizard(request):
 
         grouped_models = group_models_by_provider(models)
         model_options = flatten_models_with_provider_prefix(grouped_models)
+        themes = _get_theme_list()
 
         return render(request, 'setup/step2.html', {
             'model_count': len(models),
-            'model_options': model_options
+            'model_options': model_options,
+            'themes': themes,
+            'themes_json': json.dumps(themes),
+            'selected_theme': 'nord',
+            'selected_mode': 'dark'
         })
 
 def chat(request):
@@ -203,6 +248,7 @@ def chat(request):
             'grouped_sessions': grouped_sessions,
             'current_session': None,
             'is_htmx': False,
+            **_get_theme_context(config),
         }
         return render(request, 'chat/chat.html', {**context, 'show_home': True})
 
@@ -340,6 +386,7 @@ def chat(request):
         'available_personas': available_personas,
         'default_persona': default_persona,
         'is_htmx': request.headers.get('HX-Request') == 'true',
+        **_get_theme_context(config),
     }
 
     # Check if HTMX request - return partial template for sidebar session switching
@@ -397,6 +444,7 @@ def new_chat(request):
         'grouped_sessions': grouped_sessions,
         'current_session': None,
         'is_htmx': request.headers.get('HX-Request') == 'true',
+        **_get_theme_context(config),
     }
 
     # For HTMX requests, return just the home partial
@@ -1869,3 +1917,27 @@ def save_persona_model(request):
         json.dump(config, f, indent=2)
 
     return JsonResponse({'success': True, 'model': model or None})
+
+
+# =============================================================================
+# Theme API Endpoints
+# =============================================================================
+
+def get_available_themes(request):
+    """List available themes by scanning the themes directory"""
+    themes = _get_theme_list()
+    return JsonResponse({'themes': themes})
+
+
+@require_http_methods(["POST"])
+def save_theme(request):
+    """Save theme preference to config.json"""
+    color_theme = request.POST.get('colorTheme', 'nord')
+    theme_mode = request.POST.get('themeMode', 'dark')
+
+    config = load_config()
+    config['THEME'] = color_theme
+    config['THEME_MODE'] = theme_mode
+    save_config(config)
+
+    return JsonResponse({'success': True, 'theme': color_theme, 'mode': theme_mode})
