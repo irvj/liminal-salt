@@ -132,7 +132,7 @@ class ChatCore:
                     url="https://openrouter.ai/api/v1/chat/completions",
                     headers=headers,
                     data=json.dumps(payload),
-                    timeout=30
+                    timeout=120
                 )
                 response.raise_for_status()
                 data = response.json()

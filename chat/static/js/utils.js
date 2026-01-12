@@ -650,3 +650,54 @@ function toFolderName(displayName) {
         .replace(/\s+/g, '_')
         .replace(/[^a-z0-9_]/g, '');
 }
+
+// =============================================================================
+// HTMX Error Handling
+// =============================================================================
+
+/**
+ * Handle HTMX response errors by showing an error message in the messages container.
+ * Removes thinking indicator and displays the error.
+ * @param {Event} event - The HTMX response-error event
+ */
+function handleMessageError(event) {
+    removeThinkingIndicator();
+
+    const messagesDiv = document.getElementById('messages');
+    if (!messagesDiv) return;
+
+    let errorMessage = 'Request failed. ';
+    const xhr = event.detail.xhr;
+
+    if (xhr) {
+        if (xhr.status === 0) {
+            errorMessage += 'The request timed out or the connection was lost. Please try again.';
+        } else if (xhr.status >= 500) {
+            errorMessage += `Server error (${xhr.status}). Please try again.`;
+        } else {
+            errorMessage += `Error ${xhr.status}: ${xhr.statusText || 'Unknown error'}`;
+        }
+    } else {
+        errorMessage += 'The request timed out or the connection was lost. Please try again.';
+    }
+
+    // Create error message element
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'message-container assistant my-4 max-w-[80%] w-fit mr-auto';
+    errorDiv.innerHTML = `
+        <div class="message assistant message-tail-assistant bg-danger text-white p-3 px-4 rounded-lg">
+            <strong class="flex items-center gap-1">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                Error
+            </strong>
+            <p class="mt-1">${errorMessage}</p>
+        </div>
+    `;
+
+    messagesDiv.appendChild(errorDiv);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}

@@ -52,7 +52,8 @@
          hx-target="#messages"
          hx-swap="beforeend"
          hx-vals='{"message": "{{ pending_message|escapejs }}", "skip_user_save": "true"}'
-         hx-on::after-request="removeThinkingIndicator(); animateAssistantResponse();">
+         hx-on::after-request="removeThinkingIndicator(); animateAssistantResponse();"
+         hx-on::response-error="handleMessageError(event)">
     </div>
     {% endif %}
     </div>
@@ -74,6 +75,7 @@
           hx-swap="beforeend"
           hx-on::before-request="addUserMessage(event)"
           hx-on::after-request="this.reset(); removeThinkingIndicator(); animateAssistantResponse();"
+          hx-on::response-error="handleMessageError(event)"
           class="flex gap-3 items-end">
         {% csrf_token %}
         <input type="hidden" name="timezone" id="timezone-input" value="">
