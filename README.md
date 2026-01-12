@@ -4,7 +4,7 @@
 
 A self-hosted LLM chatbot with persistent memory, customizable personas, and beautiful themes. Your conversations, your data, your control.
 
-<!-- ![Liminal Salt Screenshot](docs/images/screenshot.png) -->
+![Liminal Salt](docs/images/main-screenshot.png)
 
 ---
 
@@ -53,14 +53,11 @@ Open source and easy to extend. Personas are just Markdown files. Themes are JSO
 
 ## Screenshots
 
-<!--
-Add screenshots here:
-![Chat Interface](docs/images/chat.png)
-![Theme Options](docs/images/themes.png)
-![Persona Settings](docs/images/personas.png)
--->
+![User Memory](docs/images/user-memory.png)
 
-*Screenshots coming soon*
+![Persona Settings](docs/images/persona-settings.png)
+
+![Settings](docs/images/settings.png)
 
 ---
 
