@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.9] - 2026-01-11
+
+### Changes
+- various qol updates to chat window
+- pass liminal salt app name and site to openrouter
+
 ## [0.2.8] - 2026-01-11
 
 ### Changes
