@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.1] - 2026-01-12
+
+### Changes
+- update claude file for new theme picker feature
+- add theme picker feature, add themes
+
 ## [0.5.0] - 2026-01-12
 
 ### Changes
