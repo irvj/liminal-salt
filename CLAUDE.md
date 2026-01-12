@@ -1,7 +1,7 @@
 # CLAUDE.md - Project Overview & Developer Guide
 
-**Last Updated:** January 11, 2026
-**Project:** Liminal Salt - Multi-Session LLM Chatbot with Personalities
+**Last Updated:** January 12, 2026
+**Project:** Liminal Salt - Multi-Session LLM Chatbot with Personas
 **Status:** Production-ready Django application
 
 ---
@@ -20,18 +20,18 @@
 
 ## Project Overview
 
-**Liminal Salt** is a Python-based web chatbot application that connects to OpenRouter's API to provide LLM-powered conversations with persistent memory and multiple personalities.
+**Liminal Salt** is a Python-based web chatbot application that connects to OpenRouter's API to provide LLM-powered conversations with persistent memory and multiple personas.
 
 ### Key Features
 
 - **Multi-Session Management**: Create, switch between, and manage multiple chat sessions
-- **Personality System**: Per-session personality selection with customizable personalities
+- **Persona System**: Per-session persona selection with customizable personas
 - **Long-Term Memory**: Automatic user profile building across all conversations
-- **Grouped Sidebar**: Collapsible personality-based organization of chat threads
+- **Grouped Sidebar**: Collapsible persona-based organization of chat threads
 - **Pinned Chats**: Pin important conversations to the top of the sidebar
 - **Smart Titles**: Multi-tier auto-generation of session titles with artifact detection
 - **User Memory View**: Dedicated pane for viewing and managing long-term memory
-- **Settings Management**: Configure default personality for new chats
+- **Persona Settings**: Dedicated page for managing personas and model overrides
 - **Theme Toggle**: Switch between dark and light modes (Nord color scheme)
 - **SVG Icon System**: Consistent, theme-aware icons throughout the UI
 - **Reactive UI**: HTMX-powered updates without full page reloads
@@ -45,7 +45,7 @@
 - **Build Tools:** Node.js / npm for CSS compilation
 - **API:** OpenRouter (LLM gateway)
 - **HTTP Client:** requests
-- **Data Storage:** JSON files for sessions, Markdown for memory and personalities
+- **Data Storage:** JSON files for sessions, Markdown for memory and personas
 - **Sessions:** Django signed cookie sessions (no database required)
 - **UI Theme:** Nord color scheme (dark and light modes)
 
@@ -103,7 +103,7 @@ Django view: send_message()
 ChatCore.send_message()
     ↓
 Build API payload:
-  1. System prompt (personality + user memory)
+  1. System prompt (persona + user memory)
   2. Recent message history (last 100 messages)
     ↓
 POST to OpenRouter API (with retry logic)
@@ -201,6 +201,8 @@ liminal-salt/
 │       ├── memory/
 │       │   ├── memory.html      # Memory page (full)
 │       │   └── memory_main.html # Memory content partial
+│       ├── persona/
+│       │   └── persona_main.html # Persona settings partial
 │       ├── settings/
 │       │   ├── settings.html    # Settings page (full)
 │       │   └── settings_main.html
@@ -211,9 +213,10 @@ liminal-salt/
 └── data/                        # User data (gitignored)
     ├── sessions/                # Chat session JSON files
     │   └── session_*.json
-    ├── personalities/           # Personality definitions
+    ├── personas/                # Persona definitions
     │   └── assistant/
-    │       └── identity.md
+    │       ├── identity.md      # Persona system prompt
+    │       └── config.json      # Optional model override
     └── long_term_memory.md      # Persistent user profile
 ```
 
@@ -222,7 +225,8 @@ liminal-salt/
 ```json
 {
   "title": "Debugging Victory at Midnight",
-  "personality": "assistant",
+  "persona": "assistant",
+  "pinned": false,
   "messages": [
     {"role": "user", "content": "User message"},
     {"role": "assistant", "content": "Assistant response"}
@@ -249,6 +253,10 @@ liminal-salt/
 - `memory()` - User memory view
 - `update_memory()` - Trigger memory update from all sessions
 - `wipe_memory()` - Clear long-term memory
+- `persona_settings()` - Persona management page
+- `save_persona_file()` - Save/create persona content
+- `save_persona_model()` - Set model override for persona
+- `get_available_models()` - AJAX endpoint for lazy model loading
 - `settings()` - Settings view
 - `save_settings()` - Save settings changes
 
@@ -277,14 +285,16 @@ Views check `request.headers.get('HX-Request')` to return either:
 
 ### 3. Context Manager (`chat/services/context_manager.py`)
 
-**Purpose:** Assembles the complete system prompt from personality and memory.
+**Purpose:** Assembles the complete system prompt from persona and memory.
 
 **Key Functions:**
-- `load_context(personality_dir, ltm_file)` - Loads and concatenates context
-- `get_available_personalities(personalities_dir)` - Returns list of valid personalities
+- `load_context(persona_dir, ltm_file)` - Loads and concatenates context
+- `get_available_personas(personas_dir)` - Returns list of valid personas
+- `get_persona_config(persona_name, personas_dir)` - Loads persona config.json
+- `get_persona_model(persona_name, personas_dir)` - Gets model override for persona
 
 **Assembly Order:**
-1. All `.md` files from personality directory (alphabetically)
+1. All `.md` files from persona directory (alphabetically)
 2. Long-term memory file with explicit disclaimer
 
 ### 4. Summarizer (`chat/services/summarizer.py`)
@@ -316,9 +326,9 @@ Views check `request.headers.get('HX-Request')` to return either:
 
 ## Features
 
-### Collapsible Personality-Grouped Sidebar
+### Collapsible Persona-Grouped Sidebar
 
-Sessions are organized by personality with collapsible sections:
+Sessions are organized by persona with collapsible sections:
 
 ```
 ★ Pinned (2)
@@ -332,7 +342,7 @@ Sessions are organized by personality with collapsible sections:
 ▶ Custom (2)  [collapsed]
 ```
 
-- Click personality header to toggle collapse/expand
+- Click persona header to toggle collapse/expand
 - Chevron icons indicate expanded/collapsed state
 - Count badge shows number of sessions per group
 - Current session highlighted with accent color
@@ -350,6 +360,7 @@ Sessions are organized by personality with collapsible sections:
 Icon buttons at bottom of sidebar for quick access:
 - **New Chat** (circle-plus icon) - Start a new conversation
 - **Memory** (brain-cog icon) - View/manage long-term memory
+- **Personas** (user-pen icon) - Manage personas and model overrides
 - **Settings** (gear icon) - Configure preferences
 - **Theme Toggle** (sun/moon icon) - Switch dark/light mode
 
@@ -360,13 +371,14 @@ Icon buttons at bottom of sidebar for quick access:
 - **Memory/Settings:** Load in main pane without navigation
 - **Modals:** Alpine.js handles show/hide state
 
-### Per-Session Personalities
+### Per-Session Personas
 
-- **Selection:** Choose personality when creating new chat
-- **Persistence:** Personality saved in session JSON
-- **Isolation:** Each session maintains its own personality
-- **Default:** Configurable default personality for new chats
-- **Protected:** The default "assistant" personality cannot be deleted
+- **Selection:** Choose persona when creating new chat
+- **Persistence:** Persona saved in session JSON
+- **Isolation:** Each session maintains its own persona
+- **Default:** Configurable default persona for new chats
+- **Model Override:** Each persona can have its own model
+- **Protected:** The default "assistant" persona cannot be deleted
 
 ### Long-Term Memory
 
@@ -427,15 +439,17 @@ This runs both the Tailwind CSS watcher and Django server concurrently.
     "MODEL": "anthropic/claude-haiku-4.5",
     "SITE_URL": "https://liminalsalt.app",
     "SITE_NAME": "Liminal Salt",
-    "DEFAULT_PERSONALITY": "assistant",
+    "DEFAULT_PERSONA": "assistant",
+    "PERSONAS_DIR": "personas",
     "MAX_HISTORY": 50
 }
 ```
 
 **Key Settings:**
 - `OPENROUTER_API_KEY`: Your API key from OpenRouter
-- `MODEL`: LLM model to use
-- `DEFAULT_PERSONALITY`: Default for new chats
+- `MODEL`: Default LLM model to use
+- `DEFAULT_PERSONA`: Default persona for new chats
+- `PERSONAS_DIR`: Directory containing persona definitions
 - `MAX_HISTORY`: Number of message pairs to keep in context
 
 ### Django Settings (`liminal_salt/settings.py`)
@@ -443,22 +457,22 @@ This runs both the Tailwind CSS watcher and Django server concurrently.
 Key customizations:
 - `DATABASES = {}` - No database required
 - `SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'`
-- `DATA_DIR`, `SESSIONS_DIR`, `PERSONALITIES_DIR`, `LTM_FILE` - Data paths
+- `DATA_DIR`, `SESSIONS_DIR`, `PERSONAS_DIR`, `LTM_FILE` - Data paths
 
 ---
 
 ## Development Notes
 
-### Adding a New Personality
+### Adding a New Persona
 
-1. Create a new folder in `data/personalities/`:
+1. Create a new folder in `data/personas/`:
    ```bash
-   mkdir data/personalities/mybot
+   mkdir data/personas/mybot
    ```
 
 2. Create `identity.md`:
    ```markdown
-   # My Bot Personality
+   # My Bot Persona
 
    You are a helpful assistant specialized in...
 
@@ -467,7 +481,14 @@ Key customizations:
    - Professional tone
    ```
 
-3. Restart server (personality appears in dropdown automatically)
+3. Optionally create `config.json` for model override:
+   ```json
+   {
+     "model": "anthropic/claude-sonnet-4"
+   }
+   ```
+
+4. Restart server (persona appears in dropdown automatically)
 
 ### SVG Icon System
 
@@ -508,18 +529,35 @@ Icons are stored as reusable Django template includes in `chat/templates/icons/`
 ### URL Routes
 
 ```
-/                  → index (redirect to /chat/ or /setup/)
-/setup/            → setup_wizard
-/chat/             → chat (main view)
-/chat/send/        → send_message (HTMX)
-/chat/switch/      → switch_session (HTMX)
-/chat/new/         → new_chat
-/chat/delete/      → delete_chat
-/memory/           → memory
-/memory/update/    → update_memory
-/memory/wipe/      → wipe_memory
-/settings/         → settings
-/settings/save/    → save_settings
+/                              → index (redirect to /chat/ or /setup/)
+/setup/                        → setup_wizard
+/chat/                         → chat (main view)
+/chat/send/                    → send_message (HTMX)
+/chat/switch/                  → switch_session (HTMX)
+/chat/new/                     → new_chat
+/chat/start/                   → start_chat (new chat from home)
+/chat/delete/                  → delete_chat
+/chat/pin/                     → toggle_pin_chat
+/chat/rename/                  → rename_chat
+/memory/                       → memory
+/memory/update/                → update_memory
+/memory/wipe/                  → wipe_memory
+/memory/modify/                → modify_memory
+/memory/context/upload/        → upload_context_file
+/memory/context/delete/        → delete_context_file
+/memory/context/toggle/        → toggle_context_file
+/memory/context/content/       → get_context_file_content
+/memory/context/save/          → save_context_file_content
+/persona/                      → persona_settings
+/settings/                     → settings
+/settings/save/                → save_settings
+/settings/validate-api-key/    → validate_provider_api_key
+/settings/save-provider-model/ → save_provider_model
+/settings/available-models/    → get_available_models (AJAX)
+/settings/save-persona/        → save_persona_file
+/settings/create-persona/      → create_persona
+/settings/delete-persona/      → delete_persona
+/settings/save-persona-model/  → save_persona_model
 ```
 
 ### HTMX Patterns Used
@@ -573,7 +611,7 @@ Icons are stored as reusable Django template includes in `chat/templates/icons/`
 ### Testing Checklist
 
 **Basic Operations:**
-- [ ] Create new chat session with personality selection
+- [ ] Create new chat session with persona selection
 - [ ] Send messages and receive responses
 - [ ] Switch between sessions (HTMX)
 - [ ] Delete session with confirmation
@@ -584,14 +622,18 @@ Icons are stored as reusable Django template includes in `chat/templates/icons/`
 - [ ] View User Memory in main pane
 - [ ] Update memory, see status indicator
 - [ ] Wipe memory with confirmation
-- [ ] Change default personality in Settings
-- [ ] Verify "assistant" personality cannot be deleted
+- [ ] Change default persona in Persona Settings
+- [ ] Set model override for persona
+- [ ] Create new persona
+- [ ] Edit persona content
+- [ ] Verify "assistant" persona cannot be deleted
 
 **Edge Cases:**
 - [ ] First launch (no config.json)
 - [ ] Empty sessions directory
 - [ ] Invalid API key
 - [ ] Icons render correctly in both themes
+- [ ] Lazy model loading works in Edit Model modal
 
 ---
 
