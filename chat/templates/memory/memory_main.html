@@ -17,11 +17,11 @@
               hx-swap="innerHTML"
               hx-on::before-request="showMemoryUpdating()">
             {% csrf_token %}
-            <button type="submit" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover" id="update-memory-btn">Update User Memory</button>
+            <button type="submit" class="px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover" id="update-memory-btn">Update User Memory</button>
         </form>
 
         <button onclick="openContextFilesModal()" class="group context-files-btn px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
-            Context Files{% if context_files %}<span class="badge bg-accent text-white rounded-xl px-2 py-0.5 text-xs ml-2 group-hover:bg-foreground-on-accent group-hover:text-accent">{{ context_files|length }}</span>{% endif %}
+            Context Files{% if context_files %}<span class="badge bg-accent text-foreground-on-accent rounded-xl px-2 py-0.5 text-xs ml-2 group-hover:bg-foreground-on-accent group-hover:text-accent">{{ context_files|length }}</span>{% endif %}
         </button>
 
         <button onclick="openWipeMemoryModal()" class="px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent">Wipe Memory</button>
@@ -66,7 +66,7 @@
                    required
                    autocomplete="off"
                    class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-cyan">
-            <button type="submit" class="px-6 py-3 bg-accent text-white border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Update</button>
+            <button type="submit" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Update</button>
         </form>
     </div>
 

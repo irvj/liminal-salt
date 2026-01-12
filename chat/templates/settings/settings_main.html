@@ -134,7 +134,7 @@
                         @click="validateApiKey()"
                         x-show="apiKeyModified && apiKey"
                         :disabled="validating"
-                        class="px-4 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
+                        class="px-4 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
                     <span x-show="!validating">Validate</span>
                     <span x-show="validating">...</span>
                 </button>

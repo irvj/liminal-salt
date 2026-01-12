@@ -10,7 +10,7 @@
     <div class="p-3 px-4 rounded mb-4 bg-success text-surface flex items-center gap-2">{% include 'icons/check-circle.html' with class='w-5 h-5' %} {{ success }}</div>
     {% endif %}
 
-    <button type="button" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover mb-4" onclick="openNewPersonaModal()">New Persona</button>
+    <button type="button" class="px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover mb-4" onclick="openNewPersonaModal()">New Persona</button>
 
     {% if not personas %}
     <div class="p-3 px-4 rounded mb-4 bg-danger text-white">
@@ -68,7 +68,7 @@
             </div>
 
             <div class="flex gap-3 flex-wrap mt-4">
-                <button type="submit" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover">Set as Default</button>
+                <button type="submit" class="px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover">Set as Default</button>
                 <button type="button" class="px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openEditPersonaModal()">Edit Persona</button>
                 <button type="button" class="px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openEditPersonaModelModal()">Edit Model</button>
                 <button type="button"
