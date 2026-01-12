@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.6] - 2026-01-12
+
+### Changes
+- fix button text, update screenshots
+
 ## [0.5.5] - 2026-01-12
 
 ### Changes
