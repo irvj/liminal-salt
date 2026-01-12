@@ -274,6 +274,8 @@ def chat(request):
     chat_core = ChatCore(
         api_key=api_key,
         model=model,
+        site_url=config.get("SITE_URL"),
+        site_name=config.get("SITE_NAME"),
         system_prompt=system_prompt,
         max_history=max_history,
         history_file=str(session_path),
@@ -544,6 +546,8 @@ def delete_chat(request):
                 chat_core = ChatCore(
                     api_key=api_key,
                     model=model,
+                    site_url=config.get("SITE_URL"),
+                    site_name=config.get("SITE_NAME"),
                     system_prompt=system_prompt,
                     max_history=max_history,
                     history_file=str(new_session_path),
@@ -775,6 +779,8 @@ def send_message(request):
     chat_core = ChatCore(
         api_key=api_key,
         model=model,
+        site_url=config.get("SITE_URL"),
+        site_name=config.get("SITE_NAME"),
         system_prompt=system_prompt,
         max_history=max_history,
         history_file=str(session_path),
