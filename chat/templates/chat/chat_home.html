@@ -11,6 +11,7 @@
           hx-post="{% url 'start_chat' %}"
           hx-target="#main-content"
           hx-swap="innerHTML"
+          hx-on::after-request="clearNewChatDraft()"
           class="w-full max-w-xl"
           x-data="homePersonaPicker"
           data-default-persona="{{ default_persona }}"
@@ -31,6 +32,7 @@
                    required
                    autocomplete="off"
                    autofocus
+                   oninput="saveNewChatDraftDebounced()"
                    class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-cyan">
             <button type="submit" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Send</button>
         </div>
@@ -76,6 +78,11 @@
         </div>
     </form>
 </div>
+
+<script>
+    // Restore new chat draft if one exists
+    restoreNewChatDraft();
+</script>
 
 {% if is_htmx %}
 <!-- OOB: Update sidebar sessions -->

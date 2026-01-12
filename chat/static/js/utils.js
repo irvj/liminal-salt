@@ -766,3 +766,46 @@ function restoreDraft(draft) {
         autoResizeTextarea(input);
     }
 }
+
+// =============================================================================
+// New Chat Draft (localStorage-based for unsaved sessions)
+// =============================================================================
+
+const NEW_CHAT_DRAFT_KEY = 'newChatDraft';
+
+/**
+ * Save new chat draft to localStorage (debounced).
+ */
+let newChatDraftTimer = null;
+function saveNewChatDraftDebounced() {
+    if (newChatDraftTimer) {
+        clearTimeout(newChatDraftTimer);
+    }
+    newChatDraftTimer = setTimeout(() => {
+        const input = document.getElementById('message-input');
+        if (input) {
+            localStorage.setItem(NEW_CHAT_DRAFT_KEY, input.value || '');
+        }
+    }, 500);
+}
+
+/**
+ * Restore new chat draft from localStorage.
+ */
+function restoreNewChatDraft() {
+    const draft = localStorage.getItem(NEW_CHAT_DRAFT_KEY);
+    if (draft) {
+        const input = document.getElementById('message-input');
+        if (input) {
+            input.value = draft;
+        }
+    }
+}
+
+/**
+ * Clear new chat draft from localStorage.
+ * Call this when a new chat is successfully started.
+ */
+function clearNewChatDraft() {
+    localStorage.removeItem(NEW_CHAT_DRAFT_KEY);
+}
