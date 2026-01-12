@@ -32,7 +32,7 @@
 - **Smart Titles**: Multi-tier auto-generation of session titles with artifact detection
 - **User Memory View**: Dedicated pane for viewing and managing long-term memory
 - **Persona Settings**: Dedicated page for managing personas and model overrides
-- **Dynamic Theme System**: 15 color themes with dark/light modes, server-side persistence
+- **Dynamic Theme System**: 16 color themes with dark/light modes, server-side persistence
 - **SVG Icon System**: Consistent, theme-aware icons throughout the UI
 - **Reactive UI**: HTMX-powered updates without full page reloads
 
@@ -47,7 +47,7 @@
 - **HTTP Client:** requests
 - **Data Storage:** JSON files for sessions, Markdown for memory and personas
 - **Sessions:** Django signed cookie sessions (no database required)
-- **UI Themes:** 15 color themes (Nord, Dracula, Gruvbox, Monokai, Solarized, Rose Pine, Tokyo Night, One Dark, Night Owl, Catppuccin, Ayu, Everforest, Kanagawa, Palenight, Synthwave '84)
+- **UI Themes:** 16 color themes (Liminal Salt [default], Nord, Dracula, Gruvbox, Monokai, Solarized, Rose Pine, Tokyo Night, One Dark, Night Owl, Catppuccin, Ayu, Everforest, Kanagawa, Palenight, Synthwave 84)
 
 ---
 
@@ -183,8 +183,9 @@ liminal-salt/
 │   │   ├── js/
 │   │   │   ├── utils.js         # Shared utility functions
 │   │   │   └── components.js    # Alpine.js component definitions
-│   │   └── themes/              # Color theme JSON files (15 themes)
-│   │       ├── nord.json        # Nord (default)
+│   │   └── themes/              # Color theme JSON files (16 themes)
+│   │       ├── liminal-salt.json # Liminal Salt (default)
+│   │       ├── nord.json        # Nord
 │   │       ├── dracula.json     # Dracula
 │   │       ├── gruvbox.json     # Gruvbox
 │   │       ├── monokai.json     # Monokai
@@ -528,7 +529,7 @@ This runs both the Tailwind CSS watcher and Django server concurrently.
     "DEFAULT_PERSONA": "assistant",
     "PERSONAS_DIR": "personas",
     "MAX_HISTORY": 50,
-    "THEME": "nord",
+    "THEME": "liminal-salt",
     "THEME_MODE": "dark"
 }
 ```
@@ -539,7 +540,7 @@ This runs both the Tailwind CSS watcher and Django server concurrently.
 - `DEFAULT_PERSONA`: Default persona for new chats
 - `PERSONAS_DIR`: Directory containing persona definitions
 - `MAX_HISTORY`: Number of message pairs to keep in context
-- `THEME`: Color theme identifier (one of 15 themes: nord, dracula, gruvbox, monokai, solarized, rose-pine, tokyo-night, one-dark, night-owl, catppuccin, ayu, everforest, kanagawa, palenight, synthwave)
+- `THEME`: Color theme identifier (one of 16 themes: liminal-salt [default], nord, dracula, gruvbox, monokai, solarized, rose-pine, tokyo-night, one-dark, night-owl, catppuccin, ayu, everforest, kanagawa, palenight, synthwave)
 - `THEME_MODE`: Light or dark mode preference
 
 ### Django Settings (`liminal_salt/settings.py`)
