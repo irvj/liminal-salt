@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.5] - 2026-01-12
+
+### Changes
+- add chat screenshot
+- fix dark mode chat user text
+
 ## [0.5.4] - 2026-01-12
 
 ### Changes

@@ -1,6 +1,6 @@
 {
   "name": "liminal-salt",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "Tailwind CSS build tooling for Liminal Salt. Version follows Python package.",
   "main": "index.js",
   "scripts": {
