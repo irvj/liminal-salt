@@ -144,8 +144,19 @@
                 <span x-text="statusMessage"></span>
             </div>
 
+            <!-- Loading State -->
+            <div x-show="loading" class="text-center py-4 text-foreground-secondary">
+                Loading models...
+            </div>
+
+            <!-- Error State -->
+            <div x-show="loadError && !loading" class="p-3 px-4 rounded mb-4 bg-danger text-white text-sm">
+                <span x-text="loadError"></span>
+                <button @click="loadModels()" class="ml-2 underline">Retry</button>
+            </div>
+
             <!-- Model Picker -->
-            <div class="mb-4">
+            <div class="mb-4" x-show="!loading && !loadError">
                 <label class="block mb-2 font-medium text-foreground-secondary">Model:</label>
                 <div class="relative">
                     <input type="text"
@@ -873,6 +884,9 @@
             selectedModel: '',
             modelSearch: '',
             models: [],
+            modelsLoaded: false,
+            loading: false,
+            loadError: '',
             defaultModel: '',
             modelOpen: false,
             highlightedIndex: 0,
@@ -882,6 +896,35 @@
 
             init() {
                 window.editPersonaModelModalComponent = this;
+            },
+
+            async loadModels() {
+                if (this.modelsLoaded || this.loading) return;
+
+                this.loading = true;
+                this.loadError = '';
+
+                try {
+                    const response = await fetch('{% url "get_available_models" %}');
+                    const data = await response.json();
+
+                    if (response.ok && data.models) {
+                        this.models = data.models;
+                        this.modelsLoaded = true;
+
+                        // Update modelSearch with current model display name
+                        if (this.currentModel) {
+                            const model = this.models.find(m => m.id === this.currentModel);
+                            this.modelSearch = model ? model.display : this.currentModel;
+                        }
+                    } else {
+                        this.loadError = data.error || 'Failed to load models';
+                    }
+                } catch (e) {
+                    this.loadError = 'Failed to fetch models. Please try again.';
+                } finally {
+                    this.loading = false;
+                }
             },
 
             get filteredModels() {
@@ -971,12 +1014,6 @@
             const persona = personaData ? personaData.dataset.selectedId : '';
             const personaModel = personaData ? personaData.dataset.personaModel : '';
             const defaultModel = personaData ? personaData.dataset.defaultModel : '';
-            let availableModels = [];
-            try {
-                availableModels = personaData ? JSON.parse(personaData.dataset.availableModels || '[]') : [];
-            } catch (e) {
-                availableModels = [];
-            }
 
             const displayName = persona.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
@@ -984,19 +1021,17 @@
             window.editPersonaModelModalComponent.displayName = displayName;
             window.editPersonaModelModalComponent.currentModel = personaModel;
             window.editPersonaModelModalComponent.selectedModel = personaModel;
-            window.editPersonaModelModalComponent.models = availableModels;
             window.editPersonaModelModalComponent.defaultModel = defaultModel;
             window.editPersonaModelModalComponent.statusMessage = '';
+            window.editPersonaModelModalComponent.loadError = '';
 
-            // Set modelSearch to display name of current model if set
-            if (personaModel) {
-                const model = availableModels.find(m => m.id === personaModel);
-                window.editPersonaModelModalComponent.modelSearch = model ? model.display : personaModel;
-            } else {
-                window.editPersonaModelModalComponent.modelSearch = '';
-            }
+            // Set initial modelSearch (will be updated after models load)
+            window.editPersonaModelModalComponent.modelSearch = personaModel || '';
 
             window.editPersonaModelModalComponent.showModal = true;
+
+            // Fetch models lazily when modal opens
+            window.editPersonaModelModalComponent.loadModels();
         }
     }
 

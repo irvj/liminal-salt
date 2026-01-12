@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.http import require_http_methods
 import os
 import json
 import logging
@@ -1286,22 +1287,6 @@ def persona_settings(request):
     model = config.get("MODEL", "")
     provider = config.get("PROVIDER", "openrouter")
 
-    # Check if API key exists for current provider
-    has_api_key = False
-    api_key = None
-    if provider == 'openrouter':
-        api_key = config.get("OPENROUTER_API_KEY")
-        has_api_key = bool(api_key)
-
-    # Fetch available models for Edit Model modal
-    available_models = []
-    if has_api_key and api_key:
-        models = fetch_available_models(api_key)
-        if models:
-            grouped = group_models_by_provider(models)
-            model_options = flatten_models_with_provider_prefix(grouped)
-            available_models = [{'id': m[0], 'display': m[1]} for m in model_options]
-
     # Read first persona file preview
     persona_preview = ""
     selected_persona = default_persona
@@ -1327,8 +1312,6 @@ def persona_settings(request):
         'selected_persona': selected_persona,
         'persona_preview': persona_preview,
         'persona_model': persona_model or '',
-        'available_models': available_models,
-        'available_models_json': json.dumps(available_models),
         'success': request.GET.get('success'),
     }
 
@@ -1337,6 +1320,26 @@ def persona_settings(request):
         return render(request, 'persona/persona_main.html', context)
 
     return redirect('chat')
+
+
+@require_http_methods(["GET"])
+def get_available_models(request):
+    """AJAX endpoint to fetch available models on-demand"""
+    config = load_config()
+    api_key = config.get("OPENROUTER_API_KEY", "")
+
+    if not api_key:
+        return JsonResponse({'error': 'No API key configured'}, status=400)
+
+    models = fetch_available_models(api_key)
+    if not models:
+        return JsonResponse({'error': 'Failed to fetch models'}, status=500)
+
+    grouped = group_models_by_provider(models)
+    options = flatten_models_with_provider_prefix(grouped)
+    available_models = [{'id': m[0], 'display': m[1]} for m in options]
+
+    return JsonResponse({'models': available_models})
 
 
 def save_settings(request):

@@ -29,6 +29,7 @@ urlpatterns = [
     path('settings/save/', views.save_settings, name='save_settings'),
     path('settings/validate-api-key/', views.validate_provider_api_key, name='validate_provider_api_key'),
     path('settings/save-provider-model/', views.save_provider_model, name='save_provider_model'),
+    path('settings/available-models/', views.get_available_models, name='get_available_models'),
     path('settings/save-persona/', views.save_persona_file, name='save_persona_file'),
     path('settings/create-persona/', views.create_persona, name='create_persona'),
     path('settings/delete-persona/', views.delete_persona, name='delete_persona'),
