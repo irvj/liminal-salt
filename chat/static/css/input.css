@@ -142,6 +142,16 @@
   --tw-prose-quotes: #ebe7e0;
 }
 
+/* Use dark text for user bubbles in dark mode (overrides prose-invert) */
+[data-theme="dark"] .bg-user-bubble .prose {
+  --tw-prose-body: #1a1c1b;
+  --tw-prose-headings: #1a1c1b;
+  --tw-prose-links: #2e312f;
+  --tw-prose-bold: #1a1c1b;
+  --tw-prose-code: #1a1c1b;
+  --tw-prose-quotes: #2e312f;
+}
+
 /* ===== Custom Component Classes ===== */
 @utility message-tail-user {
   position: relative;
