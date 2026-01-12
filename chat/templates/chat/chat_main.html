@@ -14,9 +14,11 @@
     </div>
 </header>
 
-<!-- Messages -->
-<div class="flex-1 overflow-y-auto p-5" id="messages">
-    {% for message in messages %}
+<!-- Messages Wrapper (for scroll button positioning) -->
+<div class="flex-1 relative overflow-hidden">
+    <!-- Messages Container -->
+    <div class="absolute inset-0 overflow-y-auto p-5" id="messages">
+        {% for message in messages %}
         <div class="message-container {{ message.role }} my-4 max-w-[80%] w-fit {% if message.role == 'user' %}ml-auto{% else %}mr-auto{% endif %}">
             <div class="message {{ message.role }} {% if message.role == 'user' %}message-tail-user bg-user-bubble text-foreground-on-accent{% else %}message-tail-assistant bg-assistant-bubble text-foreground{% endif %} p-3 px-4 rounded-lg">
                 {% if message.content|slice:":6" == "ERROR:" %}
@@ -53,6 +55,15 @@
          hx-on::after-request="removeThinkingIndicator(); animateAssistantResponse();">
     </div>
     {% endif %}
+    </div>
+
+    <!-- Scroll to Bottom Button -->
+    <button id="scroll-to-bottom-btn"
+            onclick="scrollToBottom()"
+            class="absolute bottom-4 right-4 p-3 bg-surface-elevated text-foreground border border-border rounded-full shadow-lg cursor-pointer hover:bg-surface-secondary transition-opacity opacity-0 pointer-events-none"
+            title="Scroll to bottom">
+        {% include 'icons/chevron-down.html' with class='w-5 h-5' %}
+    </button>
 </div>
 
 <!-- Input Area -->

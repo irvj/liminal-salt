@@ -424,6 +424,8 @@
 
         // Clear input immediately (don't wait for response)
         input.value = '';
+        // Reset textarea height
+        input.style.height = 'auto';
 
         // Create and append user message with container
         const messagesDiv = document.getElementById('messages');
@@ -458,7 +460,7 @@
         container.className = 'message-container user my-4 max-w-[80%] w-fit ml-auto';
 
         const userDiv = document.createElement('div');
-        userDiv.className = 'message user message-tail-user p-3 px-4 rounded-lg bg-user-bubble text-foreground-on-accent';
+        userDiv.className = 'message user message-tail-user p-3 px-4 rounded-lg bg-user-bubble text-foreground-on-accent whitespace-pre-wrap';
         userDiv.textContent = message;
         container.appendChild(userDiv);
 
@@ -478,8 +480,8 @@
         thinkingDiv.innerHTML = '<span class="typing-indicator flex gap-1 py-1"><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot"></span><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.2s;"></span><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.4s;"></span></span>';
         messagesDiv.appendChild(thinkingDiv);
 
-        // Scroll to bottom
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        // Scroll to bottom to show user message and thinking indicator
+        scrollToBottom();
     }
 
     // Remove thinking indicator after response arrives
@@ -497,6 +499,40 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
     }
+
+    // Show/hide scroll-to-bottom button based on scroll position
+    function updateScrollButtonVisibility() {
+        const messagesDiv = document.getElementById('messages');
+        const btn = document.getElementById('scroll-to-bottom-btn');
+        if (!messagesDiv || !btn) return;
+
+        const threshold = 200; // pixels from bottom
+        const isNearBottom = messagesDiv.scrollHeight - messagesDiv.scrollTop - messagesDiv.clientHeight < threshold;
+
+        if (isNearBottom) {
+            btn.classList.add('opacity-0', 'pointer-events-none');
+            btn.classList.remove('opacity-100', 'pointer-events-auto');
+        } else {
+            btn.classList.remove('opacity-0', 'pointer-events-none');
+            btn.classList.add('opacity-100', 'pointer-events-auto');
+        }
+    }
+
+    // Setup scroll listener for the button
+    function setupScrollButtonListener() {
+        const messagesDiv = document.getElementById('messages');
+        if (!messagesDiv || messagesDiv._scrollBtnListenerAttached) return;
+
+        messagesDiv.addEventListener('scroll', updateScrollButtonVisibility);
+        messagesDiv._scrollBtnListenerAttached = true;
+
+        // Initial check
+        updateScrollButtonVisibility();
+    }
+
+    // Setup on page load and after HTMX swaps
+    setupScrollButtonListener();
+    document.body.addEventListener('htmx:afterSwap', setupScrollButtonListener);
 
     // Handle textarea keydown: Enter submits, Shift+Enter adds new line
     function handleTextareaKeydown(event) {
@@ -570,20 +606,20 @@
             textNode.parentNode.replaceChild(fragment, textNode);
         });
 
-        // Reveal words progressively with auto-scroll
+        // Reveal words progressively (no auto-scroll - user controls their view)
         allWords.forEach((wordSpan, index) => {
             setTimeout(() => {
                 wordSpan.classList.add('shown');
-                // Scroll every 10 words to keep up
-                if (index % 10 === 0) {
-                    scrollToBottom();
+                // Update button visibility periodically
+                if (index % 20 === 0) {
+                    updateScrollButtonVisibility();
                 }
             }, index * 50);
         });
 
-        // Final scroll after all words revealed
+        // Final visibility check after all words revealed
         if (allWords.length > 0) {
-            setTimeout(() => scrollToBottom(), allWords.length * 50 + 100);
+            setTimeout(() => updateScrollButtonVisibility(), allWords.length * 50 + 100);
         }
     }
 
