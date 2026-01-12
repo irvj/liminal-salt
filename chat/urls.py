@@ -31,4 +31,5 @@ urlpatterns = [
     path('settings/save-personality/', views.save_personality_file, name='save_personality_file'),
     path('settings/create-personality/', views.create_personality, name='create_personality'),
     path('settings/delete-personality/', views.delete_personality, name='delete_personality'),
+    path('settings/save-personality-model/', views.save_personality_model, name='save_personality_model'),
 ]

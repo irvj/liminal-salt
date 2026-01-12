@@ -1,4 +1,6 @@
 import os
+import json
+from pathlib import Path
 from .user_context import load_enabled_context
 
 def load_context(personality_dir, ltm_file="long_term_memory.md"):
@@ -65,3 +67,36 @@ def get_available_personalities(personalities_dir="personalities"):
                 personalities.append(item)
 
     return sorted(personalities)
+
+
+def get_personality_config(personality_name, personalities_dir="personalities"):
+    """
+    Load config.json from personality directory, if exists.
+
+    Args:
+        personality_name: Name of the personality folder
+        personalities_dir: Base directory containing personalities
+
+    Returns:
+        Dict of config values, or empty dict if no config exists
+    """
+    config_path = Path(personalities_dir) / personality_name / "config.json"
+    if config_path.exists():
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def get_personality_model(personality_name, personalities_dir="personalities"):
+    """
+    Get model override for a personality, or None if not set.
+
+    Args:
+        personality_name: Name of the personality folder
+        personalities_dir: Base directory containing personalities
+
+    Returns:
+        Model string if set, None otherwise
+    """
+    config = get_personality_config(personality_name, personalities_dir)
+    return config.get("model")

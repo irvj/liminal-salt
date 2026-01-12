@@ -1,4 +1,8 @@
 {% load markdown_extras %}
+<script>
+    window.personalityModelsData = {{ personality_models_json|default:"{}"|safe }};
+    window.defaultModelData = '{{ default_model|default:""|escapejs }}';
+</script>
 <!-- Centered content -->
 <div class="flex-1 flex flex-col items-center justify-center p-5">
     <form method="POST"
@@ -12,8 +16,18 @@
               selectedDisplay: '',
               highlightedIndex: 0,
               personalities: [{% for p in personalities %}{ id: '{{ p }}', display: '{{ p|display_name|escapejs }}' }{% if not forloop.last %}, {% endif %}{% endfor %}],
+              personalityModels: window.personalityModelsData || {},
+              defaultModel: window.defaultModelData || '',
               get filteredPersonalities() {
                   return this.personalities;
+              },
+              get currentModel() {
+                  return this.personalityModels[this.selected] || this.defaultModel;
+              },
+              get currentModelDisplay() {
+                  const model = this.currentModel;
+                  // Extract just the model name (after the slash)
+                  return model.includes('/') ? model.split('/').pop() : model;
               },
               selectPersonality(p) {
                   this.selected = p.id;
@@ -80,16 +94,17 @@
             <button type="submit" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Send</button>
         </div>
 
-        <!-- Personality picker -->
-        <div class="relative">
-            <button type="button"
-                    @click="open = !open"
-                    class="flex items-center gap-1 text-foreground-secondary hover:text-foreground text-sm cursor-pointer">
-                {% include 'icons/user-pen.html' with class='w-4 h-4' %}
-                <span x-text="selectedDisplay"></span>
-            </button>
+        <!-- Personality picker and model display -->
+        <div class="flex items-center gap-4">
+            <div class="relative">
+                <button type="button"
+                        @click="open = !open"
+                        class="flex items-center gap-1 text-foreground-secondary hover:text-foreground text-sm cursor-pointer">
+                    {% include 'icons/user-pen.html' with class='w-4 h-4' %}
+                    <span x-text="selectedDisplay"></span>
+                </button>
 
-            <!-- Dropdown -->
+                <!-- Dropdown -->
             <div x-cloak
                  x-show="open"
                  x-transition:enter="transition ease-out duration-100"
@@ -110,6 +125,13 @@
                     </button>
                 </template>
             </div>
+            </div>
+
+            <!-- Model display -->
+            <span class="text-foreground-secondary text-sm flex items-center gap-1">
+                {% include 'icons/cpu.html' with class='w-4 h-4' %}
+                <span x-text="currentModelDisplay"></span>
+            </span>
         </div>
     </form>
 </div>

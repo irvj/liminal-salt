@@ -98,11 +98,11 @@
                         this.updateButton();
                     },
                     get filteredModels() {
-                        if (!this.search) return this.models.slice(0, 50);
+                        if (!this.search) return this.models;
                         const s = this.search.toLowerCase();
                         return this.models.filter(m =>
                             m.display.toLowerCase().includes(s) || m.id.toLowerCase().includes(s)
-                        ).slice(0, 50);
+                        );
                     },
                     selectModel(model) {
                         this.selectedId = model.id;

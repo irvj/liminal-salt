@@ -126,6 +126,78 @@
     </div>
 </div>
 
+<!-- Edit Personality Model Modal (Alpine.js) -->
+<div x-data="editPersonalityModelModal()" x-cloak>
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-[500px] w-[90%] border border-border">
+            <h3 class="text-foreground mb-2">Edit Model for <span class="text-accent-cyan" x-text="displayName"></span></h3>
+            <p class="text-foreground-secondary text-sm mb-4">Select a model for this personality, or clear to use the default.</p>
+
+            <!-- Status Messages -->
+            <div x-show="statusMessage" x-transition
+                 :class="statusType === 'success' ? 'bg-success text-surface' : 'bg-danger text-white'"
+                 class="p-2 px-3 rounded mb-4 text-sm">
+                <span x-text="statusMessage"></span>
+            </div>
+
+            <!-- Model Picker -->
+            <div class="mb-4">
+                <label class="block mb-2 font-medium text-foreground-secondary">Model:</label>
+                <div class="relative">
+                    <input type="text"
+                           x-model="modelSearch"
+                           @input="highlightedIndex = 0"
+                           @focus="modelOpen = true"
+                           @click.stop="modelOpen = true"
+                           @keydown.escape="modelOpen = false"
+                           @keydown.enter.prevent="selectHighlighted()"
+                           @keydown.arrow-down.prevent="highlightNext()"
+                           @keydown.arrow-up.prevent="highlightPrev()"
+                           placeholder="Search models..."
+                           :class="selectedModel ? 'border-accent-cyan bg-surface' : 'border-border bg-surface-secondary'"
+                           class="w-full p-3 border rounded text-foreground text-base focus:outline-none focus:border-accent-cyan">
+
+                    <div x-cloak
+                         x-show="modelOpen && filteredModels.length > 0"
+                         x-transition:enter="transition ease-out duration-100"
+                         x-transition:leave="transition ease-in duration-75"
+                         @click.away="modelOpen = false"
+                         class="absolute w-full mt-1 max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-modal-nested">
+                        <template x-for="(m, index) in filteredModels" :key="m.id">
+                            <button type="button"
+                                    @click="selectModel(m)"
+                                    @mouseenter="highlightedIndex = index"
+                                    :class="index === highlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                                    class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
+                                <span x-text="m.display"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Current Model Display -->
+            <div class="text-sm text-foreground-secondary mb-4">
+                <strong>Current:</strong>
+                <span x-text="currentModel || 'Using default (' + defaultModel + ')'"></span>
+            </div>
+
+            <div class="flex gap-3 justify-end">
+                <button @click="clearModel()" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Use Default</button>
+                <button @click="showModal = false" class="px-4 py-2 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="saveModel()" :disabled="saving" class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
+                    <span x-show="!saving">Save</span>
+                    <span x-show="saving">...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Context Files Modal (Alpine.js) -->
 <div x-data="contextFilesModal()" x-cloak>
     <div x-show="showModal"
@@ -747,6 +819,132 @@
         }
     }
 
+    // Alpine.js component for edit personality model modal
+    function editPersonalityModelModal() {
+        return {
+            showModal: false,
+            personality: '',
+            displayName: '',
+            currentModel: '',
+            selectedModel: '',
+            modelSearch: '',
+            models: [],
+            defaultModel: '',
+            modelOpen: false,
+            highlightedIndex: 0,
+            statusMessage: '',
+            statusType: '',
+            saving: false,
+
+            init() {
+                window.editPersonalityModelModalComponent = this;
+            },
+
+            get filteredModels() {
+                if (!this.modelSearch) return this.models;
+                const s = this.modelSearch.toLowerCase();
+                return this.models.filter(m =>
+                    m.display.toLowerCase().includes(s) || m.id.toLowerCase().includes(s)
+                );
+            },
+
+            selectModel(model) {
+                this.selectedModel = model.id;
+                this.modelSearch = model.display;
+                this.modelOpen = false;
+            },
+
+            selectHighlighted() {
+                if (this.filteredModels.length > 0) {
+                    this.selectModel(this.filteredModels[this.highlightedIndex]);
+                }
+            },
+
+            highlightNext() {
+                if (this.highlightedIndex < this.filteredModels.length - 1) {
+                    this.highlightedIndex++;
+                }
+            },
+
+            highlightPrev() {
+                if (this.highlightedIndex > 0) {
+                    this.highlightedIndex--;
+                }
+            },
+
+            clearModel() {
+                this.selectedModel = '';
+                this.modelSearch = '';
+            },
+
+            async saveModel() {
+                this.saving = true;
+                this.statusMessage = '';
+
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+
+                try {
+                    const formData = new FormData();
+                    formData.append('personality', this.personality);
+                    formData.append('model', this.selectedModel);
+
+                    const response = await fetch('{% url "save_personality_model" %}', {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': csrfToken },
+                        body: formData
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.statusMessage = 'Model updated successfully!';
+                        this.statusType = 'success';
+                        this.currentModel = data.model || '';
+
+                        // Refresh settings page to show updated model
+                        setTimeout(() => {
+                            this.showModal = false;
+                            htmx.ajax('GET', '/settings/?preview=' + this.personality, {target: '#main-content', swap: 'innerHTML'});
+                        }, 1000);
+                    } else {
+                        this.statusMessage = data.error || 'Failed to save model';
+                        this.statusType = 'error';
+                    }
+                } catch (e) {
+                    this.statusMessage = 'Failed to save model. Please try again.';
+                    this.statusType = 'error';
+                } finally {
+                    this.saving = false;
+                }
+            }
+        };
+    }
+
+    // Open edit personality model modal (called from settings page)
+    function openEditPersonalityModelModal() {
+        if (window.editPersonalityModelModalComponent) {
+            const personality = window.selectedPersonalityId || '';
+            const displayName = personality.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+            window.editPersonalityModelModalComponent.personality = personality;
+            window.editPersonalityModelModalComponent.displayName = displayName;
+            window.editPersonalityModelModalComponent.currentModel = window.personalityModel || '';
+            window.editPersonalityModelModalComponent.selectedModel = window.personalityModel || '';
+            window.editPersonalityModelModalComponent.models = window.availableModels || [];
+            window.editPersonalityModelModalComponent.defaultModel = window.defaultModel || '';
+            window.editPersonalityModelModalComponent.statusMessage = '';
+
+            // Set modelSearch to display name of current model if set
+            if (window.personalityModel) {
+                const model = window.availableModels?.find(m => m.id === window.personalityModel);
+                window.editPersonalityModelModalComponent.modelSearch = model ? model.display : window.personalityModel;
+            } else {
+                window.editPersonalityModelModalComponent.modelSearch = '';
+            }
+
+            window.editPersonalityModelModalComponent.showModal = true;
+        }
+    }
+
     // Context Files Modal
     function contextFilesModal() {
         return {
@@ -991,11 +1189,11 @@
             },
 
             get filteredModels() {
-                if (!this.modelSearch) return this.models.slice(0, 50);
+                if (!this.modelSearch) return this.models;
                 const s = this.modelSearch.toLowerCase();
                 return this.models.filter(m =>
                     m.display.toLowerCase().includes(s) || m.id.toLowerCase().includes(s)
-                ).slice(0, 50);
+                );
             },
 
             get canSave() {

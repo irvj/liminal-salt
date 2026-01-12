@@ -133,7 +133,7 @@
 
         <!-- Model Picker -->
         <div class="mb-4" x-show="showModelPicker">
-            <label class="block mb-2 font-medium">Model:</label>
+            <label class="block mb-2 font-medium">Default Model:</label>
             <div class="relative max-w-md">
                 <input type="text"
                        x-model="modelSearch"
@@ -178,6 +178,7 @@
     </div>
 
     <h2 class="text-accent-cyan text-xl mb-4">Chat Personality</h2>
+    <button type="button" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover mb-4" onclick="openNewPersonalityModal()">New Personality</button>
 
     {% if not personalities %}
     <div class="p-3 px-4 rounded mb-4 bg-danger text-white">
@@ -300,7 +301,7 @@
             <div class="flex gap-3 flex-wrap mt-4">
                 <button type="submit" class="px-6 py-3 bg-accent text-white rounded font-medium cursor-pointer hover:bg-accent-hover">Set as Default</button>
                 <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openEditPersonalityModal()">Edit Personality</button>
-                <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openNewPersonalityModal()">New Personality</button>
+                <button type="button" class="px-6 py-3 bg-surface-elevated text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openEditPersonalityModelModal()">Edit Model</button>
                 <button type="button"
                         class="px-6 py-3 bg-surface-elevated rounded font-medium"
                         :class="selected === 'assistant' ? 'text-foreground-secondary cursor-not-allowed opacity-50' : 'text-foreground cursor-pointer hover:bg-danger hover:text-foreground-on-accent'"
@@ -313,10 +314,20 @@
 
     <script>
         window.personalityRawContent = "{{ personality_preview|escapejs }}";
+        window.selectedPersonalityId = "{{ selected_personality }}";
+        window.personalityModel = "{{ personality_model }}";
+        window.availableModels = {{ available_models_json|safe }};
+        window.defaultModel = "{{ model }}";
     </script>
 
+    {% if personality_model %}
+    <div class="text-sm text-foreground-secondary mt-4 mb-2">
+        <strong>Model override:</strong> <span class="text-accent-cyan">{{ personality_model }}</span>
+    </div>
+    {% endif %}
+
     {% if personality_preview %}
-    <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent mt-5 prose prose-invert max-w-none">
+    <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent mt-2 prose prose-invert max-w-none">
         {{ personality_preview|markdown }}
     </div>
     {% endif %}

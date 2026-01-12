@@ -180,14 +180,24 @@ def chat(request):
     # For HTMX requests (session switching), load the session
     if not is_htmx:
         # Full page load - show home page
+        from .services import get_personality_model
         sessions = get_sessions_with_titles()
         available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
         default_personality = config.get("DEFAULT_PERSONALITY", "")
+        default_model = config.get("MODEL", "")
         pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
+
+        # Build personality -> model mapping
+        personality_models = {}
+        for p in available_personalities:
+            pm = get_personality_model(p, str(settings.PERSONALITIES_DIR))
+            personality_models[p] = pm or default_model
 
         context = {
             'personalities': available_personalities,
             'default_personality': default_personality,
+            'default_model': default_model,
+            'personality_models_json': json.dumps(personality_models),
             'pinned_sessions': pinned_sessions,
             'grouped_sessions': grouped_sessions,
             'current_session': None,
@@ -203,13 +213,23 @@ def chat(request):
             set_current_session(request, session_id)
         else:
             # No sessions - show home page partial
+            from .services import get_personality_model
             available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
             default_personality = config.get("DEFAULT_PERSONALITY", "")
+            default_model = config.get("MODEL", "")
             pinned_sessions, grouped_sessions = group_sessions_by_personality([])
+
+            # Build personality -> model mapping
+            personality_models = {}
+            for p in available_personalities:
+                pm = get_personality_model(p, str(settings.PERSONALITIES_DIR))
+                personality_models[p] = pm or default_model
 
             context = {
                 'personalities': available_personalities,
                 'default_personality': default_personality,
+                'default_model': default_model,
+                'personality_models_json': json.dumps(personality_models),
                 'pinned_sessions': pinned_sessions,
                 'grouped_sessions': grouped_sessions,
                 'current_session': None,
@@ -222,7 +242,6 @@ def chat(request):
     personalities_dir = str(settings.PERSONALITIES_DIR)
     ltm_file = str(settings.LTM_FILE)
     api_key = config.get("OPENROUTER_API_KEY")
-    model = config.get("MODEL", "anthropic/claude-haiku-4.5")
     max_history = config.get("MAX_HISTORY", 50)
 
     # Try to load personality from session file
@@ -239,6 +258,9 @@ def chat(request):
     # Fallback to default
     if not session_personality:
         session_personality = config.get("DEFAULT_PERSONALITY", "assistant") or "assistant"
+
+    # Get model for this personality (may be personality-specific or default)
+    model = get_model_for_personality(config, session_personality, settings.PERSONALITIES_DIR)
 
     # Capture user timezone from POST or session
     user_timezone = request.POST.get('timezone') or request.session.get('user_timezone', 'UTC')
@@ -337,7 +359,7 @@ def switch_session(request):
 
 def new_chat(request):
     """Show new chat home page (clears current session)"""
-    from .services import get_available_personalities
+    from .services import get_available_personalities, get_personality_model
     from .utils import set_current_session, get_sessions_with_titles, group_sessions_by_personality
     from django.conf import settings
 
@@ -351,12 +373,21 @@ def new_chat(request):
     # Get data for home page
     available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
     default_personality = config.get("DEFAULT_PERSONALITY", "")
+    default_model = config.get("MODEL", "")
     sessions = get_sessions_with_titles()
     pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
+
+    # Build personality -> model mapping
+    personality_models = {}
+    for p in available_personalities:
+        pm = get_personality_model(p, str(settings.PERSONALITIES_DIR))
+        personality_models[p] = pm or default_model
 
     context = {
         'personalities': available_personalities,
         'default_personality': default_personality,
+        'default_model': default_model,
+        'personality_models_json': json.dumps(personality_models),
         'pinned_sessions': pinned_sessions,
         'grouped_sessions': grouped_sessions,
         'current_session': None,
@@ -427,7 +458,7 @@ def start_chat(request):
     pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
     available_personalities = get_available_personalities(str(settings.PERSONALITIES_DIR))
     default_personality = config.get("DEFAULT_PERSONALITY", "")
-    model = config.get("MODEL", "anthropic/claude-haiku-4.5")
+    model = get_model_for_personality(config, selected_personality, settings.PERSONALITIES_DIR)
 
     context = {
         'session_id': session_id,
@@ -485,7 +516,6 @@ def delete_chat(request):
 
                 ltm_file = str(settings.LTM_FILE)
                 api_key = config.get("OPENROUTER_API_KEY")
-                model = config.get("MODEL", "anthropic/claude-haiku-4.5")
                 max_history = config.get("MAX_HISTORY", 50)
 
                 # Load new session's personality
@@ -502,6 +532,9 @@ def delete_chat(request):
 
                 if not session_personality:
                     session_personality = config.get("DEFAULT_PERSONALITY", "") or "assistant"
+
+                # Get model for this personality (may be personality-specific or default)
+                model = get_model_for_personality(config, session_personality, settings.PERSONALITIES_DIR)
 
                 # Load context and create ChatCore for new session
                 personality_path = os.path.join(personalities_dir, session_personality)
@@ -541,16 +574,26 @@ def delete_chat(request):
                 return render(request, 'chat/chat_main.html', context)
             else:
                 # No sessions remaining - show home page
+                from .services import get_personality_model
                 set_current_session(request, None)
 
                 sessions = get_sessions_with_titles()
                 pinned_sessions, grouped_sessions = group_sessions_by_personality(sessions)
                 available_personalities = get_available_personalities(personalities_dir)
                 default_personality = config.get("DEFAULT_PERSONALITY", "") or "assistant"
+                default_model = config.get("MODEL", "")
+
+                # Build personality -> model mapping
+                personality_models = {}
+                for p in available_personalities:
+                    pm = get_personality_model(p, personalities_dir)
+                    personality_models[p] = pm or default_model
 
                 context = {
                     'personalities': available_personalities,
                     'default_personality': default_personality,
+                    'default_model': default_model,
+                    'personality_models_json': json.dumps(personality_models),
                     'pinned_sessions': pinned_sessions,
                     'grouped_sessions': grouped_sessions,
                     'current_session': None,
@@ -701,7 +744,6 @@ def send_message(request):
     personalities_dir = str(settings.PERSONALITIES_DIR)
     ltm_file = str(settings.LTM_FILE)
     api_key = config.get("OPENROUTER_API_KEY")
-    model = config.get("MODEL", "anthropic/claude-haiku-4.5")
     max_history = config.get("MAX_HISTORY", 50)
 
     # Load personality from session file
@@ -717,6 +759,9 @@ def send_message(request):
 
     if not session_personality:
         session_personality = config.get("DEFAULT_PERSONALITY", "assistant") or "assistant"
+
+    # Get model for this personality (may be personality-specific or default)
+    model = get_model_for_personality(config, session_personality, settings.PERSONALITIES_DIR)
 
     # Capture user timezone from POST or session
     user_timezone = request.POST.get('timezone') or request.session.get('user_timezone', 'UTC')
@@ -1177,7 +1222,7 @@ def save_context_file_content(request):
 
 def settings(request):
     """Settings view"""
-    from .services import get_available_personalities
+    from .services import get_available_personalities, get_personality_model
     from django.conf import settings as django_settings
 
     config = load_config()
@@ -1193,12 +1238,24 @@ def settings(request):
 
     # Check if API key exists for current provider
     has_api_key = False
+    api_key = None
     if provider == 'openrouter':
-        has_api_key = bool(config.get("OPENROUTER_API_KEY"))
+        api_key = config.get("OPENROUTER_API_KEY")
+        has_api_key = bool(api_key)
+
+    # Fetch available models for Edit Model modal
+    available_models = []
+    if has_api_key and api_key:
+        models = fetch_available_models(api_key)
+        if models:
+            grouped = group_models_by_provider(models)
+            model_options = flatten_models_with_provider_prefix(grouped)
+            available_models = [{'id': m[0], 'display': m[1]} for m in model_options]
 
     # Read first personality file preview
     personality_preview = ""
     selected_personality = default_personality
+    personality_model = None
     if available_personalities:
         selected_personality = request.GET.get('personality', request.GET.get('preview', default_personality))
         # Only load preview if a personality is actually selected
@@ -1210,6 +1267,8 @@ def settings(request):
                     with open(os.path.join(personality_path, md_files[0]), 'r') as f:
                         content = f.read()
                         personality_preview = content
+            # Get personality-specific model if set
+            personality_model = get_personality_model(selected_personality, personalities_dir)
 
     context = {
         'model': model,
@@ -1221,6 +1280,9 @@ def settings(request):
         'default_personality': default_personality,
         'selected_personality': selected_personality,
         'personality_preview': personality_preview,
+        'personality_model': personality_model or '',
+        'available_models': available_models,
+        'available_models_json': json.dumps(available_models),
         'success': request.GET.get('success'),
     }
 
@@ -1253,13 +1315,31 @@ def save_settings(request):
 
         # For HTMX requests, return the partial directly
         if request.headers.get('HX-Request'):
+            from .services import get_personality_model
             personalities_dir = str(django_settings.PERSONALITIES_DIR)
             available_personalities = get_available_personalities(personalities_dir)
             default_personality = config.get("DEFAULT_PERSONALITY", "")
             model = config.get("MODEL", "")
+            provider = config.get("PROVIDER", "openrouter")
+            providers = get_providers()
+
+            # Check if API key exists and fetch models
+            has_api_key = False
+            api_key = None
+            available_models = []
+            if provider == 'openrouter':
+                api_key = config.get("OPENROUTER_API_KEY")
+                has_api_key = bool(api_key)
+            if has_api_key and api_key:
+                models_list = fetch_available_models(api_key)
+                if models_list:
+                    grouped = group_models_by_provider(models_list)
+                    model_options = flatten_models_with_provider_prefix(grouped)
+                    available_models = [{'id': m[0], 'display': m[1]} for m in model_options]
 
             # Read personality preview for the newly set default (if set)
             personality_preview = ""
+            personality_model = None
             if default_personality:
                 personality_path = os.path.join(personalities_dir, default_personality)
                 if os.path.exists(personality_path):
@@ -1268,13 +1348,21 @@ def save_settings(request):
                         with open(os.path.join(personality_path, md_files[0]), 'r') as f:
                             content = f.read()
                             personality_preview = content
+                personality_model = get_personality_model(default_personality, personalities_dir)
 
             context = {
                 'model': model,
+                'provider': provider,
+                'providers': providers,
+                'providers_json': json.dumps(providers),
+                'has_api_key': has_api_key,
                 'personalities': available_personalities,
                 'default_personality': default_personality,
                 'selected_personality': default_personality,
                 'personality_preview': personality_preview,
+                'personality_model': personality_model or '',
+                'available_models': available_models,
+                'available_models_json': json.dumps(available_models),
                 'success': success_msg,
             }
             return render(request, 'settings/settings_main.html', context)
@@ -1438,16 +1526,43 @@ def save_personality_file(request):
     config = load_config()
 
     # Return updated settings partial
+    from .services import get_personality_model
     available_personalities = get_available_personalities(personalities_dir)
     default_personality = config.get("DEFAULT_PERSONALITY", "")
     model = config.get("MODEL", "")
+    provider = config.get("PROVIDER", "openrouter")
+    providers = get_providers()
+
+    # Check if API key exists and fetch models
+    has_api_key = False
+    api_key = None
+    available_models = []
+    if provider == 'openrouter':
+        api_key = config.get("OPENROUTER_API_KEY")
+        has_api_key = bool(api_key)
+    if has_api_key and api_key:
+        models_list = fetch_available_models(api_key)
+        if models_list:
+            grouped = group_models_by_provider(models_list)
+            model_options = flatten_models_with_provider_prefix(grouped)
+            available_models = [{'id': m[0], 'display': m[1]} for m in model_options]
+
+    # Get personality model
+    personality_model = get_personality_model(final_personality, personalities_dir)
 
     context = {
         'model': model,
+        'provider': provider,
+        'providers': providers,
+        'providers_json': json.dumps(providers),
+        'has_api_key': has_api_key,
         'personalities': available_personalities,
         'default_personality': default_personality,
         'selected_personality': final_personality,
         'personality_preview': content,
+        'personality_model': personality_model or '',
+        'available_models': available_models,
+        'available_models_json': json.dumps(available_models),
         'success': "Personality saved" + (" and renamed" if is_rename else ""),
     }
     return render(request, 'settings/settings_main.html', context)
@@ -1513,13 +1628,36 @@ def create_personality(request):
     available_personalities = get_available_personalities(personalities_dir)
     default_personality = config.get("DEFAULT_PERSONALITY", "")
     model = config.get("MODEL", "")
+    provider = config.get("PROVIDER", "openrouter")
+    providers = get_providers()
+
+    # Check if API key exists and fetch models
+    has_api_key = False
+    api_key = None
+    available_models = []
+    if provider == 'openrouter':
+        api_key = config.get("OPENROUTER_API_KEY")
+        has_api_key = bool(api_key)
+    if has_api_key and api_key:
+        models_list = fetch_available_models(api_key)
+        if models_list:
+            grouped = group_models_by_provider(models_list)
+            model_options = flatten_models_with_provider_prefix(grouped)
+            available_models = [{'id': m[0], 'display': m[1]} for m in model_options]
 
     context = {
         'model': model,
+        'provider': provider,
+        'providers': providers,
+        'providers_json': json.dumps(providers),
+        'has_api_key': has_api_key,
         'personalities': available_personalities,
         'default_personality': default_personality,
         'selected_personality': name,
         'personality_preview': content,
+        'personality_model': '',  # New personality has no model override
+        'available_models': available_models,
+        'available_models_json': json.dumps(available_models),
         'success': "Personality created",
     }
     return render(request, 'settings/settings_main.html', context)
@@ -1570,8 +1708,25 @@ def delete_personality(request):
     _update_sessions_personality(personality, default_personality)
 
     # Reload available personalities after deletion
+    from .services import get_personality_model
     available_personalities = get_available_personalities(personalities_dir)
     model = config.get("MODEL", "")
+    provider = config.get("PROVIDER", "openrouter")
+    providers = get_providers()
+
+    # Check if API key exists and fetch models
+    has_api_key = False
+    api_key = None
+    available_models = []
+    if provider == 'openrouter':
+        api_key = config.get("OPENROUTER_API_KEY")
+        has_api_key = bool(api_key)
+    if has_api_key and api_key:
+        models_list = fetch_available_models(api_key)
+        if models_list:
+            grouped = group_models_by_provider(models_list)
+            model_options = flatten_models_with_provider_prefix(grouped)
+            available_models = [{'id': m[0], 'display': m[1]} for m in model_options]
 
     # Read preview for default personality
     personality_preview = ""
@@ -1582,12 +1737,74 @@ def delete_personality(request):
             with open(os.path.join(preview_path, md_files[0]), 'r') as f:
                 personality_preview = f.read()
 
+    # Get personality model for the new default
+    personality_model = get_personality_model(default_personality, personalities_dir)
+
     context = {
         'model': model,
+        'provider': provider,
+        'providers': providers,
+        'providers_json': json.dumps(providers),
+        'has_api_key': has_api_key,
         'personalities': available_personalities,
         'default_personality': default_personality,
         'selected_personality': default_personality,
         'personality_preview': personality_preview,
+        'personality_model': personality_model or '',
+        'available_models': available_models,
+        'available_models_json': json.dumps(available_models),
         'success': "Personality deleted",
     }
     return render(request, 'settings/settings_main.html', context)
+
+
+def get_model_for_personality(config, personality, personalities_dir):
+    """
+    Get the model to use for a personality.
+    Returns personality-specific model if set, otherwise the default model.
+    """
+    from .services import get_personality_model
+
+    default_model = config.get("MODEL", "anthropic/claude-haiku-4.5")
+    personality_model = get_personality_model(personality, str(personalities_dir))
+    return personality_model or default_model
+
+
+def save_personality_model(request):
+    """Save model override for a personality (POST)"""
+    from django.http import JsonResponse
+    from django.conf import settings as django_settings
+    from .services import get_personality_config
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    personality = request.POST.get('personality', '').strip()
+    model = request.POST.get('model', '').strip()
+
+    if not personality:
+        return JsonResponse({'error': 'Personality is required'}, status=400)
+
+    # Validate personality exists
+    personality_path = django_settings.PERSONALITIES_DIR / personality
+    if not personality_path.exists():
+        return JsonResponse({'error': 'Personality not found'}, status=404)
+
+    # Load existing config or create new
+    config_path = personality_path / "config.json"
+    config = {}
+    if config_path.exists():
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+
+    # Update or remove model
+    if model:
+        config["model"] = model
+    elif "model" in config:
+        del config["model"]
+
+    # Save config
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=2)
+
+    return JsonResponse({'success': True, 'model': model or None})
