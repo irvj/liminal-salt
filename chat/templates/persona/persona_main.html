@@ -27,74 +27,10 @@
         {% csrf_token %}
         <input type="hidden" name="redirect_to" value="persona">
         <div class="mb-4"
-             x-data="{
-                 open: false,
-                 search: '',
-                 selected: '{{ selected_persona }}',
-                 highlightedIndex: 0,
-                 personas: [{% for p in personas %}{ id: '{{ p }}', display: '{{ p|display_name|escapejs }}' }{% if not forloop.last %}, {% endif %}{% endfor %}],
-                 settingsUrl: '{% url 'persona_settings' %}',
-                 get filteredPersonas() {
-                     const found = this.personas.find(p => p.id === this.selected);
-                     if (found && this.search === found.display) return this.personas;
-                     if (!this.search) return this.personas;
-                     const s = this.search.toLowerCase();
-                     return this.personas.filter(p => p.display.toLowerCase().includes(s) || p.id.toLowerCase().includes(s));
-                 },
-                 selectPersona(p) {
-                     this.selected = p.id;
-                     this.search = p.display;
-                     this.open = false;
-                     // Trigger HTMX preview (preserve scroll position)
-                     const scrollContainer = document.querySelector('#main-content .overflow-y-auto');
-                     const scrollPos = scrollContainer ? scrollContainer.scrollTop : 0;
-                     htmx.ajax('GET', this.settingsUrl + '?preview=' + p.id, {target: '#main-content', swap: 'innerHTML'}).then(() => {
-                         if (scrollContainer) {
-                             const newScrollContainer = document.querySelector('#main-content .overflow-y-auto');
-                             if (newScrollContainer) newScrollContainer.scrollTop = scrollPos;
-                         }
-                     });
-                 },
-                 selectHighlighted() {
-                     if (this.filteredPersonas.length > 0) {
-                         this.selectPersona(this.filteredPersonas[this.highlightedIndex]);
-                     }
-                 },
-                 highlightNext() {
-                     if (this.highlightedIndex < this.filteredPersonas.length - 1) {
-                         this.highlightedIndex++;
-                         this.scrollToHighlighted();
-                     }
-                 },
-                 highlightPrev() {
-                     if (this.highlightedIndex > 0) {
-                         this.highlightedIndex--;
-                         this.scrollToHighlighted();
-                     }
-                 },
-                 scrollToHighlighted() {
-                     this.$nextTick(() => {
-                         const dropdown = this.$root.querySelector('.max-h-64');
-                         const buttons = dropdown?.querySelectorAll('button');
-                         const highlighted = buttons?.[this.highlightedIndex];
-                         if (dropdown && highlighted) {
-                             const itemTop = highlighted.offsetTop;
-                             const itemBottom = itemTop + highlighted.offsetHeight;
-                             const viewTop = dropdown.scrollTop;
-                             const viewBottom = viewTop + dropdown.clientHeight;
-                             if (itemBottom > viewBottom) {
-                                 dropdown.scrollTop = itemBottom - dropdown.clientHeight;
-                             } else if (itemTop < viewTop) {
-                                 dropdown.scrollTop = itemTop;
-                             }
-                         }
-                     });
-                 },
-                 init() {
-                     const found = this.personas.find(p => p.id === this.selected);
-                     if (found) this.search = found.display;
-                 }
-             }">
+             x-data="personaSettingsPicker"
+             data-selected-persona="{{ selected_persona }}"
+             data-settings-url="{% url 'persona_settings' %}"
+             data-personas='[{% for p in personas %}{ "id": "{{ p }}", "display": "{{ p|display_name|escapejs }}" }{% if not forloop.last %}, {% endif %}{% endfor %}]'>
             <label class="block mb-2 font-medium">Select a persona:</label>
             <input type="hidden" name="persona" id="persona" :value="selected">
             <div class="relative max-w-md">

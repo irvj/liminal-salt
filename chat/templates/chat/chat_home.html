@@ -12,83 +12,9 @@
           hx-target="#main-content"
           hx-swap="innerHTML"
           class="w-full max-w-xl"
-          x-data="{
-              open: false,
-              selected: '{{ default_persona }}',
-              selectedDisplay: '',
-              highlightedIndex: 0,
-              personas: [{% for p in personas %}{ id: '{{ p }}', display: '{{ p|display_name|escapejs }}' }{% if not forloop.last %}, {% endif %}{% endfor %}],
-              personaModels: {},
-              defaultModel: '',
-              get filteredPersonas() {
-                  return this.personas;
-              },
-              get currentModel() {
-                  return this.personaModels[this.selected] || this.defaultModel;
-              },
-              get currentModelDisplay() {
-                  const model = this.currentModel;
-                  // Extract just the model name (after the slash)
-                  return model.includes('/') ? model.split('/').pop() : model;
-              },
-              selectPersona(p) {
-                  this.selected = p.id;
-                  this.selectedDisplay = p.display;
-                  this.open = false;
-              },
-              selectHighlighted() {
-                  if (this.filteredPersonas.length > 0) {
-                      this.selectPersona(this.filteredPersonas[this.highlightedIndex]);
-                  }
-              },
-              highlightNext() {
-                  if (this.highlightedIndex < this.filteredPersonas.length - 1) {
-                      this.highlightedIndex++;
-                      this.scrollToHighlighted();
-                  }
-              },
-              highlightPrev() {
-                  if (this.highlightedIndex > 0) {
-                      this.highlightedIndex--;
-                      this.scrollToHighlighted();
-                  }
-              },
-              scrollToHighlighted() {
-                  this.$nextTick(() => {
-                      const dropdown = this.$root.querySelector('.max-h-64');
-                      const buttons = dropdown?.querySelectorAll('button');
-                      const highlighted = buttons?.[this.highlightedIndex];
-                      if (dropdown && highlighted) {
-                          const itemTop = highlighted.offsetTop;
-                          const itemBottom = itemTop + highlighted.offsetHeight;
-                          const viewTop = dropdown.scrollTop;
-                          const viewBottom = viewTop + dropdown.clientHeight;
-                          if (itemBottom > viewBottom) {
-                              dropdown.scrollTop = itemBottom - dropdown.clientHeight;
-                          } else if (itemTop < viewTop) {
-                              dropdown.scrollTop = itemTop;
-                          }
-                      }
-                  });
-              },
-              init() {
-                  // Load data from hidden element (survives HTMX swaps)
-                  const dataEl = document.getElementById('home-data');
-                  if (dataEl) {
-                      try {
-                          this.personaModels = JSON.parse(dataEl.dataset.personaModels || '{}');
-                      } catch (e) {
-                          this.personaModels = {};
-                      }
-                      this.defaultModel = dataEl.dataset.defaultModel || '';
-                  }
-                  const found = this.personas.find(p => p.id === this.selected);
-                  if (found) this.selectedDisplay = found.display;
-                  // Set timezone
-                  const tzInput = document.getElementById('timezone-input');
-                  if (tzInput) tzInput.value = Intl.DateTimeFormat().resolvedOptions().timeZone;
-              }
-          }">
+          x-data="homePersonaPicker"
+          data-default-persona="{{ default_persona }}"
+          data-personas='[{% for p in personas %}{ "id": "{{ p }}", "display": "{{ p|display_name|escapejs }}" }{% if not forloop.last %}, {% endif %}{% endfor %}]'>
         {% csrf_token %}
         <input type="hidden" name="timezone" id="timezone-input" value="">
         <input type="hidden" name="persona" :value="selected">
