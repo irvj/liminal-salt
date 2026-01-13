@@ -1,6 +1,6 @@
 # CLAUDE.md - Project Overview & Developer Guide
 
-**Last Updated:** January 12, 2026
+**Last Updated:** January 13, 2026
 **Project:** Liminal Salt - Multi-Session LLM Chatbot with Personas
 **Status:** Production-ready Django application
 
@@ -104,7 +104,7 @@ ChatCore.send_message()
     ↓
 Build API payload:
   1. System prompt (persona + user memory)
-  2. Recent message history (last 100 messages)
+  2. Recent message history (configurable, default 50 pairs)
     ↓
 POST to OpenRouter API (with retry logic)
     ↓
@@ -309,7 +309,7 @@ Views check `request.headers.get('HX-Request')` to return either:
 **Features:**
 - **Retry Logic:** Up to 2 attempts for empty responses with 2-second delay
 - **Token Cleanup:** Removes `<s>` and `</s>` artifacts
-- **Sliding Window:** Maintains last 100 messages in API payload
+- **Sliding Window:** Configurable context history limit (default 50 message pairs)
 - **Error Handling:** Returns "ERROR: ..." string on failures
 
 ### 3. Context Manager (`chat/services/context_manager.py`)
@@ -495,9 +495,13 @@ Upload context files that apply only to a specific persona, enabling separation 
 ### Long-Term Memory
 
 - Read-only display in main pane
-- "Update User Memory" aggregates all sessions
+- "Update User Memory" aggregates sessions based on configurable limits
+- **Memory Generation Limits:** Control how much history is sent when generating memory
+  - **Recent Threads:** Limit to N most recent chat threads (default 10, 0 = unlimited)
+  - **Messages Per Thread:** Limit to N most recent messages from each thread (default 100, 0 = unlimited)
 - "Wipe Memory" with confirmation
 - Status indicator shows update progress
+- Context files can be uploaded to augment memory
 
 ---
 
@@ -553,7 +557,9 @@ This runs both the Tailwind CSS watcher and Django server concurrently.
     "SITE_NAME": "Liminal Salt",
     "DEFAULT_PERSONA": "assistant",
     "PERSONAS_DIR": "personas",
-    "MAX_HISTORY": 50,
+    "CONTEXT_HISTORY_LIMIT": 50,
+    "USER_HISTORY_MAX_THREADS": 10,
+    "USER_HISTORY_MESSAGES_PER_THREAD": 100,
     "THEME": "liminal-salt",
     "THEME_MODE": "dark"
 }
@@ -564,7 +570,9 @@ This runs both the Tailwind CSS watcher and Django server concurrently.
 - `MODEL`: Default LLM model to use
 - `DEFAULT_PERSONA`: Default persona for new chats
 - `PERSONAS_DIR`: Directory containing persona definitions
-- `MAX_HISTORY`: Number of message pairs to keep in context
+- `CONTEXT_HISTORY_LIMIT`: Number of message pairs sent to LLM as context per chat (default 50)
+- `USER_HISTORY_MAX_THREADS`: Max threads to include when generating user memory (default 10, 0 = unlimited)
+- `USER_HISTORY_MESSAGES_PER_THREAD`: Max messages per thread when generating user memory (default 100, 0 = unlimited)
 - `THEME`: Color theme identifier (one of 16 themes: liminal-salt [default], nord, dracula, gruvbox, monokai, solarized, rose-pine, tokyo-night, one-dark, night-owl, catppuccin, ayu, everforest, kanagawa, palenight, synthwave)
 - `THEME_MODE`: Light or dark mode preference
 
@@ -756,6 +764,7 @@ Icons are stored as reusable Django template includes in `chat/templates/icons/`
 /memory/update/                → update_memory
 /memory/wipe/                  → wipe_memory
 /memory/modify/                → modify_memory
+/memory/save-settings/         → save_memory_settings (AJAX)
 /memory/context/upload/        → upload_context_file
 /memory/context/delete/        → delete_context_file
 /memory/context/toggle/        → toggle_context_file
@@ -771,6 +780,7 @@ Icons are stored as reusable Django template includes in `chat/templates/icons/`
 /settings/save/                → save_settings
 /settings/validate-api-key/    → validate_provider_api_key
 /settings/save-provider-model/ → save_provider_model
+/settings/save-context-history-limit/ → save_context_history_limit (AJAX)
 /settings/available-models/    → get_available_models (AJAX)
 /settings/save-persona/        → save_persona_file
 /settings/create-persona/      → create_persona
