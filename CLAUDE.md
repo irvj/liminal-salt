@@ -25,7 +25,7 @@
 ### Key Features
 
 - **Multi-Session Management**: Create, switch between, and manage multiple chat sessions
-- **Persona System**: Per-session persona selection with customizable personas
+- **Persona System**: Per-session persona selection with customizable personas and persona-specific context files
 - **Long-Term Memory**: Automatic user profile building across all conversations
 - **Grouped Sidebar**: Collapsible persona-based organization of chat threads
 - **Pinned Chats**: Pin important conversations to the top of the sidebar
@@ -174,6 +174,8 @@ liminal-salt/
 │   │   ├── chat_core.py         # LLM API & message handling
 │   │   ├── config_manager.py    # Configuration management
 │   │   ├── context_manager.py   # System prompt assembly
+│   │   ├── persona_context.py   # Persona-specific context file management
+│   │   ├── user_context.py      # Global user context file management
 │   │   └── summarizer.py        # Title & memory generation
 │   │
 │   ├── static/                  # Static assets
@@ -237,6 +239,13 @@ liminal-salt/
     │   └── assistant/
     │       ├── identity.md      # Persona system prompt
     │       └── config.json      # Optional model override
+    ├── user_context/            # User-uploaded context files
+    │   ├── config.json          # Global context file settings
+    │   ├── *.md, *.txt          # Global context files
+    │   └── personas/            # Persona-specific context files
+    │       └── [persona_name]/
+    │           ├── config.json  # Persona context file settings
+    │           └── *.md, *.txt  # Persona-specific files
     └── long_term_memory.md      # Persistent user profile
 ```
 
@@ -315,7 +324,9 @@ Views check `request.headers.get('HX-Request')` to return either:
 
 **Assembly Order:**
 1. All `.md` files from persona directory (alphabetically)
-2. Long-term memory file with explicit disclaimer
+2. Persona-specific context files (from `data/user_context/personas/[name]/`)
+3. Global user context files (from `data/user_context/`)
+4. Long-term memory file with explicit disclaimer
 
 ### 4. Summarizer (`chat/services/summarizer.py`)
 
@@ -377,7 +388,8 @@ Components are registered via `Alpine.data()` in the `alpine:init` event, making
 | `editPersonaModal` | Persona content editor modal |
 | `deletePersonaModal` | Persona deletion confirmation modal |
 | `editPersonaModelModal` | Persona model override modal with lazy loading |
-| `contextFilesModal` | Context file upload/management modal |
+| `contextFilesModal` | Global context file upload/management modal |
+| `personaContextFilesModal` | Persona-specific context file modal |
 | `providerModelSettings` | Provider and model configuration (settings page) |
 | `homePersonaPicker` | Persona picker on home page |
 | `personaSettingsPicker` | Persona picker on persona settings page |
@@ -394,6 +406,7 @@ Modal components expose global functions for cross-component communication:
 - `openNewPersonaModal()` / `openEditPersonaModal()` - Persona modals
 - `openDeletePersonaModal()` / `openEditPersonaModelModal()` - Persona modals
 - `openContextFilesModal()` / `openWipeMemoryModal()` - Memory modals
+- `openPersonaContextFilesModal()` - Persona context files modal
 
 **Data Attribute Pattern:**
 Components receive Django template data via `data-*` attributes:
@@ -465,7 +478,19 @@ Icon buttons at bottom of sidebar for quick access:
 - **Isolation:** Each session maintains its own persona
 - **Default:** Configurable default persona for new chats
 - **Model Override:** Each persona can have its own model
+- **Context Files:** Each persona can have dedicated context files
 - **Protected:** The default "assistant" persona cannot be deleted
+
+### Persona Context Files
+
+Upload context files that apply only to a specific persona, enabling separation of concerns:
+
+- **Persona-Scoped:** Files only included in chats using that persona
+- **Drag & Drop:** Easy upload via modal on Persona Settings page
+- **Toggle Enable/Disable:** Control which files are active
+- **Inline Editing:** Edit file content directly in the modal
+- **Badge Count:** Shows number of context files per persona
+- **Stored Separately:** Files saved in `data/user_context/personas/[name]/`
 
 ### Long-Term Memory
 
@@ -737,6 +762,11 @@ Icons are stored as reusable Django template includes in `chat/templates/icons/`
 /memory/context/content/       → get_context_file_content
 /memory/context/save/          → save_context_file_content
 /persona/                      → persona_settings
+/persona/context/upload/       → upload_persona_context_file
+/persona/context/delete/       → delete_persona_context_file
+/persona/context/toggle/       → toggle_persona_context_file
+/persona/context/content/      → get_persona_context_file_content
+/persona/context/save/         → save_persona_context_file_content
 /settings/                     → settings
 /settings/save/                → save_settings
 /settings/validate-api-key/    → validate_provider_api_key
@@ -841,11 +871,20 @@ Utility functions from `utils.js` are available globally:
 - [ ] View User Memory in main pane
 - [ ] Update memory, see status indicator
 - [ ] Wipe memory with confirmation
+- [ ] Upload global context files in Memory view
 - [ ] Change default persona in Persona Settings
 - [ ] Set model override for persona
 - [ ] Create new persona
 - [ ] Edit persona content
 - [ ] Verify "assistant" persona cannot be deleted
+
+**Persona Context Files:**
+- [ ] Upload context file to a persona via drag-drop or click
+- [ ] Toggle file enabled/disabled status
+- [ ] Edit file content inline
+- [ ] Delete context file
+- [ ] Badge count updates correctly
+- [ ] Context appears in LLM prompt only for that persona's chats
 
 **Edge Cases:**
 - [ ] First launch (no config.json)
@@ -864,6 +903,7 @@ Utility functions from `utils.js` are available globally:
 |------|---------|
 | `chat/views.py` | All view logic |
 | `chat/services/chat_core.py` | LLM API calls |
+| `chat/services/persona_context.py` | Persona-specific context file management |
 | `chat/templates/chat/chat.html` | Main UI template |
 | `chat/static/js/components.js` | Alpine.js component definitions |
 | `chat/static/js/utils.js` | Shared utility functions |
