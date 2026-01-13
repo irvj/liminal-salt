@@ -20,6 +20,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('deletePersonaModal', deletePersonaModal);
     Alpine.data('editPersonaModelModal', editPersonaModelModal);
     Alpine.data('contextFilesModal', contextFilesModal);
+    Alpine.data('personaContextFilesModal', personaContextFilesModal);
 
     // Page Components
     Alpine.data('sidebarState', sidebarState);
@@ -771,6 +772,194 @@ function openContextFilesModal() {
     if (window.contextFilesModalComponent) {
         window.contextFilesModalComponent.loadFiles();
         window.contextFilesModalComponent.showModal = true;
+    }
+}
+
+// =============================================================================
+// Persona Context Files Modal Component
+// =============================================================================
+
+function personaContextFilesModal() {
+    return {
+        showModal: false,
+        isDragging: false,
+        files: [],
+        persona: '',
+        uploadStatus: '',
+        uploadStatusType: '',
+        editModal: {
+            show: false,
+            filename: '',
+            content: '',
+            status: '',
+            statusType: ''
+        },
+
+        init() {
+            window.personaContextFilesModalComponent = this;
+            this.loadFiles();
+        },
+
+        loadFiles() {
+            this.files = window.personaContextFilesData || [];
+            this.persona = window.currentPersonaId || '';
+        },
+
+        handleDrop(event) {
+            this.isDragging = false;
+            const files = event.dataTransfer.files;
+            this.uploadFiles(files);
+        },
+
+        handleFileSelect(event) {
+            const files = event.target.files;
+            this.uploadFiles(files);
+            event.target.value = '';
+        },
+
+        async uploadFiles(fileList) {
+            for (const file of fileList) {
+                if (!file.name.endsWith('.md') && !file.name.endsWith('.txt')) {
+                    this.showStatus(`${file.name}: Invalid file type`, 'error');
+                    continue;
+                }
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('persona', this.persona);
+                formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+                try {
+                    const response = await fetch('/persona/context/upload/', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.files = data.files;
+                        window.personaContextFilesData = data.files;
+                        this.showStatus(`Uploaded ${file.name}`, 'success');
+                        this.updateBadge();
+                    } else {
+                        this.showStatus(`Failed to upload ${file.name}`, 'error');
+                    }
+                } catch (err) {
+                    this.showStatus(`Error uploading ${file.name}`, 'error');
+                }
+            }
+        },
+
+        async toggleFile(filename) {
+            const formData = new FormData();
+            formData.append('filename', filename);
+            formData.append('persona', this.persona);
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+            const response = await fetch('/persona/context/toggle/', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.files = data.files;
+                window.personaContextFilesData = data.files;
+            }
+        },
+
+        async deleteFile(filename) {
+            if (!confirm(`Delete ${filename}?`)) return;
+
+            const formData = new FormData();
+            formData.append('filename', filename);
+            formData.append('persona', this.persona);
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+            const response = await fetch('/persona/context/delete/', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.files = data.files;
+                window.personaContextFilesData = data.files;
+                this.showStatus(`Deleted ${filename}`, 'success');
+                this.updateBadge();
+            }
+        },
+
+        showStatus(message, type) {
+            this.uploadStatus = message;
+            this.uploadStatusType = type;
+            setTimeout(() => {
+                this.uploadStatus = '';
+            }, 3000);
+        },
+
+        updateBadge() {
+            const badge = document.querySelector('.persona-context-files-btn .badge');
+            if (badge) {
+                badge.textContent = this.files.length;
+                badge.style.display = this.files.length > 0 ? 'inline' : 'none';
+            }
+        },
+
+        async openEditFile(filename) {
+            this.editModal.filename = filename;
+            this.editModal.status = '';
+
+            const response = await fetch(`/persona/context/content/?persona=${encodeURIComponent(this.persona)}&filename=${encodeURIComponent(filename)}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.editModal.content = data.content;
+                this.editModal.show = true;
+            } else {
+                this.showStatus(`Failed to load ${filename}`, 'error');
+            }
+        },
+
+        async saveEditFile() {
+            const formData = new FormData();
+            formData.append('filename', this.editModal.filename);
+            formData.append('content', this.editModal.content);
+            formData.append('persona', this.persona);
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+            const response = await fetch('/persona/context/save/', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+
+            if (response.ok) {
+                this.editModal.status = 'Saved successfully';
+                this.editModal.statusType = 'success';
+                setTimeout(() => {
+                    this.editModal.show = false;
+                }, 1000);
+            } else {
+                this.editModal.status = 'Failed to save';
+                this.editModal.statusType = 'error';
+            }
+        }
+    };
+}
+
+// Global helper function
+function openPersonaContextFilesModal() {
+    if (window.personaContextFilesModalComponent) {
+        window.personaContextFilesModalComponent.loadFiles();
+        window.personaContextFilesModalComponent.showModal = true;
     }
 }
 

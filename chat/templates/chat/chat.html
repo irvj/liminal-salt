@@ -289,6 +289,86 @@
     </div>
 </div>
 
+<!-- Persona Context Files Modal (Alpine.js) -->
+<div x-data="personaContextFilesModal" x-cloak>
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-[500px] w-[90%] border border-border">
+            <h2 class="text-foreground mb-2">Persona Context Files</h2>
+            <p class="text-foreground-secondary text-sm mb-5">Upload files to provide additional context for this persona only. These are included in conversations using this persona.</p>
+
+            <!-- Drop Zone -->
+            <div class="border-2 border-dashed border-border rounded-lg p-10 text-center cursor-pointer transition-all mb-5 hover:border-accent hover:bg-accent/10"
+                 :class="{ 'border-accent-cyan bg-accent-cyan/15': isDragging }"
+                 @dragover.prevent="isDragging = true"
+                 @dragleave.prevent="isDragging = false"
+                 @drop.prevent="handleDrop($event)"
+                 @click="$refs.personaFileInput.click()">
+                <div class="pointer-events-none">
+                    <div class="mb-3">{% include 'icons/folder.html' with class='w-12 h-12 mx-auto' %}</div>
+                    <p class="text-foreground my-2" x-show="!isDragging">Drag & drop files here, or click to browse</p>
+                    <p class="text-foreground my-2" x-show="isDragging">Drop files to upload</p>
+                    <p class="text-xs text-foreground-secondary">Accepts .md and .txt files</p>
+                </div>
+                <input type="file"
+                       x-ref="personaFileInput"
+                       @change="handleFileSelect($event)"
+                       accept=".md,.txt"
+                       multiple
+                       class="hidden">
+            </div>
+
+            <!-- Upload Status -->
+            <div x-show="uploadStatus" x-transition class="p-2 px-3 rounded mb-4 text-sm" :class="uploadStatusType === 'success' ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'">
+                <span x-text="uploadStatus"></span>
+            </div>
+
+            <!-- File List -->
+            <div class="max-h-[200px] overflow-y-auto mb-5">
+                <template x-for="file in files" :key="file.name">
+                    <div class="flex items-center gap-3 py-2.5 border-b border-surface last:border-b-0">
+                        <label class="relative w-11 h-6 shrink-0">
+                            <input type="checkbox" :checked="file.enabled" @change="toggleFile(file.name)" class="opacity-0 w-0 h-0 peer">
+                            <span class="absolute cursor-pointer inset-0 bg-surface-elevated rounded-full transition-colors peer-checked:bg-accent before:absolute before:content-[''] before:h-[18px] before:w-[18px] before:left-[3px] before:bottom-[3px] before:bg-foreground-secondary before:rounded-full before:transition-transform peer-checked:before:translate-x-5"></span>
+                        </label>
+                        <span class="flex-1 text-foreground cursor-pointer hover:text-accent-cyan" x-text="file.name" @click="openEditFile(file.name)"></span>
+                        <button class="bg-transparent border-none text-danger cursor-pointer px-1 py-1 hover:text-warning" @click="deleteFile(file.name)">{% include 'icons/x.html' with class='w-5 h-5' %}</button>
+                    </div>
+                </template>
+                <p x-show="files.length === 0" class="text-border italic text-center py-5">No context files uploaded for this persona.</p>
+            </div>
+
+            <!-- Close Button -->
+            <div class="flex justify-end gap-3">
+                <button @click="showModal = false" class="px-6 py-2.5 bg-accent text-foreground-on-accent rounded font-medium hover:bg-accent-hover">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Edit Modal (nested) -->
+    <div x-show="editModal.show"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal-nested"
+         @click.self="editModal.show = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal-lg w-[90%] border border-border">
+            <h2 class="text-foreground mb-2">Edit File</h2>
+            <p class="text-accent-cyan font-mono mb-4" x-text="editModal.filename"></p>
+            <textarea x-model="editModal.content"
+                      class="w-full h-[300px] bg-surface border border-border rounded text-foreground font-mono text-sm p-3 resize-y mb-4 focus:outline-none focus:border-accent-cyan"
+                      placeholder="File content..."></textarea>
+            <div x-show="editModal.status" class="p-2 px-3 rounded mb-4 text-sm" :class="editModal.statusType === 'success' ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'">
+                <span x-text="editModal.status"></span>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button @click="editModal.show = false" class="px-6 py-2.5 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="saveEditFile()" class="px-6 py-2.5 bg-accent text-foreground-on-accent rounded font-medium hover:bg-accent-hover">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Sidebar wrapper with mobile state (contents = invisible to flex layout) -->
 <div class="contents" x-data="sidebarState">
 

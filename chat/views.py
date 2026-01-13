@@ -1330,6 +1330,140 @@ def save_context_file_content(request):
     return JsonResponse({'success': True, 'filename': filename})
 
 
+# --- Persona-specific Context File Endpoints ---
+
+def upload_persona_context_file(request):
+    """Upload a context file for a specific persona (AJAX endpoint)"""
+    from django.http import JsonResponse
+    from .services import (
+        upload_persona_context_file as do_upload,
+        list_persona_context_files
+    )
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    persona = request.POST.get('persona')
+    if not persona:
+        return JsonResponse({'error': 'No persona specified'}, status=400)
+
+    uploaded_file = request.FILES.get('file')
+    if not uploaded_file:
+        return JsonResponse({'error': 'No file provided'}, status=400)
+
+    filename = do_upload(persona, uploaded_file)
+    if not filename:
+        return JsonResponse({
+            'error': 'Invalid file type. Only .md and .txt files allowed.'
+        }, status=400)
+
+    return JsonResponse({
+        'success': True,
+        'filename': filename,
+        'files': list_persona_context_files(persona)
+    })
+
+
+def delete_persona_context_file(request):
+    """Delete a context file from a specific persona (AJAX endpoint)"""
+    from django.http import JsonResponse
+    from .services import (
+        delete_persona_context_file as do_delete,
+        list_persona_context_files
+    )
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    persona = request.POST.get('persona')
+    if not persona:
+        return JsonResponse({'error': 'No persona specified'}, status=400)
+
+    filename = request.POST.get('filename')
+    if not filename:
+        return JsonResponse({'error': 'No filename provided'}, status=400)
+
+    deleted = do_delete(persona, filename)
+    return JsonResponse({
+        'success': deleted,
+        'filename': filename,
+        'files': list_persona_context_files(persona)
+    })
+
+
+def toggle_persona_context_file(request):
+    """Toggle enabled status of a persona's context file (AJAX endpoint)"""
+    from django.http import JsonResponse
+    from .services import (
+        toggle_persona_context_file as do_toggle,
+        list_persona_context_files
+    )
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    persona = request.POST.get('persona')
+    if not persona:
+        return JsonResponse({'error': 'No persona specified'}, status=400)
+
+    filename = request.POST.get('filename')
+    if not filename:
+        return JsonResponse({'error': 'No filename provided'}, status=400)
+
+    new_status = do_toggle(persona, filename)
+    return JsonResponse({
+        'success': True,
+        'filename': filename,
+        'enabled': new_status,
+        'files': list_persona_context_files(persona)
+    })
+
+
+def get_persona_context_file_content(request):
+    """GET endpoint to retrieve a persona's context file content for editing"""
+    from django.http import JsonResponse
+    from .services import get_persona_context_file_content as get_content
+
+    persona = request.GET.get('persona')
+    if not persona:
+        return JsonResponse({'error': 'No persona specified'}, status=400)
+
+    filename = request.GET.get('filename')
+    if not filename:
+        return JsonResponse({'error': 'No filename provided'}, status=400)
+
+    content = get_content(persona, filename)
+    if content is None:
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    return JsonResponse({'filename': filename, 'content': content})
+
+
+def save_persona_context_file_content(request):
+    """POST endpoint to save edited persona context file content"""
+    from django.http import JsonResponse
+    from .services import save_persona_context_file_content as save_content
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    persona = request.POST.get('persona')
+    if not persona:
+        return JsonResponse({'error': 'No persona specified'}, status=400)
+
+    filename = request.POST.get('filename')
+    if not filename:
+        return JsonResponse({'error': 'No filename provided'}, status=400)
+
+    content = request.POST.get('content', '')
+    saved = save_content(persona, filename, content)
+
+    if not saved:
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    return JsonResponse({'success': True, 'filename': filename})
+
+
 def settings(request):
     """Settings view"""
     from .services import get_available_personas
@@ -1367,7 +1501,7 @@ def settings(request):
 
 def persona_settings(request):
     """Persona settings view"""
-    from .services import get_available_personas, get_persona_model
+    from .services import get_available_personas, get_persona_model, list_persona_context_files
     from django.conf import settings as django_settings
 
     config = load_config()
@@ -1398,6 +1532,11 @@ def persona_settings(request):
             # Get persona-specific model if set
             persona_model = get_persona_model(selected_persona, personas_dir)
 
+    # Get persona-specific context files
+    persona_context_files = []
+    if selected_persona:
+        persona_context_files = list_persona_context_files(selected_persona)
+
     context = {
         'model': model,
         'personas': available_personas,
@@ -1405,6 +1544,8 @@ def persona_settings(request):
         'selected_persona': selected_persona,
         'persona_preview': persona_preview,
         'persona_model': persona_model or '',
+        'persona_context_files': persona_context_files,
+        'persona_context_files_json': json.dumps(persona_context_files),
         'success': request.GET.get('success'),
     }
 
@@ -1437,7 +1578,7 @@ def get_available_models(request):
 
 def save_settings(request):
     """Save settings (POST) - handles saving default persona"""
-    from .services import get_available_personas, get_persona_model
+    from .services import get_available_personas, get_persona_model, list_persona_context_files
     from django.conf import settings as django_settings
 
     if request.method == 'POST':
@@ -1493,6 +1634,7 @@ def save_settings(request):
 
             # Return persona page if redirecting there
             if redirect_to == 'persona':
+                persona_context_files = list_persona_context_files(default_persona) if default_persona else []
                 context = {
                     'model': model,
                     'personas': available_personas,
@@ -1500,6 +1642,8 @@ def save_settings(request):
                     'selected_persona': default_persona,
                     'persona_preview': persona_preview,
                     'persona_model': persona_model or '',
+                    'persona_context_files': persona_context_files,
+                    'persona_context_files_json': json.dumps(persona_context_files),
                     'available_models': available_models,
                     'available_models_json': json.dumps(available_models),
                     'success': success_msg,

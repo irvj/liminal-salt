@@ -2,6 +2,7 @@ import os
 import json
 from pathlib import Path
 from .user_context import load_enabled_context
+from .persona_context import load_enabled_context as load_enabled_persona_context
 
 def load_context(persona_dir, ltm_file="long_term_memory.md"):
     """
@@ -29,7 +30,13 @@ def load_context(persona_dir, ltm_file="long_term_memory.md"):
         context_str = "--- WARNING: Persona not found ---\n"
         context_str += f"Expected directory: {persona_dir}\n\n"
 
-    # Append user context files (if any are enabled)
+    # Append persona-specific context files (if any are enabled)
+    persona_name = os.path.basename(persona_dir)
+    persona_context = load_enabled_persona_context(persona_name)
+    if persona_context:
+        context_str += persona_context + "\n\n"
+
+    # Append global user context files (if any are enabled)
     user_context = load_enabled_context()
     if user_context:
         context_str += user_context + "\n\n"
