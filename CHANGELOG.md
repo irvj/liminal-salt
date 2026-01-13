@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.10] - 2026-01-13
+
+### Changes
+- update readme for context and memory history settings
+- update claude file with changes to context and memory history settings
+- user and memory history settings variable name cleanup, tweaks
+- add user memory generator limits and settings
+
 ## [0.5.9] - 2026-01-13
 
 ### Changes
