@@ -38,11 +38,10 @@ class ChatCore:
         if not self.history_file:
             return
         try:
-            window_size = self.max_history * 2
             to_save = {
                 "title": self.title,
                 "persona": self.persona,
-                "messages": self.messages[-window_size:]
+                "messages": self.messages  # Save ALL messages locally
             }
             with open(self.history_file, 'w') as f:
                 json.dump(to_save, f, indent=4)
