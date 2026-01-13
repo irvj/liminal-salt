@@ -6,13 +6,13 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 class ChatCore:
-    def __init__(self, api_key, model, site_url=None, site_name=None, system_prompt="", max_history=50, history_file=None, persona="assistant", user_timezone="UTC", assistant_timezone=None):
+    def __init__(self, api_key, model, site_url=None, site_name=None, system_prompt="", context_history_limit=50, history_file=None, persona="assistant", user_timezone="UTC", assistant_timezone=None):
         self.api_key = api_key
         self.model = model
         self.site_url = site_url
         self.site_name = site_name
         self.system_prompt = system_prompt
-        self.max_history = max_history
+        self.context_history_limit = context_history_limit
         self.history_file = history_file
         self.persona = persona
         self.user_timezone = user_timezone
@@ -86,7 +86,7 @@ class ChatCore:
             # PREPEND time context for highest transformer attention
             payload.append({"role": "system", "content": time_context + self.system_prompt})
 
-        window_size = self.max_history * 2
+        window_size = self.context_history_limit * 2
         recent_messages = self.messages[-window_size:]
 
         # Add messages without timestamp prefixes (timestamps stored separately for UI)

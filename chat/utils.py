@@ -129,13 +129,13 @@ def toggle_persona_group(request, persona):
     set_collapsed_personas(request, collapsed)
 
 
-def aggregate_all_sessions_messages(max_threads=None, max_messages_per_thread=None):
+def aggregate_all_sessions_messages(user_history_max_threads=None, user_history_messages_per_thread=None):
     """
     Collect messages from session files for memory update.
 
     Args:
-        max_threads: Limit to N most recent sessions (by file modification time)
-        max_messages_per_thread: Limit to N most recent messages from each session
+        user_history_max_threads: Limit to N most recent sessions (by file modification time)
+        user_history_messages_per_thread: Limit to N most recent messages from each session
 
     Returns:
         List of messages across sessions
@@ -152,9 +152,9 @@ def aggregate_all_sessions_messages(max_threads=None, max_messages_per_thread=No
 
     session_files.sort(key=lambda x: x[1], reverse=True)
 
-    # Limit to max_threads if specified
-    if max_threads:
-        session_files = session_files[:max_threads]
+    # Limit to user_history_max_threads if specified
+    if user_history_max_threads:
+        session_files = session_files[:user_history_max_threads]
 
     for path, _ in session_files:
         try:
@@ -163,8 +163,8 @@ def aggregate_all_sessions_messages(max_threads=None, max_messages_per_thread=No
                 messages = data.get("messages", []) if isinstance(data, dict) else data
                 if isinstance(messages, list):
                     # Limit to most recent messages per thread
-                    if max_messages_per_thread and len(messages) > max_messages_per_thread:
-                        messages = messages[-max_messages_per_thread:]
+                    if user_history_messages_per_thread and len(messages) > user_history_messages_per_thread:
+                        messages = messages[-user_history_messages_per_thread:]
                     all_messages.extend(messages)
         except Exception as e:
             print(f"Error reading session {path}: {e}")

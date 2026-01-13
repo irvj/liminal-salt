@@ -104,7 +104,7 @@ def setup_wizard(request):
                 "SITE_NAME": "Liminal Salt",
                 "DEFAULT_PERSONA": "assistant",
                 "PERSONAS_DIR": "personas",
-                "MAX_HISTORY": 50,
+                "CONTEXT_HISTORY_LIMIT": 50,
                 "SESSIONS_DIR": "sessions",
                 "LTM_FILE": "long_term_memory.md"
             }
@@ -289,7 +289,7 @@ def chat(request):
     personas_dir = str(settings.PERSONAS_DIR)
     ltm_file = str(settings.LTM_FILE)
     api_key = config.get("OPENROUTER_API_KEY")
-    max_history = config.get("MAX_HISTORY", 50)
+    context_history_limit = config.get("CONTEXT_HISTORY_LIMIT", 50)
     site_url = config.get("SITE_URL")
     site_name = config.get("SITE_NAME")
 
@@ -328,7 +328,7 @@ def chat(request):
         site_url=site_url,
         site_name=site_name,
         system_prompt=system_prompt,
-        max_history=max_history,
+        context_history_limit=context_history_limit,
         history_file=str(session_path),
         persona=session_persona,
         user_timezone=user_timezone
@@ -572,7 +572,7 @@ def delete_chat(request):
 
                 ltm_file = str(settings.LTM_FILE)
                 api_key = config.get("OPENROUTER_API_KEY")
-                max_history = config.get("MAX_HISTORY", 50)
+                context_history_limit = config.get("CONTEXT_HISTORY_LIMIT", 50)
                 site_url = config.get("SITE_URL")
                 site_name = config.get("SITE_NAME")
 
@@ -605,7 +605,7 @@ def delete_chat(request):
                     site_url=site_url,
                     site_name=site_name,
                     system_prompt=system_prompt,
-                    max_history=max_history,
+                    context_history_limit=context_history_limit,
                     history_file=str(new_session_path),
                     persona=session_persona,
                     user_timezone=user_timezone
@@ -835,7 +835,7 @@ def send_message(request):
     personas_dir = str(settings.PERSONAS_DIR)
     ltm_file = str(settings.LTM_FILE)
     api_key = config.get("OPENROUTER_API_KEY")
-    max_history = config.get("MAX_HISTORY", 50)
+    context_history_limit = config.get("CONTEXT_HISTORY_LIMIT", 50)
     site_url = config.get("SITE_URL")
     site_name = config.get("SITE_NAME")
 
@@ -871,7 +871,7 @@ def send_message(request):
         site_url=site_url,
         site_name=site_name,
         system_prompt=system_prompt,
-        max_history=max_history,
+        context_history_limit=context_history_limit,
         history_file=str(session_path),
         persona=session_persona,
         user_timezone=user_timezone
@@ -995,8 +995,8 @@ def memory(request):
         'success': request.GET.get('success'),
         'error': request.GET.get('error'),
         'context_files': context_files,
-        'max_memory_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
-        'max_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
+        'user_history_max_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
+        'user_history_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
     }
 
     # Return partial for HTMX requests, redirect others to chat
@@ -1027,13 +1027,13 @@ def update_memory(request):
 
         try:
             # Get memory generation limits from config
-            max_threads = config.get('USER_HISTORY_MAX_THREADS', 10)
-            max_per_thread = config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100)
+            user_history_max_threads = config.get('USER_HISTORY_MAX_THREADS', 10)
+            user_history_messages_per_thread = config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100)
 
             # Aggregate messages from sessions with limits
             all_messages = aggregate_all_sessions_messages(
-                max_threads=max_threads if max_threads > 0 else None,
-                max_messages_per_thread=max_per_thread if max_per_thread > 0 else None
+                user_history_max_threads=user_history_max_threads if user_history_max_threads > 0 else None,
+                user_history_messages_per_thread=user_history_messages_per_thread if user_history_messages_per_thread > 0 else None
             )
 
             if not all_messages:
@@ -1065,8 +1065,8 @@ def update_memory(request):
                 'error': error_msg,
                 'just_updated': True if success_msg else False,
                 'context_files': list_context_files(),
-                'max_memory_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
-                'max_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
+                'user_history_max_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
+                'user_history_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
             }
             return render(request, 'memory/memory_main.html', context)
 
@@ -1085,21 +1085,21 @@ def save_memory_settings(request):
 
     config = load_config()
 
-    max_threads = request.POST.get('max_threads', 0)
-    max_messages_per_thread = request.POST.get('max_messages', 0)
+    user_history_max_threads = request.POST.get('user_history_max_threads', 0)
+    user_history_messages_per_thread = request.POST.get('user_history_messages_per_thread', 0)
 
     try:
-        max_threads = int(max_threads)
-        max_messages_per_thread = int(max_messages_per_thread)
+        user_history_max_threads = int(user_history_max_threads)
+        user_history_messages_per_thread = int(user_history_messages_per_thread)
         # Clamp to reasonable values (0 = unlimited)
-        max_threads = max(0, min(100, max_threads))
-        max_messages_per_thread = max(0, min(10000, max_messages_per_thread))
+        user_history_max_threads = max(0, min(100, user_history_max_threads))
+        user_history_messages_per_thread = max(0, min(10000, user_history_messages_per_thread))
     except ValueError:
-        max_threads = 0
-        max_messages_per_thread = 0
+        user_history_max_threads = 0
+        user_history_messages_per_thread = 0
 
-    config['USER_HISTORY_MAX_THREADS'] = max_threads
-    config['USER_HISTORY_MESSAGES_PER_THREAD'] = max_messages_per_thread
+    config['USER_HISTORY_MAX_THREADS'] = user_history_max_threads
+    config['USER_HISTORY_MESSAGES_PER_THREAD'] = user_history_messages_per_thread
     save_config(config)
 
     return JsonResponse({'success': True})
@@ -1527,7 +1527,7 @@ def settings(request):
         'providers': providers,
         'providers_json': json.dumps(providers),
         'has_api_key': has_api_key,
-        'max_history': config.get('MAX_HISTORY', 50),
+        'context_history_limit': config.get('CONTEXT_HISTORY_LIMIT', 50),
         'success': request.GET.get('success'),
     }
 
@@ -1538,23 +1538,23 @@ def settings(request):
     return redirect('chat')
 
 
-def save_max_history(request):
-    """Save MAX_HISTORY setting (AJAX endpoint)"""
+def save_context_history_limit(request):
+    """Save CONTEXT_HISTORY_LIMIT setting (AJAX endpoint)"""
     if request.method != 'POST':
         return HttpResponse(status=405)
 
-    max_history = request.POST.get('max_history', 50)
+    context_history_limit = request.POST.get('context_history_limit', 50)
     try:
-        max_history = int(max_history)
-        max_history = max(10, min(500, max_history))  # Clamp between 10-500
+        context_history_limit = int(context_history_limit)
+        context_history_limit = max(10, min(500, context_history_limit))  # Clamp between 10-500
     except ValueError:
-        max_history = 50
+        context_history_limit = 50
 
     config = load_config()
-    config['MAX_HISTORY'] = max_history
+    config['CONTEXT_HISTORY_LIMIT'] = context_history_limit
     save_config(config)
 
-    return JsonResponse({'success': True, 'max_history': max_history})
+    return JsonResponse({'success': True, 'context_history_limit': context_history_limit})
 
 
 def persona_settings(request):

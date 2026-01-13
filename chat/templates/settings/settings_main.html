@@ -198,15 +198,15 @@
         </p>
         <div class="flex gap-2 items-center max-w-md"
              x-data="{
-                 value: {{ max_history }},
+                 value: {{ context_history_limit }},
                  saved: true,
                  saving: false,
                  async save() {
                      this.saving = true;
                      const form = new FormData();
-                     form.append('max_history', this.value);
+                     form.append('context_history_limit', this.value);
                      form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-                     const resp = await fetch('{% url 'save_max_history' %}', { method: 'POST', body: form });
+                     const resp = await fetch('{% url 'save_context_history_limit' %}', { method: 'POST', body: form });
                      if (resp.ok) { this.saved = true; }
                      this.saving = false;
                  }
@@ -227,7 +227,6 @@
                 <span x-show="!saving">Save</span>
                 <span x-show="saving">...</span>
             </button>
-            <span x-show="saved && !saving" class="text-success">{% include 'icons/check.html' with class='w-5 h-5' %}</span>
         </div>
     </div>
 </div>

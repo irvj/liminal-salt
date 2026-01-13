@@ -30,15 +30,15 @@
     <!-- Memory Generation Settings -->
     <div class="bg-surface-secondary p-4 rounded-lg mb-5"
          x-data="{
-             maxThreads: {{ max_memory_threads }},
-             maxMessagesPerThread: {{ max_messages_per_thread }},
+             userHistoryMaxThreads: {{ user_history_max_threads }},
+             userHistoryMessagesPerThread: {{ user_history_messages_per_thread }},
              saved: true,
              saving: false,
              async save() {
                  this.saving = true;
                  const form = new FormData();
-                 form.append('max_threads', this.maxThreads);
-                 form.append('max_messages', this.maxMessagesPerThread);
+                 form.append('user_history_max_threads', this.userHistoryMaxThreads);
+                 form.append('user_history_messages_per_thread', this.userHistoryMessagesPerThread);
                  form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
                  const resp = await fetch('{% url "save_memory_settings" %}', { method: 'POST', body: form });
                  if (resp.ok) { this.saved = true; }
@@ -49,13 +49,13 @@
         <div class="flex flex-wrap gap-4 items-end">
             <div>
                 <label class="block text-xs text-foreground-secondary mb-1">Recent Threads</label>
-                <input type="number" x-model="maxThreads" @input="saved = false"
+                <input type="number" x-model="userHistoryMaxThreads" @input="saved = false"
                        min="0" max="100" placeholder="0"
                        class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-cyan">
             </div>
             <div>
                 <label class="block text-xs text-foreground-secondary mb-1">Messages Per Thread</label>
-                <input type="number" x-model="maxMessagesPerThread" @input="saved = false"
+                <input type="number" x-model="userHistoryMessagesPerThread" @input="saved = false"
                        min="0" max="10000" step="100" placeholder="0"
                        class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-cyan">
             </div>
