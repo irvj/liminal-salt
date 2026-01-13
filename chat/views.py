@@ -1489,6 +1489,7 @@ def settings(request):
         'providers': providers,
         'providers_json': json.dumps(providers),
         'has_api_key': has_api_key,
+        'max_history': config.get('MAX_HISTORY', 50),
         'success': request.GET.get('success'),
     }
 
@@ -1497,6 +1498,25 @@ def settings(request):
         return render(request, 'settings/settings_main.html', context)
 
     return redirect('chat')
+
+
+def save_max_history(request):
+    """Save MAX_HISTORY setting (AJAX endpoint)"""
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    max_history = request.POST.get('max_history', 50)
+    try:
+        max_history = int(max_history)
+        max_history = max(10, min(500, max_history))  # Clamp between 10-500
+    except ValueError:
+        max_history = 50
+
+    config = load_config()
+    config['MAX_HISTORY'] = max_history
+    save_config(config)
+
+    return JsonResponse({'success': True, 'max_history': max_history})
 
 
 def persona_settings(request):

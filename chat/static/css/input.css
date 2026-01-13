@@ -205,6 +205,23 @@
   }
 }
 
+/* Number input spinner styling for dark themes */
+input[type="number"] {
+  color-scheme: dark;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: inner-spin-button;
+  opacity: 1;
+  height: auto;
+  cursor: pointer;
+}
+
+[data-theme="light"] input[type="number"] {
+  color-scheme: light;
+}
+
 /* Alpine.js cloak */
 [x-cloak] {
   display: none !important;

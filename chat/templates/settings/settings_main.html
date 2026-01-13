@@ -188,6 +188,48 @@
             <span x-show="saving">Saving...</span>
         </button>
     </div>
+
+    <!-- Chat Settings Section -->
+    <h2 class="text-accent-cyan text-xl mb-4">Chat Settings</h2>
+    <div class="mb-6">
+        <label class="block mb-2 font-medium">Context History Limit:</label>
+        <p class="text-foreground-secondary text-sm mb-2">
+            Number of message pairs sent to the LLM as context. Higher values use more tokens but provide better conversation memory.
+        </p>
+        <div class="flex gap-2 items-center max-w-md"
+             x-data="{
+                 value: {{ max_history }},
+                 saved: true,
+                 saving: false,
+                 async save() {
+                     this.saving = true;
+                     const form = new FormData();
+                     form.append('max_history', this.value);
+                     form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                     const resp = await fetch('{% url 'save_max_history' %}', { method: 'POST', body: form });
+                     if (resp.ok) { this.saved = true; }
+                     this.saving = false;
+                 }
+             }">
+            <input type="number"
+                   x-model="value"
+                   @input="saved = false"
+                   min="10"
+                   max="500"
+                   step="10"
+                   class="w-24 p-3 border border-border rounded bg-surface-secondary text-foreground text-base focus:outline-none focus:border-accent-cyan">
+            <span class="text-foreground-secondary">message pairs</span>
+            <button type="button"
+                    @click="save()"
+                    x-show="!saved"
+                    :disabled="saving"
+                    class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover">
+                <span x-show="!saving">Save</span>
+                <span x-show="saving">...</span>
+            </button>
+            <span x-show="saved && !saving" class="text-success">{% include 'icons/check.html' with class='w-5 h-5' %}</span>
+        </div>
+    </div>
 </div>
 
 <!-- Out-of-band swap: Update New Chat button in sidebar -->
