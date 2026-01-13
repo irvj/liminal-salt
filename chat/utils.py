@@ -129,26 +129,46 @@ def toggle_persona_group(request, persona):
     set_collapsed_personas(request, collapsed)
 
 
-def aggregate_all_sessions_messages():
+def aggregate_all_sessions_messages(max_threads=None, max_messages_per_thread=None):
     """
-    Collect all messages from all session files for comprehensive memory update
-    Returns list of all messages across all sessions
+    Collect messages from session files for memory update.
+
+    Args:
+        max_threads: Limit to N most recent sessions (by file modification time)
+        max_messages_per_thread: Limit to N most recent messages from each session
+
+    Returns:
+        List of messages across sessions
     """
     sessions_dir = settings.SESSIONS_DIR
     all_messages = []
 
-    for session_file in os.listdir(sessions_dir):
-        if session_file.endswith(".json"):
-            try:
-                path = os.path.join(sessions_dir, session_file)
-                with open(path, 'r') as f:
-                    data = json.load(f)
-                    messages = data.get("messages", []) if isinstance(data, dict) else data
-                    if isinstance(messages, list):
-                        all_messages.extend(messages)
-            except Exception as e:
-                print(f"Error reading session {session_file}: {e}")
-                continue
+    # Get session files sorted by modification time (newest first)
+    session_files = []
+    for f in os.listdir(sessions_dir):
+        if f.endswith(".json"):
+            path = os.path.join(sessions_dir, f)
+            session_files.append((path, os.path.getmtime(path)))
+
+    session_files.sort(key=lambda x: x[1], reverse=True)
+
+    # Limit to max_threads if specified
+    if max_threads:
+        session_files = session_files[:max_threads]
+
+    for path, _ in session_files:
+        try:
+            with open(path, 'r') as f:
+                data = json.load(f)
+                messages = data.get("messages", []) if isinstance(data, dict) else data
+                if isinstance(messages, list):
+                    # Limit to most recent messages per thread
+                    if max_messages_per_thread and len(messages) > max_messages_per_thread:
+                        messages = messages[-max_messages_per_thread:]
+                    all_messages.extend(messages)
+        except Exception as e:
+            print(f"Error reading session {path}: {e}")
+            continue
 
     return all_messages
 

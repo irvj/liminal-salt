@@ -995,6 +995,8 @@ def memory(request):
         'success': request.GET.get('success'),
         'error': request.GET.get('error'),
         'context_files': context_files,
+        'max_memory_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
+        'max_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
     }
 
     # Return partial for HTMX requests, redirect others to chat
@@ -1024,8 +1026,15 @@ def update_memory(request):
         error_msg = None
 
         try:
-            # Aggregate messages from all sessions
-            all_messages = aggregate_all_sessions_messages()
+            # Get memory generation limits from config
+            max_threads = config.get('USER_HISTORY_MAX_THREADS', 10)
+            max_per_thread = config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100)
+
+            # Aggregate messages from sessions with limits
+            all_messages = aggregate_all_sessions_messages(
+                max_threads=max_threads if max_threads > 0 else None,
+                max_messages_per_thread=max_per_thread if max_per_thread > 0 else None
+            )
 
             if not all_messages:
                 error_msg = "No messages found in any session"
@@ -1056,6 +1065,8 @@ def update_memory(request):
                 'error': error_msg,
                 'just_updated': True if success_msg else False,
                 'context_files': list_context_files(),
+                'max_memory_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
+                'max_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
             }
             return render(request, 'memory/memory_main.html', context)
 
@@ -1065,6 +1076,33 @@ def update_memory(request):
         return redirect(f"{reverse('memory')}?success={success_msg}")
 
     return redirect('memory')
+
+
+def save_memory_settings(request):
+    """Save memory generation settings (AJAX endpoint)"""
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    config = load_config()
+
+    max_threads = request.POST.get('max_threads', 0)
+    max_messages_per_thread = request.POST.get('max_messages', 0)
+
+    try:
+        max_threads = int(max_threads)
+        max_messages_per_thread = int(max_messages_per_thread)
+        # Clamp to reasonable values (0 = unlimited)
+        max_threads = max(0, min(100, max_threads))
+        max_messages_per_thread = max(0, min(10000, max_messages_per_thread))
+    except ValueError:
+        max_threads = 0
+        max_messages_per_thread = 0
+
+    config['USER_HISTORY_MAX_THREADS'] = max_threads
+    config['USER_HISTORY_MESSAGES_PER_THREAD'] = max_messages_per_thread
+    save_config(config)
+
+    return JsonResponse({'success': True})
 
 
 def wipe_memory(request):
