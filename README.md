@@ -32,11 +32,12 @@ Open source and easy to extend. Personas are just Markdown files. Themes are JSO
 ### Personas
 - **Customizable Personalities** — Define AI personas using simple Markdown files
 - **Per-Persona Models** — Assign different LLM models to different personas
+- **Context Files** — Upload documents that apply only to specific personas
 - **In-App Editor** — Create and edit personas directly from the web interface
 
 ### Memory
 - **Long-Term Memory** — Builds a persistent user profile across all conversations
-- **Context Files** — Upload additional documents to enhance persona knowledge
+- **Global Context Files** — Upload documents available to all personas
 - **Manual Updates** — Control when and how memory gets updated
 
 ### Interface
