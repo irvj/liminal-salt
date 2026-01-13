@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.8] - 2026-01-12
+
+### Changes
+- update readme for context upload features
+- updates to claude file for persona context feature
+- add persona specific context file upload
+
 ## [0.5.7] - 2026-01-12
 
 ### Changes
