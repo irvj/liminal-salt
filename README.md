@@ -28,6 +28,7 @@ Open source and easy to extend. Personas are just Markdown files. Themes are JSO
 - **Pinned Chats** — Keep important conversations at the top of your sidebar
 - **Smart Titles** — Auto-generated session titles based on conversation content
 - **Grouped Sidebar** — Sessions organized by persona with collapsible sections
+- **Configurable Context** — Adjust how much conversation history is sent to the LLM
 
 ### Personas
 - **Customizable Personalities** — Define AI personas using simple Markdown files
@@ -38,6 +39,7 @@ Open source and easy to extend. Personas are just Markdown files. Themes are JSO
 ### Memory
 - **Long-Term Memory** — Builds a persistent user profile across all conversations
 - **Global Context Files** — Upload documents available to all personas
+- **Configurable Limits** — Control how much history is used when generating memory
 - **Manual Updates** — Control when and how memory gets updated
 
 ### Interface
