@@ -424,7 +424,7 @@
                 <button hx-get="{% url 'new_chat' %}"
                         hx-target="#main-content"
                         hx-swap="innerHTML"
-                        @click="saveDraftNow(); if (isMobile) collapsed = true"
+                        @click="saveDraftNow(); clearSidebarHighlight(); if (isMobile) collapsed = true"
                         class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
                         title="New Chat">
                     {% include 'icons/circle-plus.html' with class='w-6 h-6' %}
@@ -433,7 +433,7 @@
                 <button hx-get="{% url 'memory' %}"
                         hx-target="#main-content"
                         hx-swap="innerHTML"
-                        @click="saveDraftNow(); if (isMobile) collapsed = true"
+                        @click="saveDraftNow(); clearSidebarHighlight(); if (isMobile) collapsed = true"
                         class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
                         title="User Memory">
                     {% include 'icons/brain-cog.html' with class='w-6 h-6' %}
@@ -442,7 +442,7 @@
                 <button hx-get="{% url 'persona_settings' %}"
                         hx-target="#main-content"
                         hx-swap="innerHTML"
-                        @click="saveDraftNow(); if (isMobile) collapsed = true"
+                        @click="saveDraftNow(); clearSidebarHighlight(); if (isMobile) collapsed = true"
                         class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
                         title="Persona Settings">
                     {% include 'icons/user-pen.html' with class='w-6 h-6' %}
@@ -451,7 +451,7 @@
                 <button hx-get="{% url 'settings' %}"
                         hx-target="#main-content"
                         hx-swap="innerHTML"
-                        @click="saveDraftNow(); if (isMobile) collapsed = true"
+                        @click="saveDraftNow(); clearSidebarHighlight(); if (isMobile) collapsed = true"
                         class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
                         title="Settings">
                     {% include 'icons/settings.html' with class='w-6 h-6' %}

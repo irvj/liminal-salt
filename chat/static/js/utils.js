@@ -554,6 +554,16 @@ function updateSidebarHighlight(clickedButton) {
 }
 
 /**
+ * Clear sidebar highlight when navigating to non-chat pages.
+ */
+function clearSidebarHighlight() {
+    document.querySelectorAll('.session-item').forEach(item => {
+        item.classList.remove('current', 'bg-accent', 'text-foreground-on-accent', 'font-bold');
+        item.classList.add('bg-surface-elevated', 'text-foreground');
+    });
+}
+
+/**
  * Update header title after rename.
  * @param {string} newTitle - The new title
  */
