@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.12] - 2026-01-16
+
+### Changes
+- Merge branch 'retry-functionality'
+- update memory summerizer to better handle creating writing and roleplay
+- add edit last user message and retry last assistant message functionality
+
 ## [0.5.11] - 2026-01-15
 
 ### Changes
