@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.11] - 2026-01-15
+
+### Changes
+- add copy button to assistant messages
+- update styles of persona preview viewer
+- style updates to user memory page
+- update settings page styles for mobile
+- update persona settings header display
+- style updates for persona settings buttons
+- stack persona buttons on mobile
+- fix select state of sidebar on page change
+
 ## [0.5.10] - 2026-01-13
 
 ### Changes
