@@ -819,3 +819,33 @@ function restoreNewChatDraft() {
 function clearNewChatDraft() {
     localStorage.removeItem(NEW_CHAT_DRAFT_KEY);
 }
+
+/**
+ * Copy message content to clipboard.
+ * @param {HTMLElement} button - The button element with data-message attribute
+ */
+function copyMessageToClipboard(button) {
+    const message = button.dataset.message;
+    if (!message) return;
+
+    // Decode unicode escapes from Django's escapejs filter
+    let decodedMessage;
+    try {
+        decodedMessage = JSON.parse('"' + message + '"');
+    } catch (e) {
+        decodedMessage = message;
+    }
+
+    navigator.clipboard.writeText(decodedMessage).then(() => {
+        // Brief visual feedback - swap icon temporarily
+        const icon = button.querySelector('svg');
+        if (icon) {
+            icon.style.opacity = '0.5';
+            setTimeout(() => {
+                icon.style.opacity = '1';
+            }, 200);
+        }
+    }).catch(err => {
+        console.error('Failed to copy message:', err);
+    });
+}

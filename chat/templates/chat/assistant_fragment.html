@@ -8,7 +8,16 @@
             <div class="prose prose-invert">{{ assistant_message|markdown }}</div>
         {% endif %}
     </div>
-    {% if assistant_timestamp %}
-    <span class="timestamp block text-xs text-foreground-muted mt-3.5 px-1 text-left" data-utc="{{ assistant_timestamp }}"></span>
-    {% endif %}
+    <div class="flex items-center gap-2 mt-3.5 px-1">
+        {% if assistant_timestamp %}
+        <span class="timestamp text-xs text-foreground-muted text-left" data-utc="{{ assistant_timestamp }}"></span>
+        {% endif %}
+        <button type="button"
+                class="text-foreground-muted hover:text-foreground cursor-pointer"
+                onclick="copyMessageToClipboard(this)"
+                data-message="{{ assistant_message|escapejs }}"
+                title="Copy to clipboard">
+            {% include 'icons/copy.html' with class='w-4 h-4' %}
+        </button>
+    </div>
 </div>

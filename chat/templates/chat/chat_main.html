@@ -31,8 +31,21 @@
                     <div class="prose prose-invert">{{ message.content|markdown }}</div>
                 {% endif %}
             </div>
-            {% if message.timestamp %}
-            <span class="timestamp block text-xs text-foreground-muted mt-3.5 px-1 {% if message.role == 'user' %}text-right{% else %}text-left{% endif %}" data-utc="{{ message.timestamp }}"></span>
+            {% if message.role == 'assistant' %}
+            <div class="flex items-center gap-2 mt-3.5 px-1">
+                {% if message.timestamp %}
+                <span class="timestamp text-xs text-foreground-muted text-left" data-utc="{{ message.timestamp }}"></span>
+                {% endif %}
+                <button type="button"
+                        class="text-foreground-muted hover:text-foreground cursor-pointer"
+                        onclick="copyMessageToClipboard(this)"
+                        data-message="{{ message.content|escapejs }}"
+                        title="Copy to clipboard">
+                    {% include 'icons/copy.html' with class='w-4 h-4' %}
+                </button>
+            </div>
+            {% elif message.timestamp %}
+            <span class="timestamp block text-xs text-foreground-muted mt-3.5 px-1 text-right" data-utc="{{ message.timestamp }}"></span>
             {% endif %}
         </div>
     {% endfor %}
