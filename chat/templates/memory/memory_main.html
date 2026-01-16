@@ -11,24 +11,26 @@
     <div class="p-3 px-4 rounded mb-4 bg-danger text-white flex items-center gap-2">{% include 'icons/alert.html' with class='w-5 h-5' %} {{ error }}</div>
     {% endif %}
 
-    <div class="flex gap-3 my-5">
+    <div class="flex flex-col md:flex-row gap-3 my-5">
         <form hx-post="{% url 'update_memory' %}"
               hx-target="#main-content"
               hx-swap="innerHTML"
-              hx-on::before-request="showMemoryUpdating()">
+              hx-on::before-request="showMemoryUpdating()"
+              class="w-full md:w-auto">
             {% csrf_token %}
-            <button type="submit" class="px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover" id="update-memory-btn">Update User Memory</button>
+            <button type="submit" class="w-full md:w-auto px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover" id="update-memory-btn">Update User Memory</button>
         </form>
 
-        <button onclick="openContextFilesModal()" class="group context-files-btn px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
+        <button onclick="openContextFilesModal()" class="w-full md:w-auto group context-files-btn px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
             Context Files{% if context_files %}<span class="badge bg-accent text-foreground-on-accent rounded-xl px-2 py-0.5 text-xs ml-2 group-hover:bg-foreground-on-accent group-hover:text-accent">{{ context_files|length }}</span>{% endif %}
         </button>
 
-        <button onclick="openWipeMemoryModal()" class="px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent">Wipe Memory</button>
+        <button onclick="openWipeMemoryModal()" class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent">Wipe Memory</button>
     </div>
 
     <!-- Memory Generation Settings -->
-    <div class="bg-surface-secondary p-4 rounded-lg mb-5"
+    <h2 class="text-accent-cyan text-xl mb-4">Memory Generation Limits</h2>
+    <div class="mb-5"
          x-data="{
              userHistoryMaxThreads: {{ user_history_max_threads }},
              userHistoryMessagesPerThread: {{ user_history_messages_per_thread }},
@@ -45,7 +47,6 @@
                  this.saving = false;
              }
          }">
-        <div class="text-sm font-medium text-foreground mb-3">Memory Generation Limits</div>
         <div class="flex flex-wrap gap-4 items-end">
             <div>
                 <label class="block text-xs text-foreground-secondary mb-1">Recent Threads</label>
@@ -83,7 +84,7 @@
 
     <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent">
         {% if memory_content %}
-        <div class="prose prose-invert max-w-none">{{ memory_content|markdown }}</div>
+        <div class="prose prose-invert max-w-none !text-foreground-secondary prose-headings:!text-foreground-secondary">{{ memory_content|markdown }}</div>
         {% else %}
             <div class="text-center text-foreground-secondary py-10 px-5">
                 <strong>No long-term memory found yet.</strong><br>
