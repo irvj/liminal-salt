@@ -67,13 +67,13 @@
                 </div>
             </div>
 
-            <div class="flex gap-3 flex-wrap mt-4">
-                <button type="submit" class="px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover">Set as Default</button>
-                <button type="button" class="px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openEditPersonaModal()">Edit Persona</button>
-                <button type="button" class="px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openEditPersonaModelModal()">Edit Model</button>
-                <button type="button" class="persona-context-files-btn px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openPersonaContextFilesModal()">Context Files{% if persona_context_files %} <span class="badge bg-accent-cyan text-surface text-xs px-1.5 py-0.5 rounded-full ml-1">{{ persona_context_files|length }}</span>{% endif %}</button>
+            <div class="flex flex-col sm:flex-row gap-3 sm:flex-wrap mt-4">
+                <button type="submit" class="w-full sm:w-auto px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover">Set as Default</button>
+                <button type="button" class="w-full sm:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openEditPersonaModal()">Edit Persona</button>
+                <button type="button" class="w-full sm:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openEditPersonaModelModal()">Edit Model</button>
+                <button type="button" class="w-full sm:w-auto persona-context-files-btn px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" onclick="openPersonaContextFilesModal()">Context Files{% if persona_context_files %} <span class="badge bg-accent-cyan text-surface text-xs px-1.5 py-0.5 rounded-full ml-1">{{ persona_context_files|length }}</span>{% endif %}</button>
                 <button type="button"
-                        class="px-6 py-3 bg-border rounded font-medium"
+                        class="w-full sm:w-auto px-6 py-3 bg-border rounded font-medium"
                         :class="selected === 'assistant' ? 'text-foreground-secondary cursor-not-allowed opacity-50' : 'text-foreground cursor-pointer hover:bg-danger hover:text-foreground-on-accent'"
                         :disabled="selected === 'assistant'"
                         :title="selected === 'assistant' ? 'Cannot delete the default Assistant persona' : 'Delete Persona'"
