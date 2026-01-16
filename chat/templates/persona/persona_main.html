@@ -1,7 +1,10 @@
 {% load markdown_extras %}
 <!-- Header -->
 <header class="bg-surface-secondary px-5 py-4 border-b border-border flex items-center justify-between">
-    <h1 class="text-2xl text-accent-cyan">Persona Settings</h1>
+    <div>
+        <h1 class="text-2xl text-accent-cyan">Persona Settings</h1>
+        <div class="text-xs text-foreground-secondary mt-1">Default: <span id="default-persona-display">{{ default_persona|display_name }}</span></div>
+    </div>
     <button type="button" class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover text-sm" onclick="openNewPersonaModal()">New Persona</button>
 </header>
 
@@ -17,8 +20,6 @@
         Create persona folders with .md files to define chatbot personas.
     </div>
     {% else %}
-
-    <p class="text-foreground-secondary text-sm mb-4"><strong>Default persona for new chats:</strong> {{ default_persona|display_name }}</p>
 
     <form hx-post="{% url 'save_settings' %}"
           hx-target="#main-content"
