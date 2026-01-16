@@ -118,8 +118,15 @@ class Summarizer:
         bad_patterns = ['[', ']', '<', '>', '#', '\n', 'Prompt', 'INST', 'SYS']
         return any(pattern in title for pattern in bad_patterns)
 
-    def update_long_term_memory(self, messages, ltm_file="long_term_memory.md"):
-        if not messages:
+    def update_long_term_memory(self, threads, ltm_file="long_term_memory.md"):
+        """
+        Update long-term memory from a list of conversation threads.
+
+        Args:
+            threads: List of dicts with 'title', 'persona', and 'messages' keys
+            ltm_file: Path to the long-term memory file
+        """
+        if not threads:
             return
 
         # Load existing LTM
@@ -128,37 +135,57 @@ class Summarizer:
             with open(ltm_file, 'r') as f:
                 existing_ltm = f.read()
 
-        # Format the new conversation - ONLY USER MESSAGES
-        conversation_text = ""
-        for msg in messages:
-            if msg['role'] == 'user':
-                conversation_text += f"User: {msg['content']}\n"
+        # Format threads with metadata - ONLY USER MESSAGES
+        threads_text = ""
+        for i, thread in enumerate(threads, 1):
+            title = thread.get("title", "Untitled")
+            persona = thread.get("persona", "assistant")
+            messages = thread.get("messages", [])
 
-        # Check if old format needs migration
-        migration_note = ""
-        if existing_ltm and ("# Facts & Knowledge Base" in existing_ltm or "- **" in existing_ltm):
-            # Old format detected, add migration hint to prompt
-            migration_note = (
-                "MIGRATION NOTE: The existing memory uses an old format with either a 'Facts & Knowledge Base' section "
-                "or bullet list formatting. Please reorganize into the new 3-section NARRATIVE format:\n"
-                "1. Remove the 'Facts & Knowledge Base' section - only keep knowledge that's specifically about the USER\n"
-                "2. Convert ALL bullet lists to flowing narrative prose paragraphs\n"
-                "3. Reframe content to describe the USER, not general facts\n"
-                "4. Write as if briefing another AI about who this person is\n\n"
-            )
+            # Extract only user messages
+            user_messages = [msg['content'] for msg in messages if msg.get('role') == 'user']
+
+            if user_messages:
+                threads_text += f"=== THREAD {i} ===\n"
+                threads_text += f"Title: {title}\n"
+                threads_text += f"Persona: {persona}\n"
+                threads_text += "User Messages:\n"
+                for msg in user_messages:
+                    threads_text += f"- {msg}\n"
+                threads_text += "\n"
 
         prompt = (
-            migration_note +
             "You are an advanced memory management system for an AI. "
             "Your task is to maintain a living 'Long Term Memory' document that describes the USER as a person "
             "in natural narrative prose to help the AI understand who they're talking to.\n\n"
+
+            "## IMPORTANT: THREAD-BASED EVALUATION\n"
+            "The conversation history below is organized by SEPARATE THREADS (chat sessions). "
+            "Each thread has a title, persona, and user messages. Evaluate each thread independently before "
+            "synthesizing information about the user.\n\n"
+
+            "⚠️ CRITICAL: ROLEPLAY DETECTION\n"
+            "Some threads may be ROLEPLAY or FICTION. Signs of roleplay include:\n"
+            "- Persona names that suggest a character (not 'assistant')\n"
+            "- Thread titles suggesting stories, scenarios, or fictional settings\n"
+            "- User messages written in character or describing fictional scenarios\n"
+            "- First-person narrative that doesn't match the user's real life\n"
+            "- Third-person narrative (e.g., 'She walks into the room...')\n\n"
+
+            "For ROLEPLAY threads:\n"
+            "- Do NOT extract character traits as user traits\n"
+            "- Do NOT treat fictional scenarios as real user experiences\n"
+            "- Instead, note that the user ENJOYS this type of roleplay/fiction\n"
+            "- Example: If a thread shows fantasy roleplay, note 'The user enjoys fantasy roleplay scenarios' "
+            "rather than treating the fictional content as real\n\n"
+
             "EXISTING LONG TERM MEMORY:\n"
             f"{existing_ltm if existing_ltm else 'None'}\n\n"
-            "NEW CONVERSATION:\n"
-            f"{conversation_text}\n\n"
 
-            "NOTE: The conversation below contains ONLY User messages. "
-            "There are no Assistant messages included.\n\n"
+            "CONVERSATION THREADS:\n"
+            f"{threads_text}\n\n"
+
+            "NOTE: Each thread contains ONLY User messages. Assistant responses are not included.\n\n"
 
             "INSTRUCTIONS:\n\n"
 
@@ -188,7 +215,8 @@ class Summarizer:
             "❌ Use flowery or elaborate language\n"
             "❌ Make assumptions about what they might be like\n"
             "❌ Write narrative descriptions - stick to facts\n"
-            "❌ Use first-person perspective ('with me', 'to me', 'this AI')\n\n"
+            "❌ Use first-person perspective ('with me', 'to me', 'this AI')\n"
+            "❌ Treat roleplay/fiction content as real user traits\n\n"
 
             "BE SPECIFIC:\n"
             "✅ 'Works as a senior engineer at X company, focuses on Y technology'\n"
@@ -224,7 +252,8 @@ class Summarizer:
             "- Hobbies and interests they're currently passionate about\n"
             "- Technical domains, skills, or knowledge they're building\n"
             "- Media, books, games, shows they're engaged with\n"
-            "- Topics they enjoy discussing or learning about\n\n"
+            "- Topics they enjoy discussing or learning about\n"
+            "- Types of roleplay or creative writing they engage in (if applicable)\n\n"
 
             "ONLY include knowledge/facts that are ABOUT THE USER (their preferences, their experiences, their expertise).\n"
             "DO NOT include general facts (like 'Apollo 11 landed on the moon') unless it's about the USER'S "
@@ -256,7 +285,9 @@ class Summarizer:
             "❌ 'Apple Inc is a public company with stock ticker AAPL' (general fact)\n"
             "✅ 'The user is deeply invested in the Apple ecosystem and follows company news closely' (about user)\n"
             "❌ 'Rush wrote Spirit of Radio in 1980' (general fact)\n"
-            "✅ 'The user is a longtime Rush fan and often references their lyrics in conversation' (about user)\n\n"
+            "✅ 'The user is a longtime Rush fan and often references their lyrics in conversation' (about user)\n"
+            "❌ Character traits or experiences from roleplay threads (fictional)\n"
+            "✅ 'The user enjoys fantasy roleplay and creative writing' (about user's interests)\n\n"
 
             "FOCUS: This is a profile of the USER, not an encyclopedia. Describe the person, not the world."
         )

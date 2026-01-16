@@ -131,17 +131,20 @@ def toggle_persona_group(request, persona):
 
 def aggregate_all_sessions_messages(user_history_max_threads=None, user_history_messages_per_thread=None):
     """
-    Collect messages from session files for memory update.
+    Collect messages from session files for memory update, organized by thread.
 
     Args:
         user_history_max_threads: Limit to N most recent sessions (by file modification time)
         user_history_messages_per_thread: Limit to N most recent messages from each session
 
     Returns:
-        List of messages across sessions
+        List of thread dictionaries, each containing:
+        - title: Thread title
+        - persona: Persona used in the thread
+        - messages: List of messages in the thread
     """
     sessions_dir = settings.SESSIONS_DIR
-    all_messages = []
+    threads = []
 
     # Get session files sorted by modification time (newest first)
     session_files = []
@@ -160,17 +163,25 @@ def aggregate_all_sessions_messages(user_history_max_threads=None, user_history_
         try:
             with open(path, 'r') as f:
                 data = json.load(f)
-                messages = data.get("messages", []) if isinstance(data, dict) else data
-                if isinstance(messages, list):
+                title = data.get("title", "Untitled")
+                persona = data.get("persona", "assistant")
+                messages = data.get("messages", [])
+
+                if isinstance(messages, list) and messages:
                     # Limit to most recent messages per thread
                     if user_history_messages_per_thread and len(messages) > user_history_messages_per_thread:
                         messages = messages[-user_history_messages_per_thread:]
-                    all_messages.extend(messages)
+
+                    threads.append({
+                        "title": title,
+                        "persona": persona,
+                        "messages": messages
+                    })
         except Exception as e:
             print(f"Error reading session {path}: {e}")
             continue
 
-    return all_messages
+    return threads
 
 
 def title_has_artifacts(title):

@@ -1030,18 +1030,18 @@ def update_memory(request):
             user_history_max_threads = config.get('USER_HISTORY_MAX_THREADS', 10)
             user_history_messages_per_thread = config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100)
 
-            # Aggregate messages from sessions with limits
-            all_messages = aggregate_all_sessions_messages(
+            # Aggregate threads from sessions with limits
+            threads = aggregate_all_sessions_messages(
                 user_history_max_threads=user_history_max_threads if user_history_max_threads > 0 else None,
                 user_history_messages_per_thread=user_history_messages_per_thread if user_history_messages_per_thread > 0 else None
             )
 
-            if not all_messages:
-                error_msg = "No messages found in any session"
+            if not threads:
+                error_msg = "No threads found in any session"
             else:
                 # Update memory
                 summarizer = Summarizer(api_key, model, site_url, site_name)
-                summarizer.update_long_term_memory(all_messages, str(ltm_file))
+                summarizer.update_long_term_memory(threads, str(ltm_file))
                 success_msg = "Memory Updated"
 
         except Exception as e:
