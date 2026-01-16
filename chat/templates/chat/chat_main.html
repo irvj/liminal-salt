@@ -43,9 +43,30 @@
                         title="Copy to clipboard">
                     {% include 'icons/copy.html' with class='w-4 h-4' %}
                 </button>
+                {% if forloop.last %}
+                <button type="button"
+                        class="text-foreground-muted hover:text-foreground cursor-pointer"
+                        onclick="retryLastMessage()"
+                        title="Retry">
+                    {% include 'icons/retry.html' with class='w-4 h-4' %}
+                </button>
+                {% endif %}
             </div>
-            {% elif message.timestamp %}
-            <span class="timestamp block text-xs text-foreground-muted mt-3.5 px-1 text-right" data-utc="{{ message.timestamp }}"></span>
+            {% elif message.role == 'user' %}
+            <div class="flex items-center gap-2 mt-3.5 px-1 justify-end">
+                {% if forloop.revcounter <= 2 %}
+                <button type="button"
+                        class="text-foreground-muted hover:text-foreground cursor-pointer"
+                        onclick="editLastMessage(this)"
+                        data-message="{{ message.content|escapejs }}"
+                        title="Edit">
+                    {% include 'icons/pencil.html' with class='w-4 h-4' %}
+                </button>
+                {% endif %}
+                {% if message.timestamp %}
+                <span class="timestamp text-xs text-foreground-muted text-right" data-utc="{{ message.timestamp }}"></span>
+                {% endif %}
+            </div>
             {% endif %}
         </div>
     {% endfor %}

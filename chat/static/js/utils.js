@@ -417,18 +417,46 @@ function addUserMessage(event) {
     container.className = 'message-container user my-4 max-w-[80%] w-fit ml-auto';
 
     const userDiv = document.createElement('div');
-    userDiv.className = 'message user message-tail-user p-3 px-4 rounded-lg bg-user-bubble text-foreground-on-accent whitespace-pre-wrap';
-    userDiv.textContent = message;
+    userDiv.className = 'message user message-tail-user p-3 px-4 rounded-lg bg-user-bubble text-foreground-on-accent';
+
+    // Wrap content in prose div to match page load structure
+    const proseDiv = document.createElement('div');
+    proseDiv.className = 'prose prose-invert';
+    proseDiv.textContent = message;
+    userDiv.appendChild(proseDiv);
+
     container.appendChild(userDiv);
 
-    // Add timestamp outside the bubble
+    // Add controls row with edit button and timestamp
+    const controlsDiv = document.createElement('div');
+    controlsDiv.className = 'flex items-center gap-2 mt-3.5 px-1 justify-end';
+
+    // Escape message for data attribute
+    const escapedMessage = JSON.stringify(message).slice(1, -1);
+
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'text-foreground-muted hover:text-foreground cursor-pointer';
+    editBtn.setAttribute('onclick', 'editLastMessage(this)');
+    editBtn.setAttribute('data-message', escapedMessage);
+    editBtn.setAttribute('title', 'Edit');
+    editBtn.innerHTML = '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>';
+    controlsDiv.appendChild(editBtn);
+
     const timestamp = document.createElement('span');
-    timestamp.className = 'timestamp block text-xs text-foreground-muted mt-3.5 px-1 text-right';
+    timestamp.className = 'timestamp text-xs text-foreground-muted text-right';
     timestamp.setAttribute('data-utc', now.toISOString());
     timestamp.textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    container.appendChild(timestamp);
+    controlsDiv.appendChild(timestamp);
 
+    container.appendChild(controlsDiv);
     messagesDiv.appendChild(container);
+
+    // Clean up old edit buttons
+    cleanupMessageButtons();
+
+    // Remove ALL retry buttons - no assistant message to retry until new response arrives
+    document.querySelectorAll('button[onclick="retryLastMessage()"]').forEach(btn => btn.remove());
 
     // Create and append thinking indicator
     const thinkingDiv = document.createElement('div');
@@ -847,5 +875,184 @@ function copyMessageToClipboard(button) {
         }
     }).catch(err => {
         console.error('Failed to copy message:', err);
+    });
+}
+
+/**
+ * Retry the last assistant message.
+ * Removes the last assistant response and resubmits the user message.
+ */
+function retryLastMessage() {
+    const lastAssistantContainer = document.querySelector('.message-container.assistant:last-of-type');
+    if (lastAssistantContainer) {
+        const bubble = lastAssistantContainer.querySelector('.message');
+        const controlsRow = lastAssistantContainer.querySelector('.flex.items-center');
+
+        // Replace bubble with thinking indicator and reset width
+        if (bubble) {
+            bubble.style.width = '';  // Reset width so it shrinks to fit
+            bubble.innerHTML = `
+                <span class="typing-indicator flex gap-1 py-1">
+                    <span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot"></span>
+                    <span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.2s;"></span>
+                    <span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.4s;"></span>
+                </span>
+            `;
+            bubble.classList.add('opacity-70');
+        }
+
+        // Hide the controls row (copy/retry buttons)
+        if (controlsRow) {
+            controlsRow.style.display = 'none';
+        }
+    }
+
+    htmx.ajax('POST', '/chat/retry/', {
+        target: '.message-container.assistant:last-of-type',
+        swap: 'outerHTML'
+    });
+}
+
+/**
+ * Edit the last user message.
+ * @param {HTMLElement} button - The edit button element with data-message attribute
+ */
+function editLastMessage(button) {
+    const content = button.dataset.message;
+    // Decode unicode escapes
+    let decoded;
+    try {
+        decoded = JSON.parse('"' + content + '"');
+    } catch (e) {
+        decoded = content;
+    }
+
+    const container = button.closest('.message-container');
+    const bubble = container.querySelector('.message');
+    const controlsRow = button.closest('.flex');
+
+    // Store original content and width for cancel
+    bubble.dataset.originalContent = bubble.innerHTML;
+    controlsRow.dataset.originalContent = controlsRow.innerHTML;
+    const originalWidth = bubble.offsetWidth;
+
+    // Lock the bubble width to prevent resize
+    bubble.style.width = originalWidth + 'px';
+
+    // Replace bubble with editable textarea
+    bubble.innerHTML = `
+        <textarea class="w-full bg-transparent text-foreground-on-accent resize-none focus:outline-none overflow-hidden leading-[1.75] m-0 p-0 block"
+                  rows="1" id="edit-message-textarea">${decoded}</textarea>
+    `;
+
+    // Replace controls row with Cancel | Save text links (aligned right like edit/time)
+    controlsRow.innerHTML = `
+        <span class="text-xs text-foreground-muted h-4 inline-flex items-center">
+            <span onclick="cancelEdit()" class="cursor-pointer hover:text-foreground">Cancel</span>
+            <span class="mx-1">|</span>
+            <span onclick="saveEditedMessage()" class="cursor-pointer hover:text-foreground">Save</span>
+        </span>
+    `;
+
+    // Focus the textarea and auto-size to fit content
+    const textarea = bubble.querySelector('textarea');
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+}
+
+/**
+ * Save the edited user message.
+ */
+function saveEditedMessage() {
+    const textarea = document.getElementById('edit-message-textarea');
+    if (!textarea) return;
+
+    const newContent = textarea.value.trim();
+    if (!newContent) return;
+
+    const formData = new FormData();
+    formData.append('content', newContent);
+    formData.append('csrfmiddlewaretoken', getCsrfToken());
+
+    fetch('/chat/edit-message/', {
+        method: 'POST',
+        body: formData
+    }).then(response => {
+        if (response.ok) {
+            // Reload the chat to show updated message
+            htmx.ajax('GET', '/chat/', {
+                target: '#main-content',
+                swap: 'innerHTML'
+            });
+        } else {
+            console.error('Failed to save edited message');
+            cancelEdit();
+        }
+    }).catch(err => {
+        console.error('Failed to save edited message:', err);
+        cancelEdit();
+    });
+}
+
+/**
+ * Cancel editing and restore original message.
+ */
+function cancelEdit() {
+    const container = document.querySelector('.message-container.user:has(#edit-message-textarea)');
+    if (!container) return;
+
+    const bubble = container.querySelector('.message');
+    if (bubble && bubble.dataset.originalContent) {
+        bubble.innerHTML = bubble.dataset.originalContent;
+        bubble.style.width = '';  // Clear the locked width
+        delete bubble.dataset.originalContent;
+    }
+
+    // Restore the controls row
+    const controlsRow = container.querySelector('.flex[data-original-content]');
+    if (controlsRow && controlsRow.dataset.originalContent) {
+        controlsRow.className = 'flex items-center gap-2 mt-3.5 px-1 justify-end';
+        controlsRow.innerHTML = controlsRow.dataset.originalContent;
+        delete controlsRow.dataset.originalContent;
+    }
+}
+
+/**
+ * Clean up retry/edit buttons so they only appear on the most recent messages.
+ * Call this after new messages are added to the chat.
+ */
+function cleanupMessageButtons() {
+    const messages = document.getElementById('messages');
+    if (!messages) return;
+
+    const allContainers = messages.querySelectorAll('.message-container');
+    const assistantContainers = messages.querySelectorAll('.message-container.assistant');
+    const userContainers = messages.querySelectorAll('.message-container.user');
+
+    // Remove retry buttons from all but the last assistant message
+    assistantContainers.forEach((container, index) => {
+        const retryBtn = container.querySelector('button[onclick="retryLastMessage()"]');
+        if (retryBtn && index < assistantContainers.length - 1) {
+            retryBtn.remove();
+        }
+    });
+
+    // Remove edit buttons from all but the appropriate user message
+    // (last user message, or second-to-last message if last is assistant)
+    const lastContainer = allContainers[allContainers.length - 1];
+    const lastIsAssistant = lastContainer?.classList.contains('assistant');
+
+    userContainers.forEach((container, index) => {
+        const editBtn = container.querySelector('button[onclick*="editLastMessage"]');
+        if (!editBtn) return;
+
+        const isLastUser = index === userContainers.length - 1;
+
+        // Keep edit button only on the last user message
+        if (!isLastUser) {
+            editBtn.remove();
+        }
     });
 }

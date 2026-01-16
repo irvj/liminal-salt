@@ -959,6 +959,143 @@ def send_message(request):
 
     return response
 
+
+def retry_message(request):
+    """Retry the last assistant message - removes it and resubmits the user message"""
+    from .services import load_context
+    from .services import ChatCore
+    from django.conf import settings
+    from .utils import get_current_session
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    session_id = get_current_session(request)
+    if not session_id:
+        return HttpResponse(status=400)
+
+    config = load_config()
+    if not config or not config.get("OPENROUTER_API_KEY"):
+        return HttpResponse('<div class="message error">Configuration error: API key not found</div>')
+
+    session_path = settings.SESSIONS_DIR / session_id
+
+    # Load session and remove last assistant message
+    try:
+        with open(session_path, 'r') as f:
+            session_data = json.load(f)
+    except:
+        return HttpResponse(status=404)
+
+    messages = session_data.get('messages', [])
+    if len(messages) < 2:
+        return HttpResponse(status=400)  # Need at least user + assistant
+
+    # Verify last message is assistant
+    if messages[-1].get('role') != 'assistant':
+        return HttpResponse(status=400)
+
+    # Remove last assistant message
+    messages.pop()
+
+    # Get the last user message (should now be the last message)
+    if messages[-1].get('role') != 'user':
+        return HttpResponse(status=400)
+
+    user_message = messages[-1].get('content', '')
+
+    # Save session with assistant message removed
+    session_data['messages'] = messages
+    with open(session_path, 'w') as f:
+        json.dump(session_data, f, indent=2)
+
+    # Now resend the user message
+    session_persona = session_data.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
+    model = get_model_for_persona(config, session_persona, settings.PERSONAS_DIR)
+    api_key = config.get("OPENROUTER_API_KEY")
+    context_history_limit = config.get("CONTEXT_HISTORY_LIMIT", 50)
+    site_url = config.get("SITE_URL")
+    site_name = config.get("SITE_NAME")
+
+    persona_path = os.path.join(str(settings.PERSONAS_DIR), session_persona)
+    system_prompt = load_context(persona_path, ltm_file=str(settings.LTM_FILE))
+
+    user_timezone = request.session.get('user_timezone', 'UTC')
+
+    chat_core = ChatCore(
+        api_key=api_key,
+        model=model,
+        site_url=site_url,
+        site_name=site_name,
+        system_prompt=system_prompt,
+        context_history_limit=context_history_limit,
+        history_file=str(session_path),
+        persona=session_persona,
+        user_timezone=user_timezone
+    )
+
+    # Send message with skip_user_save since user message is already in history
+    assistant_message = chat_core.send_message(user_message, skip_user_save=True)
+
+    # Get assistant timestamp
+    assistant_timestamp = chat_core.messages[-1].get('timestamp', '') if chat_core.messages else ''
+
+    return render(request, 'chat/assistant_fragment.html', {
+        'assistant_message': assistant_message,
+        'assistant_timestamp': assistant_timestamp
+    })
+
+
+def edit_message(request):
+    """Edit the last user message"""
+    from django.conf import settings
+    from .utils import get_current_session
+
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    session_id = get_current_session(request)
+    if not session_id:
+        return HttpResponse(status=400)
+
+    new_content = request.POST.get('content', '').strip()
+    if not new_content:
+        return HttpResponse(status=400)
+
+    session_path = settings.SESSIONS_DIR / session_id
+
+    # Load session
+    try:
+        with open(session_path, 'r') as f:
+            session_data = json.load(f)
+    except:
+        return HttpResponse(status=404)
+
+    messages = session_data.get('messages', [])
+    if not messages:
+        return HttpResponse(status=400)
+
+    # Find the last user message
+    last_user_idx = None
+    for i in range(len(messages) - 1, -1, -1):
+        if messages[i].get('role') == 'user':
+            last_user_idx = i
+            break
+
+    if last_user_idx is None:
+        return HttpResponse(status=400)
+
+    # Update the message content
+    messages[last_user_idx]['content'] = new_content
+
+    # Save session
+    session_data['messages'] = messages
+    with open(session_path, 'w') as f:
+        json.dump(session_data, f, indent=2)
+
+    return HttpResponse(status=200)
+
+
 def memory(request):
     """User memory view"""
     from datetime import datetime
