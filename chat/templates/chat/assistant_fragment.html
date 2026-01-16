@@ -19,5 +19,17 @@
                 title="Copy to clipboard">
             {% include 'icons/copy.html' with class='w-4 h-4' %}
         </button>
+        <button type="button"
+                class="text-foreground-muted hover:text-foreground cursor-pointer"
+                onclick="retryLastMessage()"
+                title="Retry">
+            {% include 'icons/retry.html' with class='w-4 h-4' %}
+        </button>
     </div>
 </div>
+<script>
+    // Clean up old retry/edit buttons when new message arrives
+    if (typeof cleanupMessageButtons === 'function') {
+        cleanupMessageButtons();
+    }
+</script>
