@@ -115,7 +115,7 @@
   --accent-secondary: #95bebe;
 
   /* Status colors */
-  --success: #8fac98;
+  --success: #7dba8a;
   --danger: #cc8585;
   --danger-hover: #d99292;
   --warning: #c9a86c;
@@ -123,9 +123,9 @@
   /* Borders */
   --border: #2e312f;
 
-  /* Message bubbles */
-  --user-bubble: #8fac98;
-  --assistant-bubble: #242726;
+  /* Message bubbles (alias semantic tokens; themes can override) */
+  --user-bubble: var(--accent);
+  --assistant-bubble: var(--surface-elevated);
 }
 
 /* ===== LIGHT THEME (Liminal Salt) ===== */
@@ -147,7 +147,7 @@
   --accent-secondary: #3e5d5d;
 
   /* Status colors */
-  --success: #506e58;
+  --success: #3a7346;
   --danger: #a54d4d;
   --danger-hover: #984242;
   --warning: #7d6325;
@@ -155,9 +155,9 @@
   /* Borders */
   --border: #ddd8d0;
 
-  /* Bubbles */
-  --user-bubble: #506e58;
-  --assistant-bubble: #ebe7e0;
+  /* Message bubbles (alias semantic tokens; themes can override) */
+  --user-bubble: var(--accent);
+  --assistant-bubble: var(--surface-secondary);
 }
 
 /* Fix prose/typography colors in light mode */
