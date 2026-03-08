@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.13] - 2026-03-08
+
+### Changes
+- refactor styles for better semantic naming, update liminal salt hex colors for accessibility, tweak style usage
+
 ## [0.5.12] - 2026-01-16
 
 ### Changes
