@@ -1,0 +1,29 @@
+# Liminal Salt Dark — Ghostty
+# https://github.com/irvj/liminal-salt
+
+background = 1a1c1b
+foreground = e8e4dc
+cursor-color = 8fac98
+cursor-text = 1a1c1b
+selection-background = 3d4741
+selection-foreground = e8e4dc
+
+# Normal colors
+palette = 0=141615
+palette = 1=cc8585
+palette = 2=7dba8a
+palette = 3=c9a86c
+palette = 4=7eb8c9
+palette = 5=c9956c
+palette = 6=95bebe
+palette = 7=c5c1b8
+
+# Bright colors
+palette = 8=6b7369
+palette = 9=d99292
+palette = 10=a3bfac
+palette = 11=c9a86c
+palette = 12=7eb8c9
+palette = 13=c9956c
+palette = 14=95bebe
+palette = 15=e8e4dc

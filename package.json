@@ -1,0 +1,19 @@
+{
+  "name": "liminal-salt",
+  "version": "1.0.0",
+  "description": "Liminal Salt — an earthy, accessible color theme",
+  "type": "module",
+  "scripts": {
+    "build": "node src/build.js",
+    "build:vscode": "node src/build.js vscode",
+    "build:iterm2": "node src/build.js iterm2",
+    "build:alacritty": "node src/build.js alacritty",
+    "build:ghostty": "node src/build.js ghostty",
+    "build:vim": "node src/build.js vim",
+    "build:zed": "node src/build.js zed",
+    "build:tmux": "node src/build.js tmux",
+    "build:wezterm": "node src/build.js wezterm",
+    "build:jetbrains": "node src/build.js jetbrains"
+  },
+  "license": "MIT"
+}

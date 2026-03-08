@@ -1,0 +1,71 @@
+# Liminal Salt Dark — WezTerm
+# https://github.com/irvj/liminal-salt
+#
+# Install:
+#   Copy to ~/.config/wezterm/colors/
+#   Then in wezterm.lua:
+#     config.color_scheme = "Liminal Salt Dark"
+
+[metadata]
+name = "Liminal Salt Dark"
+author = "irvj"
+origin_url = "https://github.com/irvj/liminal-salt"
+
+[colors]
+background = "#1a1c1b"
+foreground = "#e8e4dc"
+cursor_bg = "#8fac98"
+cursor_fg = "#1a1c1b"
+cursor_border = "#8fac98"
+selection_bg = "#3d4741"
+selection_fg = "#e8e4dc"
+scrollbar_thumb = "#2e312f"
+split = "#2e312f"
+compose_cursor = "#c9a86c"
+
+ansi = [
+    "#141615",
+    "#cc8585",
+    "#7dba8a",
+    "#c9a86c",
+    "#7eb8c9",
+    "#c9956c",
+    "#95bebe",
+    "#c5c1b8",
+]
+
+brights = [
+    "#6b7369",
+    "#d99292",
+    "#a3bfac",
+    "#c9a86c",
+    "#7eb8c9",
+    "#c9956c",
+    "#95bebe",
+    "#e8e4dc",
+]
+
+[colors.tab_bar]
+background = "#242726"
+
+[colors.tab_bar.active_tab]
+bg_color = "#1a1c1b"
+fg_color = "#e8e4dc"
+intensity = "Bold"
+
+[colors.tab_bar.inactive_tab]
+bg_color = "#242726"
+fg_color = "#9e9b93"
+
+[colors.tab_bar.inactive_tab_hover]
+bg_color = "#141615"
+fg_color = "#e8e4dc"
+italic = true
+
+[colors.tab_bar.new_tab]
+bg_color = "#242726"
+fg_color = "#9e9b93"
+
+[colors.tab_bar.new_tab_hover]
+bg_color = "#8fac98"
+fg_color = "#1a1c1b"

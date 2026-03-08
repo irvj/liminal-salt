@@ -1,0 +1,34 @@
+# Liminal Salt Dark — Alacritty
+# https://github.com/irvj/liminal-salt
+
+[colors.primary]
+background = "#1a1c1b"
+foreground = "#e8e4dc"
+
+[colors.cursor]
+cursor = "#8fac98"
+text = "#1a1c1b"
+
+[colors.selection]
+background = "#3d4741"
+text = "#e8e4dc"
+
+[colors.normal]
+black   = "#141615"
+red     = "#cc8585"
+green   = "#7dba8a"
+yellow  = "#c9a86c"
+blue    = "#7eb8c9"
+magenta = "#c9956c"
+cyan    = "#95bebe"
+white   = "#c5c1b8"
+
+[colors.bright]
+black   = "#6b7369"
+red     = "#d99292"
+green   = "#a3bfac"
+yellow  = "#c9a86c"
+blue    = "#7eb8c9"
+magenta = "#c9956c"
+cyan    = "#95bebe"
+white   = "#e8e4dc"
