@@ -10,7 +10,7 @@ function buildStyle(mode) {
 
 	return {
 		// General UI
-		background: u.card,
+		background: u.muted,
 		"background.appearance": isDark ? "opaque" : "opaque",
 		border: u.border,
 		"border.variant": u.border,
@@ -44,7 +44,7 @@ function buildStyle(mode) {
 		"status_bar.background": u.card,
 
 		// Panel / sidebar
-		"panel.background": u.card,
+		"panel.background": u.muted,
 		"panel.focused_border": u.ring,
 		"pane.focused_border": u.ring,
 

@@ -31,13 +31,13 @@ function buildVSCodeTheme(mode) {
 			"diffEditor.removedTextBackground": e.diffDeletedBackground + "88",
 
 			// Sidebar / activity bar
-			"sideBar.background": u.card,
+			"sideBar.background": u.muted,
 			"sideBar.foreground": u.foreground,
 			"sideBar.border": u.border,
 			"sideBarTitle.foreground": u.foreground,
 			"sideBarSectionHeader.background": u.muted,
 			"sideBarSectionHeader.foreground": u.foreground,
-			"activityBar.background": u.card,
+			"activityBar.background": u.muted,
 			"activityBar.foreground": u.foreground,
 			"activityBar.border": u.border,
 			"activityBarBadge.background": u.accent,
@@ -103,7 +103,7 @@ function buildVSCodeTheme(mode) {
 			"notifications.border": u.border,
 
 			// Panel (terminal, output, etc.)
-			"panel.background": u.card,
+			"panel.background": u.muted,
 			"panel.foreground": u.foreground,
 			"panel.border": u.border,
 			"panelTitle.activeBorder": u.accent,
