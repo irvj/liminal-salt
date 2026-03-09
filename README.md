@@ -80,7 +80,7 @@ Grab the file for your tool and follow the install instructions below.
 |--------|------|-------|
 | VS Code | [liminal-salt-dark.json](dist/vscode/liminal-salt-dark.json) | [liminal-salt-light.json](dist/vscode/liminal-salt-light.json) |
 | Zed | [liminal-salt.json](dist/zed/liminal-salt.json) (both variants) | |
-| Vim / Neovim | [liminal-salt-dark.vim](dist/vim/colors/liminal-salt-dark.vim) | [liminal-salt-light.vim](dist/vim/colors/liminal-salt-light.vim) |
+| Neovim | [Lua plugin](dist/vim/) (dark + light) | |
 | JetBrains | [Liminal Salt Dark.icls](dist/jetbrains/Liminal%20Salt%20Dark.icls) | [Liminal Salt Light.icls](dist/jetbrains/Liminal%20Salt%20Light.icls) |
 
 ### Terminals
@@ -104,7 +104,45 @@ Grab the file for your tool and follow the install instructions below.
 
 **Zed** — Copy `liminal-salt.json` to `~/.config/zed/themes/` and select from the theme picker.
 
-**Vim/Neovim** — Copy the `.vim` file to `~/.vim/colors/` (or `~/.config/nvim/colors/`) and set `colorscheme liminal-salt-dark`.
+**Neovim** — The `dist/vim/` directory is a full Lua colorscheme plugin with treesitter, LSP, gitsigns, snacks.nvim, and lualine support.
+
+Install with your plugin manager by pointing it at this repo's `dist/vim/` path, or copy the contents into your Neovim config:
+
+```
+dist/vim/
+├── colors/
+│   ├── liminal-salt-dark.lua       # :colorscheme liminal-salt-dark
+│   └── liminal-salt-light.lua      # :colorscheme liminal-salt-light
+├── lua/liminal-salt/               # core plugin modules
+│   ├── init.lua                    # orchestrator
+│   ├── palette.lua                 # canonical color primitives
+│   ├── editor.lua                  # editor UI highlights
+│   ├── syntax.lua                  # vim syntax highlights
+│   ├── treesitter.lua              # treesitter captures
+│   ├── lsp.lua                     # LSP & diagnostics
+│   ├── terminal.lua                # terminal colors
+│   └── plugins/
+│       ├── gitsigns.lua            # gitsigns.nvim
+│       └── snacks.lua              # snacks.nvim
+└── lua/lualine/themes/
+    ├── liminal-salt-dark.lua       # lualine statusline theme
+    └── liminal-salt-light.lua
+```
+
+With lazy.nvim, set the colorscheme in your plugin spec:
+
+```lua
+{
+  "irvj/liminal-salt",
+  lazy = false,
+  priority = 1000,
+  config = function()
+    vim.cmd("colorscheme liminal-salt-dark")
+  end,
+}
+```
+
+For a local install, copy `dist/vim/colors/` and `dist/vim/lua/` into `~/.config/nvim/`.
 
 **JetBrains** — Copy the `.icls` file to `~/Library/Application Support/JetBrains/<product>/colors/` and select in Settings → Editor → Color Scheme.
 
