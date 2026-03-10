@@ -260,6 +260,11 @@ input[type="number"]::-webkit-inner-spin-button {
   color-scheme: light;
 }
 
+/* Hide messages container until scrolled to bottom (prevents flash) */
+#messages.pre-scroll {
+  visibility: hidden;
+}
+
 /* Alpine.js cloak */
 [x-cloak] {
   display: none !important;

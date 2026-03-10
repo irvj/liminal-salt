@@ -480,12 +480,6 @@
 
 {% block extra_scripts %}
 <script>
-    // Auto-scroll to bottom on page load
-    const messagesDiv = document.getElementById('messages');
-    if (messagesDiv) {
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
-
     // Setup scroll button listener on page load and after HTMX swaps
     setupScrollButtonListener();
     document.body.addEventListener('htmx:afterSwap', setupScrollButtonListener);
@@ -512,9 +506,10 @@
             updateHeaderTitle(newTitle);
         }
 
-        // Convert timestamps and add date separators after HTMX swap
+        // Convert timestamps and add date separators, then scroll to bottom
         convertTimestamps();
         insertDateSeparators();
+        scrollAndRevealMessages();
     });
 
     // Initialize on page load
@@ -522,6 +517,7 @@
         setTimezoneInput();
         convertTimestamps();
         insertDateSeparators();
+        scrollAndRevealMessages();
     });
 </script>
 {% endblock %}

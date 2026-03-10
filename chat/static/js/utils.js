@@ -226,6 +226,20 @@ function scrollToBottom() {
 }
 
 /**
+ * Scroll messages to bottom and reveal (remove pre-scroll).
+ * Uses requestAnimationFrame to ensure scroll happens before paint.
+ */
+function scrollAndRevealMessages() {
+    const messagesDiv = document.getElementById('messages');
+    if (!messagesDiv) return;
+
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    requestAnimationFrame(() => {
+        messagesDiv.classList.remove('pre-scroll');
+    });
+}
+
+/**
  * Show/hide scroll-to-bottom button based on scroll position.
  */
 function updateScrollButtonVisibility() {
