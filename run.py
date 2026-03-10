@@ -17,9 +17,9 @@ if not venv.exists():
     subprocess.run([str(pip), "install", "-q", "--disable-pip-version-check", "-r", "requirements.txt"], check=True)
     print()
 
-url = "http://localhost:8000"
+url = "http://localhost:8420"
 print(f"Starting Liminal Salt at \033]8;;{url}\033\\{url}\033]8;;\033\\")
 subprocess.run([str(python), "-c",
     "from waitress import serve; "
     "from liminal_salt.wsgi import application; "
-    "serve(application, host='127.0.0.1', port=8000, _quiet=True)"])
+    "serve(application, host='127.0.0.1', port=8420, _quiet=True)"])
