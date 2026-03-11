@@ -218,37 +218,28 @@ function autoResizeTextarea(textarea) {
 /**
  * Scroll the messages container to the bottom.
  */
+/**
+ * Scroll the messages container to the bottom.
+ * With flex-direction: column-reverse, scrollTop = 0 is the bottom.
+ */
 function scrollToBottom() {
     const messagesDiv = document.getElementById('messages');
     if (messagesDiv) {
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        messagesDiv.scrollTop = 0;
     }
 }
 
 /**
- * Scroll messages to bottom and reveal (remove pre-scroll).
- * Uses requestAnimationFrame to ensure scroll happens before paint.
- */
-function scrollAndRevealMessages() {
-    const messagesDiv = document.getElementById('messages');
-    if (!messagesDiv) return;
-
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    requestAnimationFrame(() => {
-        messagesDiv.classList.remove('pre-scroll');
-    });
-}
-
-/**
  * Show/hide scroll-to-bottom button based on scroll position.
+ * With column-reverse, scrollTop is negative when scrolled up from bottom.
  */
 function updateScrollButtonVisibility() {
     const messagesDiv = document.getElementById('messages');
     const btn = document.getElementById('scroll-to-bottom-btn');
     if (!messagesDiv || !btn) return;
 
-    const threshold = 200; // pixels from bottom
-    const isNearBottom = messagesDiv.scrollHeight - messagesDiv.scrollTop - messagesDiv.clientHeight < threshold;
+    const threshold = 200;
+    const isNearBottom = Math.abs(messagesDiv.scrollTop) < threshold;
 
     if (isNearBottom) {
         btn.classList.add('opacity-0', 'pointer-events-none');
@@ -338,7 +329,7 @@ function convertTimestamps() {
  * Insert date separators above first message of each date.
  */
 function insertDateSeparators() {
-    const messagesDiv = document.getElementById('messages');
+    const messagesDiv = document.getElementById('messages-inner');
     if (!messagesDiv) return;
 
     const containers = messagesDiv.querySelectorAll('.message-container');
@@ -399,7 +390,7 @@ function addUserMessage(event) {
     input.style.height = 'auto';
 
     // Create and append user message with container
-    const messagesDiv = document.getElementById('messages');
+    const messagesDiv = document.getElementById('messages-inner');
     const now = new Date();
 
     // Check if we need a date separator for today
@@ -497,14 +488,14 @@ function removeThinkingIndicator() {
  * Animate assistant response with typewriter effect.
  */
 function animateAssistantResponse() {
-    const messagesDiv = document.getElementById('messages');
-    if (!messagesDiv) return;
+    const messagesInner = document.getElementById('messages-inner');
+    if (!messagesInner) return;
 
     // Scroll to show the new response (once, before typewriter starts)
     scrollToBottom();
 
     // Get the last assistant message (the newly inserted one)
-    const assistantMessages = messagesDiv.querySelectorAll('.message.assistant:not(.thinking)');
+    const assistantMessages = messagesInner.querySelectorAll('.message.assistant:not(.thinking)');
     const lastMessage = assistantMessages[assistantMessages.length - 1];
     if (!lastMessage) return;
 
@@ -715,8 +706,8 @@ function toFolderName(displayName) {
 function handleMessageError(event) {
     removeThinkingIndicator();
 
-    const messagesDiv = document.getElementById('messages');
-    if (!messagesDiv) return;
+    const messagesInner = document.getElementById('messages-inner');
+    if (!messagesInner) return;
 
     let errorMessage = 'Request failed. ';
     const xhr = event.detail.xhr;
@@ -750,8 +741,8 @@ function handleMessageError(event) {
         </div>
     `;
 
-    messagesDiv.appendChild(errorDiv);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    messagesInner.appendChild(errorDiv);
+    scrollToBottom();
 }
 
 // =============================================================================
@@ -1050,7 +1041,7 @@ function cancelEdit() {
  * Call this after new messages are added to the chat.
  */
 function cleanupMessageButtons() {
-    const messages = document.getElementById('messages');
+    const messages = document.getElementById('messages-inner');
     if (!messages) return;
 
     const allContainers = messages.querySelectorAll('.message-container');

@@ -486,9 +486,6 @@
 
     // Listen for HTMX responses to update title when it changes
     document.body.addEventListener('htmx:afterRequest', function(event) {
-        // Re-set timezone input after HTMX swaps (input may have been replaced)
-        setTimezoneInput();
-
         const xhr = event.detail.xhr;
         if (!xhr) return;
 
@@ -505,11 +502,6 @@
             // Update header title
             updateHeaderTitle(newTitle);
         }
-
-        // Convert timestamps and add date separators, then scroll to bottom
-        convertTimestamps();
-        insertDateSeparators();
-        scrollAndRevealMessages();
     });
 
     // Initialize on page load
@@ -517,7 +509,6 @@
         setTimezoneInput();
         convertTimestamps();
         insertDateSeparators();
-        scrollAndRevealMessages();
     });
 </script>
 {% endblock %}

@@ -19,8 +19,9 @@
 
 <!-- Messages Wrapper (for scroll button positioning) -->
 <div class="flex-1 relative overflow-hidden">
-    <!-- Messages Container -->
-    <div class="absolute inset-0 overflow-y-auto p-5 pre-scroll" id="messages">
+    <!-- Messages Container (column-reverse keeps scroll anchored to bottom) -->
+    <div class="absolute inset-0 overflow-y-auto p-5 flex flex-col-reverse" id="messages">
+    <div id="messages-inner">
         {% for message in messages %}
         <div class="message-container {{ message.role }} my-4 max-w-[80%] w-fit {% if message.role == 'user' %}ml-auto{% else %}mr-auto{% endif %}">
             <div class="message {{ message.role }} {% if message.role == 'user' %}message-tail-user bg-user-bubble text-foreground-on-accent{% else %}message-tail-assistant bg-assistant-bubble text-foreground{% endif %} p-3 px-4 rounded-lg">
@@ -86,13 +87,14 @@
     <!-- Auto-trigger LLM request -->
     <div hx-post="{% url 'send_message' %}"
          hx-trigger="load"
-         hx-target="#messages"
+         hx-target="#messages-inner"
          hx-swap="beforeend"
          hx-vals='{"message": "{{ pending_message|escapejs }}", "skip_user_save": "true"}'
          hx-on::after-request="removeThinkingIndicator(); animateAssistantResponse();"
          hx-on::response-error="handleMessageError(event)">
     </div>
     {% endif %}
+    </div>
     </div>
 
     <!-- Scroll to Bottom Button -->
@@ -108,7 +110,7 @@
 <div class="bg-surface-secondary p-5 border-t border-border">
     <form method="POST"
           hx-post="{% url 'send_message' %}"
-          hx-target="#messages"
+          hx-target="#messages-inner"
           hx-swap="beforeend"
           hx-on::before-request="addUserMessage(event)"
           hx-on::after-request="this.reset(); clearDraft(); removeThinkingIndicator(); animateAssistantResponse();"
@@ -133,10 +135,10 @@
 </div>
 
 <script>
-    // Draft restore only - scroll handled by scrollAndRevealMessages()
-
-
-    // Restore draft if one exists
+    // Initialize chat view: restore draft, timestamps, date separators
+    setTimezoneInput();
+    convertTimestamps();
+    insertDateSeparators();
     restoreDraft("{{ draft|escapejs }}");
 </script>
 
