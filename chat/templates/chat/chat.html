@@ -4,238 +4,6 @@
 {% block body_class %}flex h-screen{% endblock %}
 
 {% block body %}
-<!-- Delete Confirmation Modal (Alpine.js + HTMX) -->
-<div x-data="deleteModal" x-cloak>
-    <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
-         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
-         @click.self="showModal = false">
-        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
-            <h3 class="text-foreground mb-3">Delete Chat?</h3>
-            <p class="text-foreground-secondary mb-5">Are you sure you want to delete "<span x-text="sessionTitle"></span>"? This cannot be undone.</p>
-            <form hx-post="{% url 'delete_chat' %}"
-                  hx-target="#main-content"
-                  hx-swap="innerHTML"
-                  @htmx:after-request="showModal = false">
-                {% csrf_token %}
-                <input type="hidden" name="session_id" x-bind:value="sessionId">
-                <div class="flex gap-3 justify-end">
-                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Delete</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Rename Chat Modal (Alpine.js + HTMX) -->
-<div x-data="renameModal" x-cloak>
-    <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
-         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
-         @click.self="showModal = false">
-        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
-            <h3 class="text-foreground mb-3">Rename Chat</h3>
-            <input type="text"
-                   x-model="newTitle"
-                   maxlength="50"
-                   @keydown.enter.prevent="$refs.renameForm.requestSubmit()"
-                   class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-sm mb-2 focus:outline-none focus:border-accent-secondary"
-                   placeholder="Enter new title...">
-            <p class="text-foreground-secondary text-xs mb-5">50 character limit</p>
-            <form x-ref="renameForm"
-                  hx-post="{% url 'rename_chat' %}"
-                  hx-target="#sidebar-sessions"
-                  hx-swap="innerHTML"
-                  @htmx:after-request="showModal = false; updateHeaderTitle(newTitle)">
-                {% csrf_token %}
-                <input type="hidden" name="session_id" x-bind:value="sessionId">
-                <input type="hidden" name="new_title" x-bind:value="newTitle">
-                <div class="flex gap-3 justify-end">
-                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover">Save</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Wipe Memory Confirmation Modal (Alpine.js) -->
-<div x-data="wipeMemoryModal" x-cloak data-wipe-url="{% url 'wipe_memory' %}">
-    <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
-         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
-         @click.self="showModal = false">
-        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
-            <h3 class="text-foreground mb-3">Wipe Memory?</h3>
-            <p class="text-foreground-secondary mb-5">Are you sure you want to wipe your entire long-term memory? This action cannot be undone.</p>
-            <div class="flex gap-3 justify-end">
-                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
-                <button @click="confirmWipe()" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Wipe</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Edit/New Persona Modal (Alpine.js) -->
-<div x-data="editPersonaModal" x-cloak data-create-url="{% url 'create_persona' %}" data-save-url="{% url 'save_persona_file' %}">
-    <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
-         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
-         @click.self="showModal = false">
-        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal-xl w-[90%] border border-border">
-            <h3 class="text-foreground mb-3" x-text="isNew ? 'New Persona' : 'Edit Persona'"></h3>
-            <div class="mb-4">
-                <label for="persona-name" class="block mb-2 font-medium text-foreground-secondary">Display Name:</label>
-                <input type="text" id="persona-name" x-model="displayName"
-                       :disabled="isAssistant"
-                       :class="isAssistant ? 'opacity-50 cursor-not-allowed' : ''"
-                       class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary"
-                       @input="displayName = displayName.replace(/[^a-zA-Z0-9 ]/g, '')">
-                <p x-show="isAssistant" class="text-foreground-secondary text-xs mt-1">The default persona cannot be renamed.</p>
-            </div>
-            <label class="block mb-2 font-medium text-foreground-secondary">Persona File:</label>
-            <textarea x-model="content" class="w-full h-[400px] bg-surface border border-border rounded text-foreground font-mono text-sm p-3 resize-y mb-4 focus:outline-none focus:border-accent-secondary"></textarea>
-            <div class="flex gap-3 justify-end">
-                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
-                <button @click="savePersona()" class="px-4 py-2 bg-success text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-success/80">Save</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Delete Persona Modal (Alpine.js) -->
-<div x-data="deletePersonaModal" x-cloak data-delete-url="{% url 'delete_persona' %}">
-    <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
-         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
-         @click.self="showModal = false">
-        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
-            <h3 class="text-foreground mb-3">Delete Persona?</h3>
-            <p class="text-foreground-secondary mb-5">Are you sure you want to delete "<span x-text="displayName"></span>"? This cannot be undone.</p>
-            <div class="flex gap-3 justify-end">
-                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
-                <button @click="confirmDelete()" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Delete</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Edit Persona Model Modal (Alpine.js) -->
-<div x-data="editPersonaModelModal" x-cloak data-models-url="{% url 'get_available_models' %}" data-save-url="{% url 'save_persona_model' %}">
-    <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
-         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
-         @click.self="showModal = false">
-        <div class="bg-surface-secondary rounded-lg p-6 max-w-[500px] w-[90%] border border-border">
-            <h3 class="text-foreground mb-2">Edit Model for <span class="text-accent-secondary" x-text="displayName"></span></h3>
-            <p class="text-foreground-secondary text-sm mb-4">Select a model for this persona, or clear to use the default.</p>
-
-            <!-- Status Messages -->
-            <div x-show="statusMessage" x-transition
-                 :class="statusType === 'success' ? 'bg-success text-surface' : 'bg-danger text-white'"
-                 class="p-2 px-3 rounded mb-4 text-sm">
-                <span x-text="statusMessage"></span>
-            </div>
-
-            <!-- Loading State -->
-            <div x-show="loading" class="text-center py-4 text-foreground-secondary">
-                Loading models...
-            </div>
-
-            <!-- Error State -->
-            <div x-show="loadError && !loading" class="p-3 px-4 rounded mb-4 bg-danger text-white text-sm">
-                <span x-text="loadError"></span>
-                <button @click="loadModels()" class="ml-2 underline">Retry</button>
-            </div>
-
-            <!-- Model Picker -->
-            <div class="mb-4" x-show="!loading && !loadError">
-                <label class="block mb-2 font-medium text-foreground-secondary">Model:</label>
-                <div class="relative">
-                    <input type="text"
-                           x-model="modelSearch"
-                           @input="highlightedIndex = 0"
-                           @focus="modelOpen = true"
-                           @click.stop="modelOpen = true"
-                           @keydown.escape="modelOpen = false"
-                           @keydown.enter.prevent="selectHighlighted()"
-                           @keydown.arrow-down.prevent="highlightNext()"
-                           @keydown.arrow-up.prevent="highlightPrev()"
-                           placeholder="Search models..."
-                           :class="selectedModel ? 'border-accent-secondary bg-surface' : 'border-border bg-surface-secondary'"
-                           class="w-full p-3 border rounded text-foreground text-base focus:outline-none focus:border-accent-secondary">
-
-                    <div x-cloak x-ref="dropdown"
-                         x-show="modelOpen && filteredModels.length > 0"
-                         x-transition:enter="transition ease-out duration-100"
-                         x-transition:leave="transition ease-in duration-75"
-                         @click.away="modelOpen = false"
-                         class="absolute w-full mt-1 max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-modal-nested">
-                        <template x-for="(m, index) in filteredModels" :key="m.id">
-                            <button type="button" data-dropdown-item
-                                    @click="selectModel(m)"
-                                    @mouseenter="highlightedIndex = index"
-                                    :class="index === highlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
-                                    class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
-                                <span x-text="m.display"></span>
-                            </button>
-                        </template>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Current Model Display -->
-            <div class="text-sm text-foreground-secondary mb-4">
-                <strong>Current:</strong>
-                <span x-text="currentModel || 'Using default (' + defaultModel + ')'"></span>
-            </div>
-
-            <div class="flex gap-3 justify-end">
-                <button @click="clearModel()" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Use Default</button>
-                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
-                <button @click="saveModel()" :disabled="saving" class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
-                    <span x-show="!saving">Save</span>
-                    <span x-show="saving">...</span>
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Context Files Modal (Alpine.js) -->
-<div x-data="contextFilesModal" x-cloak
-     data-upload-url="{% url 'upload_context_file' %}"
-     data-toggle-url="{% url 'toggle_context_file' %}"
-     data-delete-url="{% url 'delete_context_file' %}"
-     data-content-url="{% url 'get_context_file_content' %}"
-     data-save-url="{% url 'save_context_file_content' %}"
-     data-data-key="contextFilesData"
-     data-badge-selector=".context-files-btn .badge"
-     data-component-key="contextFilesModalComponent">
-    {% include "chat/context_files_modal.html" with empty_text="No context files uploaded." title="Context Files" description="Upload files to provide additional context to the assistant. These are included in every conversation but not used for memory generation." %}
-</div>
-
-<!-- Persona Context Files Modal (Alpine.js) -->
-<div x-data="contextFilesModal" x-cloak
-     data-upload-url="{% url 'upload_persona_context_file' %}"
-     data-toggle-url="{% url 'toggle_persona_context_file' %}"
-     data-delete-url="{% url 'delete_persona_context_file' %}"
-     data-content-url="{% url 'get_persona_context_file_content' %}"
-     data-save-url="{% url 'save_persona_context_file_content' %}"
-     data-data-key="personaContextFilesData"
-     data-persona-key="currentPersonaId"
-     data-badge-selector=".persona-context-files-btn .badge"
-     data-component-key="personaContextFilesModalComponent">
-    {% include "chat/context_files_modal.html" with empty_text="No context files uploaded for this persona." title="Persona Context Files" description="Upload files to provide additional context for this persona only. These are included in conversations using this persona." %}
-</div>
-
 <!-- Sidebar wrapper with mobile state (contents = invisible to flex layout) -->
 <div class="contents" x-data="sidebarState">
 
@@ -252,11 +20,12 @@
     </div>
 
     <!-- Sidebar -->
-    <aside :class="{
+    <nav :class="{
                'w-sidebar-collapsed': collapsed,
                'w-sidebar': !collapsed,
                'fixed inset-y-0 left-0 z-sidebar': isMobile && !collapsed
            }"
+           aria-label="Chat sessions"
            class="h-full flex flex-col bg-surface-secondary border-r border-border transition-all duration-200">
 
         <!-- Header with toggle (always visible) -->
@@ -332,16 +101,236 @@
                 </button>
             </div>
         </div>
-    </aside>
+    </nav>
 </div>
 
-<!-- Main Chat Area -->
-<div class="flex-1 flex flex-col" id="main-content">
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col" id="main-content">
     {% if show_home %}
         {% include 'chat/chat_home.html' %}
     {% else %}
         {% include 'chat/chat_main.html' %}
     {% endif %}
+</main>
+
+<!-- Modals (positioned fixed, kept outside document flow) -->
+<div x-data="deleteModal" x-cloak>
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
+            <h3 class="text-foreground mb-3">Delete Chat?</h3>
+            <p class="text-foreground-secondary mb-5">Are you sure you want to delete "<span x-text="sessionTitle"></span>"? This cannot be undone.</p>
+            <form hx-post="{% url 'delete_chat' %}"
+                  hx-target="#main-content"
+                  hx-swap="innerHTML"
+                  @htmx:after-request="showModal = false">
+                {% csrf_token %}
+                <input type="hidden" name="session_id" x-bind:value="sessionId">
+                <div class="flex gap-3 justify-end">
+                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Delete</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div x-data="renameModal" x-cloak>
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
+            <h3 class="text-foreground mb-3">Rename Chat</h3>
+            <input type="text"
+                   x-model="newTitle"
+                   maxlength="50"
+                   @keydown.enter.prevent="$refs.renameForm.requestSubmit()"
+                   class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-sm mb-2 focus:outline-none focus:border-accent-secondary"
+                   placeholder="Enter new title...">
+            <p class="text-foreground-secondary text-xs mb-5">50 character limit</p>
+            <form x-ref="renameForm"
+                  hx-post="{% url 'rename_chat' %}"
+                  hx-target="#sidebar-sessions"
+                  hx-swap="innerHTML"
+                  @htmx:after-request="showModal = false; updateHeaderTitle(newTitle)">
+                {% csrf_token %}
+                <input type="hidden" name="session_id" x-bind:value="sessionId">
+                <input type="hidden" name="new_title" x-bind:value="newTitle">
+                <div class="flex gap-3 justify-end">
+                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div x-data="wipeMemoryModal" x-cloak data-wipe-url="{% url 'wipe_memory' %}">
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
+            <h3 class="text-foreground mb-3">Wipe Memory?</h3>
+            <p class="text-foreground-secondary mb-5">Are you sure you want to wipe your entire long-term memory? This action cannot be undone.</p>
+            <div class="flex gap-3 justify-end">
+                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="confirmWipe()" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Wipe</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div x-data="editPersonaModal" x-cloak data-create-url="{% url 'create_persona' %}" data-save-url="{% url 'save_persona_file' %}">
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal-xl w-[90%] border border-border">
+            <h3 class="text-foreground mb-3" x-text="isNew ? 'New Persona' : 'Edit Persona'"></h3>
+            <div class="mb-4">
+                <label for="persona-name" class="block mb-2 font-medium text-foreground-secondary">Display Name:</label>
+                <input type="text" id="persona-name" x-model="displayName"
+                       :disabled="isAssistant"
+                       :class="isAssistant ? 'opacity-50 cursor-not-allowed' : ''"
+                       class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary"
+                       @input="displayName = displayName.replace(/[^a-zA-Z0-9 ]/g, '')">
+                <p x-show="isAssistant" class="text-foreground-secondary text-xs mt-1">The default persona cannot be renamed.</p>
+            </div>
+            <label class="block mb-2 font-medium text-foreground-secondary">Persona File:</label>
+            <textarea x-model="content" class="w-full h-[400px] bg-surface border border-border rounded text-foreground font-mono text-sm p-3 resize-y mb-4 focus:outline-none focus:border-accent-secondary"></textarea>
+            <div class="flex gap-3 justify-end">
+                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="savePersona()" class="px-4 py-2 bg-success text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-success/80">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div x-data="deletePersonaModal" x-cloak data-delete-url="{% url 'delete_persona' %}">
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
+            <h3 class="text-foreground mb-3">Delete Persona?</h3>
+            <p class="text-foreground-secondary mb-5">Are you sure you want to delete "<span x-text="displayName"></span>"? This cannot be undone.</p>
+            <div class="flex gap-3 justify-end">
+                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="confirmDelete()" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div x-data="editPersonaModelModal" x-cloak data-models-url="{% url 'get_available_models' %}" data-save-url="{% url 'save_persona_model' %}">
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-[500px] w-[90%] border border-border">
+            <h3 class="text-foreground mb-2">Edit Model for <span class="text-accent-secondary" x-text="displayName"></span></h3>
+            <p class="text-foreground-secondary text-sm mb-4">Select a model for this persona, or clear to use the default.</p>
+
+            <div x-show="statusMessage" x-transition
+                 :class="statusType === 'success' ? 'bg-success text-surface' : 'bg-danger text-white'"
+                 class="p-2 px-3 rounded mb-4 text-sm">
+                <span x-text="statusMessage"></span>
+            </div>
+
+            <div x-show="loading" class="text-center py-4 text-foreground-secondary">
+                Loading models...
+            </div>
+
+            <div x-show="loadError && !loading" class="p-3 px-4 rounded mb-4 bg-danger text-white text-sm">
+                <span x-text="loadError"></span>
+                <button @click="loadModels()" class="ml-2 underline">Retry</button>
+            </div>
+
+            <div class="mb-4" x-show="!loading && !loadError">
+                <label class="block mb-2 font-medium text-foreground-secondary">Model:</label>
+                <div class="relative">
+                    <input type="text"
+                           x-model="modelSearch"
+                           @input="highlightedIndex = 0"
+                           @focus="modelOpen = true"
+                           @click.stop="modelOpen = true"
+                           @keydown.escape="modelOpen = false"
+                           @keydown.enter.prevent="selectHighlighted()"
+                           @keydown.arrow-down.prevent="highlightNext()"
+                           @keydown.arrow-up.prevent="highlightPrev()"
+                           placeholder="Search models..."
+                           :class="selectedModel ? 'border-accent-secondary bg-surface' : 'border-border bg-surface-secondary'"
+                           class="w-full p-3 border rounded text-foreground text-base focus:outline-none focus:border-accent-secondary">
+
+                    <div x-cloak x-ref="dropdown"
+                         x-show="modelOpen && filteredModels.length > 0"
+                         x-transition:enter="transition ease-out duration-100"
+                         x-transition:leave="transition ease-in duration-75"
+                         @click.away="modelOpen = false"
+                         class="absolute w-full mt-1 max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-modal-nested">
+                        <template x-for="(m, index) in filteredModels" :key="m.id">
+                            <button type="button" data-dropdown-item
+                                    @click="selectModel(m)"
+                                    @mouseenter="highlightedIndex = index"
+                                    :class="index === highlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                                    class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
+                                <span x-text="m.display"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-sm text-foreground-secondary mb-4">
+                <strong>Current:</strong>
+                <span x-text="currentModel || 'Using default (' + defaultModel + ')'"></span>
+            </div>
+
+            <div class="flex gap-3 justify-end">
+                <button @click="clearModel()" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Use Default</button>
+                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="saveModel()" :disabled="saving" class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
+                    <span x-show="!saving">Save</span>
+                    <span x-show="saving">...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div x-data="contextFilesModal" x-cloak
+     data-upload-url="{% url 'upload_context_file' %}"
+     data-toggle-url="{% url 'toggle_context_file' %}"
+     data-delete-url="{% url 'delete_context_file' %}"
+     data-content-url="{% url 'get_context_file_content' %}"
+     data-save-url="{% url 'save_context_file_content' %}"
+     data-data-key="contextFilesData"
+     data-badge-selector=".context-files-btn .badge"
+     data-component-key="contextFilesModalComponent">
+    {% include "chat/context_files_modal.html" with empty_text="No context files uploaded." title="Context Files" description="Upload files to provide additional context to the assistant. These are included in every conversation but not used for memory generation." %}
+</div>
+
+<div x-data="contextFilesModal" x-cloak
+     data-upload-url="{% url 'upload_persona_context_file' %}"
+     data-toggle-url="{% url 'toggle_persona_context_file' %}"
+     data-delete-url="{% url 'delete_persona_context_file' %}"
+     data-content-url="{% url 'get_persona_context_file_content' %}"
+     data-save-url="{% url 'save_persona_context_file_content' %}"
+     data-data-key="personaContextFilesData"
+     data-persona-key="currentPersonaId"
+     data-badge-selector=".persona-context-files-btn .badge"
+     data-component-key="personaContextFilesModalComponent">
+    {% include "chat/context_files_modal.html" with empty_text="No context files uploaded for this persona." title="Persona Context Files" description="Upload files to provide additional context for this persona only. These are included in conversations using this persona." %}
 </div>
 {% endblock %}
 

@@ -32,16 +32,15 @@
                    required
                    autocomplete="off"
                    autofocus
-                   tabindex="1"
                    oninput="saveNewChatDraftDebounced()"
                    class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-secondary">
-            <button type="submit" tabindex="2" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Send</button>
+            <button type="submit" tabindex="0" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Send</button>
         </div>
 
         <!-- Persona picker and model display -->
         <div class="flex items-center gap-4">
             <div class="relative">
-                <button type="button" tabindex="3"
+                <button type="button" tabindex="0"
                         @click="open = !open"
                         @keydown.escape="open = false"
                         @keydown.arrow-down.prevent="open = true; highlightNext()"

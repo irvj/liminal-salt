@@ -17,26 +17,29 @@
         <div class="flex flex-col md:flex-row md:items-center gap-3">
             <!-- Color Theme Picker -->
             <div x-data="themePicker" class="relative w-full md:max-w-md">
-                <button type="button"
+                <button type="button" tabindex="0"
                         @click.stop="open = !open"
+                        @keydown.escape="open = false"
+                        @keydown.arrow-down.prevent="open = true; highlightNext()"
+                        @keydown.arrow-up.prevent="open = true; highlightPrev()"
+                        @keydown.enter.prevent="if (open) selectHighlighted(); else open = true"
                         class="w-full p-3 border rounded text-left flex items-center justify-between cursor-pointer"
                         :class="selected ? 'border-accent-secondary bg-surface' : 'border-border bg-surface-secondary'">
                     <span x-text="selectedDisplay || 'Select a theme...'"></span>
-                    <svg class="w-4 h-4 text-foreground-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                    </svg>
+                    {% include 'icons/chevron-down.html' with class='w-4 h-4 text-foreground-secondary' %}
                 </button>
 
-                <div x-cloak
+                <div x-cloak x-ref="dropdown"
                      x-show="open"
                      x-transition:enter="transition ease-out duration-100"
                      x-transition:leave="transition ease-in duration-75"
                      @click.away="open = false"
-                     class="absolute w-full mt-1 bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
-                    <template x-for="theme in themes" :key="theme.id">
-                        <button type="button"
+                     class="absolute w-full mt-1 max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
+                    <template x-for="(theme, index) in themes" :key="theme.id">
+                        <button type="button" data-dropdown-item
                                 @click="selectTheme(theme)"
-                                :class="selected === theme.id ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                                @mouseenter="highlightedIndex = index"
+                                :class="index === highlightedIndex ? 'bg-accent text-foreground-on-accent' : (selected === theme.id ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated')"
                                 class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
                             <span x-text="theme.name"></span>
                         </button>
@@ -46,12 +49,12 @@
 
             <!-- Dark/Light Mode Toggle -->
             <div x-data="themeModeToggle" class="flex gap-3 w-full md:w-auto">
-                <button @click="setMode('dark')"
+                <button tabindex="0" @click="setMode('dark')"
                         :class="isDark ? 'bg-accent text-foreground-on-accent' : 'bg-border text-foreground hover:bg-accent hover:text-foreground-on-accent'"
                         class="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-3 rounded font-medium cursor-pointer">
                     {% include 'icons/moon.html' with class='w-5 h-5' %} Dark
                 </button>
-                <button @click="setMode('light')"
+                <button tabindex="0" @click="setMode('light')"
                         :class="!isDark ? 'bg-accent text-foreground-on-accent' : 'bg-border text-foreground hover:bg-accent hover:text-foreground-on-accent'"
                         class="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-3 rounded font-medium cursor-pointer">
                     {% include 'icons/sun.html' with class='w-5 h-5' %} Light
@@ -83,26 +86,29 @@
         <div class="mb-4">
             <label class="block mb-2 font-medium">Provider:</label>
             <div class="relative">
-                <button type="button"
+                <button type="button" tabindex="0"
                         @click.stop="providerOpen = !providerOpen"
+                        @keydown.escape="providerOpen = false"
+                        @keydown.arrow-down.prevent="providerOpen = true; highlightNextProvider()"
+                        @keydown.arrow-up.prevent="providerOpen = true; highlightPrevProvider()"
+                        @keydown.enter.prevent="if (providerOpen) selectHighlightedProvider(); else providerOpen = true"
                         class="w-full md:max-w-md p-3 border rounded text-left flex items-center justify-between cursor-pointer"
                         :class="selectedProvider ? 'border-accent-secondary bg-surface' : 'border-border bg-surface-secondary'">
                     <span x-text="selectedProviderName || 'Select a provider...'"></span>
-                    <svg class="w-4 h-4 text-foreground-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                    </svg>
+                    {% include 'icons/chevron-down.html' with class='w-4 h-4 text-foreground-secondary' %}
                 </button>
 
-                <div x-cloak
+                <div x-cloak x-ref="providerDropdown"
                      x-show="providerOpen"
                      x-transition:enter="transition ease-out duration-100"
                      x-transition:leave="transition ease-in duration-75"
                      @click.away="providerOpen = false"
-                     class="absolute w-full md:max-w-md mt-1 bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
-                    <template x-for="p in providers" :key="p.id">
-                        <button type="button"
+                     class="absolute w-full md:max-w-md mt-1 max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
+                    <template x-for="(p, index) in providers" :key="p.id">
+                        <button type="button" data-dropdown-item
                                 @click="selectProvider(p)"
-                                :class="selectedProvider === p.id ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                                @mouseenter="providerHighlightedIndex = index"
+                                :class="index === providerHighlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
                                 class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
                             <span x-text="p.name"></span>
                         </button>
@@ -122,7 +128,7 @@
                 </template>
             </p>
             <div class="flex gap-2 items-center w-full md:max-w-md">
-                <input type="password"
+                <input type="password" tabindex="0"
                        x-model="apiKey"
                        @input="onApiKeyChange()"
                        :placeholder="hasExistingKey && !apiKeyModified ? '••••••••••••••••' : (currentProviderData?.api_key_placeholder || 'Enter API key...')"
@@ -144,7 +150,7 @@
         <div class="mb-4" x-show="showModelPicker">
             <label class="block mb-2 font-medium">Default Model:</label>
             <div class="relative w-full md:max-w-md">
-                <input type="text"
+                <input type="text" tabindex="0"
                        x-model="modelSearch"
                        @input="modelHighlightedIndex = 0"
                        @focus="modelOpen = true"
@@ -178,6 +184,7 @@
 
         <!-- Save Button -->
         <button type="button"
+                tabindex="0"
                 @click="saveProviderModel()"
                 :disabled="!canSave || saving"
                 class="w-full md:w-auto px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:bg-border disabled:text-foreground-muted disabled:cursor-not-allowed">

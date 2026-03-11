@@ -735,6 +735,7 @@ function providerModelSettings() {
         hasExistingKey: false,
         providers: [],
         providerOpen: false,
+        providerHighlightedIndex: 0,
         selectedProvider: '',
         selectedProviderName: '',
         apiKey: '',
@@ -818,6 +819,26 @@ function providerModelSettings() {
             }
         },
 
+        selectHighlightedProvider() {
+            if (this.providers.length > 0) {
+                this.selectProvider(this.providers[this.providerHighlightedIndex]);
+            }
+        },
+
+        highlightNextProvider() {
+            if (this.providerHighlightedIndex < this.providers.length - 1) {
+                this.providerHighlightedIndex++;
+                this._scrollDropdown('providerDropdown', this.providerHighlightedIndex);
+            }
+        },
+
+        highlightPrevProvider() {
+            if (this.providerHighlightedIndex > 0) {
+                this.providerHighlightedIndex--;
+                this._scrollDropdown('providerDropdown', this.providerHighlightedIndex);
+            }
+        },
+
         onApiKeyChange() {
             this.apiKeyModified = true;
             this.apiKeyValid = false;
@@ -897,24 +918,24 @@ function providerModelSettings() {
         highlightNextModel() {
             if (this.modelHighlightedIndex < this.filteredModels.length - 1) {
                 this.modelHighlightedIndex++;
-                this.$nextTick(() => {
-                    const dropdown = this.$refs.dropdown;
-                    if (!dropdown) return;
-                    const items = dropdown.querySelectorAll('[data-dropdown-item]');
-                    if (items[this.modelHighlightedIndex]) items[this.modelHighlightedIndex].scrollIntoView({ block: 'nearest' });
-                });
+                this._scrollDropdown('dropdown', this.modelHighlightedIndex);
             }
         },
+
         highlightPrevModel() {
             if (this.modelHighlightedIndex > 0) {
                 this.modelHighlightedIndex--;
-                this.$nextTick(() => {
-                    const dropdown = this.$refs.dropdown;
-                    if (!dropdown) return;
-                    const items = dropdown.querySelectorAll('[data-dropdown-item]');
-                    if (items[this.modelHighlightedIndex]) items[this.modelHighlightedIndex].scrollIntoView({ block: 'nearest' });
-                });
+                this._scrollDropdown('dropdown', this.modelHighlightedIndex);
             }
+        },
+
+        _scrollDropdown(refName, index) {
+            this.$nextTick(() => {
+                const dropdown = this.$refs[refName];
+                if (!dropdown) return;
+                const items = dropdown.querySelectorAll('[data-dropdown-item]');
+                if (items[index]) items[index].scrollIntoView({ block: 'nearest' });
+            });
         },
 
         async saveProviderModel() {
@@ -1221,27 +1242,29 @@ function themePicker() {
         themes: [],
         selected: '',
         selectedDisplay: '',
+        highlightedIndex: 0,
         loading: true,
 
         async selectTheme(theme) {
             this.selected = theme.id;
             this.selectedDisplay = theme.name;
             this.open = false;
-            // Load and apply the theme
             await loadTheme(theme.id);
-            // Save preference to backend
             await saveThemePreference(theme.id, getTheme());
         },
 
+        selectHighlighted() {
+            if (this.themes.length > 0) {
+                this.selectTheme(this.themes[this.highlightedIndex]);
+            }
+        },
+
+        ...dropdownNav('themes'),
+
         async init() {
-            // Fetch available themes from backend
             this.themes = await getAvailableThemes();
             this.loading = false;
-
-            // Get current theme from localStorage
             this.selected = getColorTheme();
-
-            // Find and set display name
             const found = this.themes.find(t => t.id === this.selected);
             if (found) {
                 this.selectedDisplay = found.name;
