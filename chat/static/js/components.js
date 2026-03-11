@@ -9,7 +9,6 @@
 
 document.addEventListener('alpine:init', () => {
     // Reusable Components
-    Alpine.data('searchableDropdown', searchableDropdown);
     Alpine.data('collapsibleSection', collapsibleSection);
 
     // Modal Components
@@ -32,81 +31,6 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('setupThemePicker', setupThemePicker);
     Alpine.data('themeModeToggle', themeModeToggle);
 });
-
-// =============================================================================
-// Reusable: Searchable Dropdown
-// =============================================================================
-
-/**
- * Reusable searchable dropdown with keyboard navigation.
- * @param {Object} config - Configuration object
- * @param {string} config.initial - Initial selected value
- * @param {Array} config.items - Array of {id, display} objects
- * @param {Function} config.onSelect - Callback when item is selected
- */
-function searchableDropdown(config = {}) {
-    return {
-        open: false,
-        search: '',
-        selected: config.initial || '',
-        selectedDisplay: '',
-        highlightedIndex: 0,
-        items: config.items || [],
-        onSelectCallback: config.onSelect || null,
-
-        get filteredItems() {
-            if (!this.search || this.search === this.selectedDisplay) return this.items;
-            const s = this.search.toLowerCase();
-            return this.items.filter(item =>
-                item.display.toLowerCase().includes(s) || item.id.toLowerCase().includes(s)
-            );
-        },
-
-        selectItem(item) {
-            this.selected = item.id;
-            this.selectedDisplay = item.display;
-            this.search = item.display;
-            this.open = false;
-            if (this.onSelectCallback) {
-                this.onSelectCallback(item);
-            }
-        },
-
-        selectHighlighted() {
-            if (this.filteredItems.length > 0) {
-                this.selectItem(this.filteredItems[this.highlightedIndex]);
-            }
-        },
-
-        highlightNext() {
-            if (this.highlightedIndex < this.filteredItems.length - 1) {
-                this.highlightedIndex++;
-                this.scrollToHighlighted();
-            }
-        },
-
-        highlightPrev() {
-            if (this.highlightedIndex > 0) {
-                this.highlightedIndex--;
-                this.scrollToHighlighted();
-            }
-        },
-
-        scrollToHighlighted() {
-            this.$nextTick(() => {
-                scrollDropdownToHighlighted(this.$root, this.highlightedIndex);
-            });
-        },
-
-        init() {
-            const found = this.items.find(item => item.id === this.selected);
-            if (found) {
-                this.selectedDisplay = found.display;
-                this.search = found.display;
-            }
-        }
-    };
-}
 
 // =============================================================================
 // Reusable: Collapsible Section
@@ -505,17 +429,7 @@ function editPersonaModelModal() {
             }
         },
 
-        highlightNext() {
-            if (this.highlightedIndex < this.filteredModels.length - 1) {
-                this.highlightedIndex++;
-            }
-        },
-
-        highlightPrev() {
-            if (this.highlightedIndex > 0) {
-                this.highlightedIndex--;
-            }
-        },
+        ...dropdownNav('filteredModels'),
 
         clearModel() {
             this.selectedModel = '';
@@ -983,21 +897,24 @@ function providerModelSettings() {
         highlightNextModel() {
             if (this.modelHighlightedIndex < this.filteredModels.length - 1) {
                 this.modelHighlightedIndex++;
-                this.scrollToHighlightedModel();
+                this.$nextTick(() => {
+                    const dropdown = this.$refs.dropdown;
+                    if (!dropdown) return;
+                    const items = dropdown.querySelectorAll('[data-dropdown-item]');
+                    if (items[this.modelHighlightedIndex]) items[this.modelHighlightedIndex].scrollIntoView({ block: 'nearest' });
+                });
             }
         },
-
         highlightPrevModel() {
             if (this.modelHighlightedIndex > 0) {
                 this.modelHighlightedIndex--;
-                this.scrollToHighlightedModel();
+                this.$nextTick(() => {
+                    const dropdown = this.$refs.dropdown;
+                    if (!dropdown) return;
+                    const items = dropdown.querySelectorAll('[data-dropdown-item]');
+                    if (items[this.modelHighlightedIndex]) items[this.modelHighlightedIndex].scrollIntoView({ block: 'nearest' });
+                });
             }
-        },
-
-        scrollToHighlightedModel() {
-            this.$nextTick(() => {
-                scrollDropdownToHighlighted(this.$root, this.modelHighlightedIndex);
-            });
         },
 
         async saveProviderModel() {
@@ -1084,25 +1001,7 @@ function homePersonaPicker() {
             }
         },
 
-        highlightNext() {
-            if (this.highlightedIndex < this.filteredPersonas.length - 1) {
-                this.highlightedIndex++;
-                this.scrollToHighlighted();
-            }
-        },
-
-        highlightPrev() {
-            if (this.highlightedIndex > 0) {
-                this.highlightedIndex--;
-                this.scrollToHighlighted();
-            }
-        },
-
-        scrollToHighlighted() {
-            this.$nextTick(() => {
-                scrollDropdownToHighlighted(this.$root, this.highlightedIndex);
-            });
-        },
+        ...dropdownNav('filteredPersonas'),
 
         init() {
             const el = this.$el;
@@ -1178,25 +1077,7 @@ function personaSettingsPicker() {
             }
         },
 
-        highlightNext() {
-            if (this.highlightedIndex < this.filteredPersonas.length - 1) {
-                this.highlightedIndex++;
-                this.scrollToHighlighted();
-            }
-        },
-
-        highlightPrev() {
-            if (this.highlightedIndex > 0) {
-                this.highlightedIndex--;
-                this.scrollToHighlighted();
-            }
-        },
-
-        scrollToHighlighted() {
-            this.$nextTick(() => {
-                scrollDropdownToHighlighted(this.$root, this.highlightedIndex);
-            });
-        },
+        ...dropdownNav('filteredPersonas'),
 
         init() {
             const el = this.$el;
@@ -1294,25 +1175,7 @@ function modelPicker() {
             }
         },
 
-        highlightNext() {
-            if (this.highlightedIndex < this.filteredModels.length - 1) {
-                this.highlightedIndex++;
-                this.scrollToHighlighted();
-            }
-        },
-
-        highlightPrev() {
-            if (this.highlightedIndex > 0) {
-                this.highlightedIndex--;
-                this.scrollToHighlighted();
-            }
-        },
-
-        scrollToHighlighted() {
-            this.$nextTick(() => {
-                scrollDropdownToHighlighted(this.$root, this.highlightedIndex);
-            });
-        },
+        ...dropdownNav('filteredModels'),
 
         updateButton() {
             const btn = document.getElementById('submitBtn');

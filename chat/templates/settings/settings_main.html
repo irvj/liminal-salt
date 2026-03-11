@@ -157,14 +157,14 @@
                        :class="selectedModel ? 'border-accent-secondary bg-surface' : 'border-border bg-surface-secondary'"
                        class="w-full p-3 border rounded text-foreground text-base focus:outline-none focus:border-accent-secondary">
 
-                <div x-cloak
+                <div x-cloak x-ref="dropdown"
                      x-show="modelOpen && filteredModels.length > 0"
                      x-transition:enter="transition ease-out duration-100"
                      x-transition:leave="transition ease-in duration-75"
                      @click.away="modelOpen = false"
                      class="absolute w-full mt-1 max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
                     <template x-for="(m, index) in filteredModels" :key="m.id">
-                        <button type="button"
+                        <button type="button" data-dropdown-item
                                 @click="selectModel(m)"
                                 @mouseenter="modelHighlightedIndex = index"
                                 :class="index === modelHighlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"

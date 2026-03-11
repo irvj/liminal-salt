@@ -32,42 +32,43 @@
                    required
                    autocomplete="off"
                    autofocus
+                   tabindex="1"
                    oninput="saveNewChatDraftDebounced()"
                    class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-secondary">
-            <button type="submit" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Send</button>
+            <button type="submit" tabindex="2" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Send</button>
         </div>
 
         <!-- Persona picker and model display -->
         <div class="flex items-center gap-4">
             <div class="relative">
-                <button type="button"
+                <button type="button" tabindex="3"
                         @click="open = !open"
-                        class="flex items-center gap-1 text-foreground-secondary hover:text-foreground text-sm cursor-pointer">
+                        @keydown.escape="open = false"
+                        @keydown.arrow-down.prevent="open = true; highlightNext()"
+                        @keydown.arrow-up.prevent="open = true; highlightPrev()"
+                        @keydown.enter.prevent="if (open) selectHighlighted(); else open = true"
+                        class="flex items-center gap-1 text-foreground-secondary hover:text-foreground text-sm cursor-pointer outline-none focus:ring-1 focus:ring-accent-secondary focus:text-foreground rounded px-1">
                     {% include 'icons/user-pen.html' with class='w-4 h-4' %}
                     <span x-text="selectedDisplay"></span>
                 </button>
 
                 <!-- Dropdown -->
-            <div x-cloak
-                 x-show="open"
-                 x-transition:enter="transition ease-out duration-100"
-                 x-transition:leave="transition ease-in duration-75"
-                 @click.away="open = false"
-                 @keydown.escape="open = false"
-                 @keydown.arrow-down.prevent="highlightNext()"
-                 @keydown.arrow-up.prevent="highlightPrev()"
-                 @keydown.enter.prevent="selectHighlighted()"
-                 class="absolute bottom-full left-0 mb-1 min-w-[200px] max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
-                <template x-for="(p, index) in filteredPersonas" :key="p.id">
-                    <button type="button"
-                            @click="selectPersona(p)"
-                            @mouseenter="highlightedIndex = index"
-                            :class="index === highlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
-                            class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
-                        <span x-text="p.display"></span>
-                    </button>
-                </template>
-            </div>
+                <div x-cloak x-ref="dropdown"
+                     x-show="open"
+                     x-transition:enter="transition ease-out duration-100"
+                     x-transition:leave="transition ease-in duration-75"
+                     @click.away="open = false"
+                     class="absolute bottom-full left-0 mb-1 min-w-[200px] max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
+                    <template x-for="(p, index) in filteredPersonas" :key="p.id">
+                        <button type="button" data-dropdown-item
+                                @click="selectPersona(p)"
+                                @mouseenter="highlightedIndex = index"
+                                :class="index === highlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"
+                                class="block w-full px-4 py-2 text-left text-sm cursor-pointer">
+                            <span x-text="p.display"></span>
+                        </button>
+                    </template>
+                </div>
             </div>
 
             <!-- Model display -->

@@ -50,14 +50,14 @@
                     <span class="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-secondary pointer-events-none">{% include 'icons/chevron-down.html' with class='w-4 h-4' %}</span>
 
                     <!-- Dropdown -->
-                    <div x-cloak
+                    <div x-cloak x-ref="dropdown"
                          x-show="open && filteredPersonas.length > 0"
                          x-transition:enter="transition ease-out duration-100"
                          x-transition:leave="transition ease-in duration-75"
                          @click.away="open = false"
                          class="absolute w-full mt-1 max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
                         <template x-for="(p, index) in filteredPersonas" :key="p.id">
-                            <button type="button"
+                            <button type="button" data-dropdown-item
                                     @click="selectPersona(p)"
                                     @mouseenter="highlightedIndex = index"
                                     :class="index === highlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"

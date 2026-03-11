@@ -379,7 +379,6 @@ Components are registered via `Alpine.data()` in the `alpine:init` event, making
 
 | Component | Purpose |
 |-----------|---------|
-| `searchableDropdown` | Reusable dropdown with search and keyboard navigation |
 | `collapsibleSection` | Simple toggle for sidebar groups |
 | `sidebarState` | Responsive sidebar with localStorage persistence |
 | `deleteModal` | Chat deletion confirmation modal |

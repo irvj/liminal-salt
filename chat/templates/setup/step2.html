@@ -108,14 +108,14 @@
                            class="w-full p-3 border border-border rounded bg-surface-secondary text-foreground text-base outline-none focus:outline-none focus:border-accent-secondary">
 
                     <!-- Dropdown -->
-                    <div x-cloak
+                    <div x-cloak x-ref="dropdown"
                          x-show="open && filteredModels.length > 0"
                          x-transition:enter="transition ease-out duration-100"
                          x-transition:leave="transition ease-in duration-75"
                          @click.away="open = false"
                          class="absolute w-full mt-1 max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg z-10">
                         <template x-for="(model, index) in filteredModels" :key="model.id">
-                            <button type="button"
+                            <button type="button" data-dropdown-item
                                     @click="selectModel(model)"
                                     @mouseenter="highlightedIndex = index"
                                     :class="index === highlightedIndex ? 'bg-accent text-foreground-on-accent' : 'text-foreground hover:bg-surface-elevated'"

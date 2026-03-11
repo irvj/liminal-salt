@@ -646,27 +646,40 @@ function showMemoryModifying(event) {
 // =============================================================================
 
 /**
- * Scroll highlighted item into view in dropdown.
- * Used by searchable dropdown components.
- * @param {HTMLElement} root - The root element containing the dropdown
- * @param {number} highlightedIndex - The index of the highlighted item
+ * Create dropdown keyboard navigation methods for Alpine.js components.
+ * Requires x-ref="dropdown" on the scrollable dropdown container in the template.
+ * Returns highlightNext(), highlightPrev(), and scrollToHighlighted() to spread
+ * into a component definition.
+ * @param {string} listProp - Name of the filtered items property (e.g., 'filteredItems')
+ * @param {string} indexProp - Name of the highlighted index property (default: 'highlightedIndex')
+ * @returns {Object} Methods to spread into an Alpine component
  */
-function scrollDropdownToHighlighted(root, highlightedIndex) {
-    const dropdown = root.querySelector('.max-h-64');
-    const buttons = dropdown?.querySelectorAll('button');
-    const highlighted = buttons?.[highlightedIndex];
-    if (dropdown && highlighted) {
-        const itemTop = highlighted.offsetTop;
-        const itemBottom = itemTop + highlighted.offsetHeight;
-        const viewTop = dropdown.scrollTop;
-        const viewBottom = viewTop + dropdown.clientHeight;
-
-        if (itemBottom > viewBottom) {
-            dropdown.scrollTop = itemBottom - dropdown.clientHeight;
-        } else if (itemTop < viewTop) {
-            dropdown.scrollTop = itemTop;
+function dropdownNav(listProp, indexProp = 'highlightedIndex') {
+    return {
+        highlightNext() {
+            if (this[indexProp] < this[listProp].length - 1) {
+                this[indexProp]++;
+                this.scrollToHighlighted();
+            }
+        },
+        highlightPrev() {
+            if (this[indexProp] > 0) {
+                this[indexProp]--;
+                this.scrollToHighlighted();
+            }
+        },
+        scrollToHighlighted() {
+            this.$nextTick(() => {
+                const dropdown = this.$refs.dropdown;
+                if (!dropdown) return;
+                const items = dropdown.querySelectorAll('[data-dropdown-item]');
+                const highlighted = items?.[this[indexProp]];
+                if (highlighted) {
+                    highlighted.scrollIntoView({ block: 'nearest' });
+                }
+            });
         }
-    }
+    };
 }
 
 // =============================================================================
