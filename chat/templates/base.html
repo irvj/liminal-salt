@@ -40,7 +40,7 @@
 
     {% block extra_styles %}{% endblock %}
 </head>
-<body class="font-sans bg-surface text-foreground"{% block body_attrs %}{% endblock %}>
+<body class="font-sans bg-surface text-foreground {% block body_class %}{% endblock %}">
     {% block body %}{% endblock %}
 
     {% block extra_scripts %}{% endblock %}

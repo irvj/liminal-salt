@@ -476,7 +476,7 @@ function addUserMessage(event) {
     const thinkingDiv = document.createElement('div');
     thinkingDiv.id = 'thinking-indicator';
     thinkingDiv.className = 'message assistant p-3 px-4 rounded-lg bg-assistant-bubble opacity-70 w-fit max-w-[80%] mr-auto my-4';
-    thinkingDiv.innerHTML = '<span class="typing-indicator flex gap-1 py-1"><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot"></span><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.2s;"></span><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.4s;"></span></span>';
+    thinkingDiv.innerHTML = '<span class="typing-indicator flex gap-1 py-1"><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot"></span><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot bounce-dot-2"></span><span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot bounce-dot-3"></span></span>';
     messagesDiv.appendChild(thinkingDiv);
 
     // Scroll to bottom to show user message and thinking indicator
@@ -627,7 +627,7 @@ function showMemoryUpdating() {
     const status = document.getElementById('memory-status');
     const btn = document.getElementById('update-memory-btn');
     if (status) {
-        status.style.display = 'inline';
+        status.classList.remove('hidden');
         status.innerHTML = ' · Updating Memory<span class="updating-dots"><span>.</span><span>.</span><span>.</span></span>';
     }
     if (btn) btn.disabled = true;
@@ -645,7 +645,7 @@ function showMemoryModifying(event) {
     // Show updating status
     const status = document.getElementById('memory-status');
     if (status) {
-        status.style.display = 'inline';
+        status.classList.remove('hidden');
         status.innerHTML = ' · Updating Memory<span class="updating-dots"><span>.</span><span>.</span><span>.</span></span>';
     }
 }
@@ -920,8 +920,8 @@ function retryLastMessage() {
             bubble.innerHTML = `
                 <span class="typing-indicator flex gap-1 py-1">
                     <span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot"></span>
-                    <span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.2s;"></span>
-                    <span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot" style="animation-delay: 0.4s;"></span>
+                    <span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot bounce-dot-2"></span>
+                    <span class="w-2 h-2 bg-foreground-secondary rounded-full animate-bounce-dot bounce-dot-3"></span>
                 </span>
             `;
             bubble.classList.add('opacity-70');

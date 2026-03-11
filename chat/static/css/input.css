@@ -265,6 +265,23 @@ input[type="number"]::-webkit-inner-spin-button {
   visibility: hidden;
 }
 
+/* Animation delay utilities */
+@utility bounce-dot-2 {
+  animation-delay: 0.2s;
+}
+
+@utility bounce-dot-3 {
+  animation-delay: 0.4s;
+}
+
+@utility blink-2 {
+  animation-delay: 0.2s;
+}
+
+@utility blink-3 {
+  animation-delay: 0.4s;
+}
+
 /* Alpine.js cloak */
 [x-cloak] {
   display: none !important;
