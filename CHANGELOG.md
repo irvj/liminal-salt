@@ -6,10 +6,6 @@
 - update port number
 - fix chat pre-scroll issue
 - clear chat field on submit
-- update port number
-- refactor views.py into views/ package for better maintainability
-- add success semantic token
-- refactor styles for better semantic naming, update liminal salt hex colors for accessibility, tweak style usage
 
 ## [0.5.14] - 2026-03-08
 

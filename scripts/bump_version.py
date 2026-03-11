@@ -50,24 +50,26 @@ def bump_version(current, bump_type):
         return bump_type
 
 
-def get_previous_tag():
-    """Get the most recent git tag, or None if no tags exist"""
+def get_last_bump_commit():
+    """Get the commit hash of the most recent 'Bump version' commit, or None"""
     try:
         result = subprocess.run(
-            ["git", "describe", "--tags", "--abbrev=0"],
+            ["git", "log", "--grep=^Bump version", "--pretty=format:%H", "-1"],
             capture_output=True,
             text=True,
             check=True
         )
-        return result.stdout.strip()
+        commit_hash = result.stdout.strip()
+        return commit_hash if commit_hash else None
     except subprocess.CalledProcessError:
         return None
 
 
-def get_commits_since_tag(tag):
-    """Get list of commit messages since the given tag (or all commits if no tag)"""
-    if tag:
-        cmd = ["git", "log", f"{tag}..HEAD", "--pretty=format:%s"]
+def get_commits_since_last_bump():
+    """Get list of commit messages since the last version bump (or all commits if none)"""
+    last_bump = get_last_bump_commit()
+    if last_bump:
+        cmd = ["git", "log", f"{last_bump}..HEAD", "--pretty=format:%s"]
     else:
         cmd = ["git", "log", "--pretty=format:%s"]
 
@@ -105,8 +107,7 @@ def generate_changelog_entry(version, commits):
 
 def update_changelog(new_version):
     """Prepend new version entry to CHANGELOG.md"""
-    prev_tag = get_previous_tag()
-    commits = get_commits_since_tag(prev_tag)
+    commits = get_commits_since_last_bump()
 
     new_entry = generate_changelog_entry(new_version, commits)
 
