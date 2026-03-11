@@ -20,7 +20,6 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('deletePersonaModal', deletePersonaModal);
     Alpine.data('editPersonaModelModal', editPersonaModelModal);
     Alpine.data('contextFilesModal', contextFilesModal);
-    Alpine.data('personaContextFilesModal', personaContextFilesModal);
 
     // Page Components
     Alpine.data('sidebarState', sidebarState);
@@ -602,188 +601,6 @@ function contextFilesModal() {
         showModal: false,
         isDragging: false,
         files: [],
-        uploadStatus: '',
-        uploadStatusType: '',
-        editModal: {
-            show: false,
-            filename: '',
-            content: '',
-            status: '',
-            statusType: ''
-        },
-
-        init() {
-            window.contextFilesModalComponent = this;
-            this.loadFiles();
-        },
-
-        loadFiles() {
-            this.files = window.contextFilesData || [];
-        },
-
-        handleDrop(event) {
-            this.isDragging = false;
-            const files = event.dataTransfer.files;
-            this.uploadFiles(files);
-        },
-
-        handleFileSelect(event) {
-            const files = event.target.files;
-            this.uploadFiles(files);
-            event.target.value = '';
-        },
-
-        async uploadFiles(fileList) {
-            for (const file of fileList) {
-                if (!file.name.endsWith('.md') && !file.name.endsWith('.txt')) {
-                    this.showStatus(`${file.name}: Invalid file type`, 'error');
-                    continue;
-                }
-
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-
-                try {
-                    const response = await fetch('/memory/context/upload/', {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    });
-
-                    if (response.ok) {
-                        const data = await response.json();
-                        this.files = data.files;
-                        window.contextFilesData = data.files;
-                        this.showStatus(`Uploaded ${file.name}`, 'success');
-                        this.updateBadge();
-                    } else {
-                        this.showStatus(`Failed to upload ${file.name}`, 'error');
-                    }
-                } catch (err) {
-                    this.showStatus(`Error uploading ${file.name}`, 'error');
-                }
-            }
-        },
-
-        async toggleFile(filename) {
-            const formData = new FormData();
-            formData.append('filename', filename);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-
-            const response = await fetch('/memory/context/toggle/', {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                this.files = data.files;
-                window.contextFilesData = data.files;
-            }
-        },
-
-        async deleteFile(filename) {
-            if (!confirm(`Delete ${filename}?`)) return;
-
-            const formData = new FormData();
-            formData.append('filename', filename);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-
-            const response = await fetch('/memory/context/delete/', {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                this.files = data.files;
-                window.contextFilesData = data.files;
-                this.showStatus(`Deleted ${filename}`, 'success');
-                this.updateBadge();
-            }
-        },
-
-        showStatus(message, type) {
-            this.uploadStatus = message;
-            this.uploadStatusType = type;
-            setTimeout(() => {
-                this.uploadStatus = '';
-            }, 3000);
-        },
-
-        updateBadge() {
-            const badge = document.querySelector('.context-files-btn .badge');
-            if (badge) {
-                badge.textContent = this.files.length;
-                badge.style.display = this.files.length > 0 ? 'inline' : 'none';
-            }
-        },
-
-        async openEditFile(filename) {
-            this.editModal.filename = filename;
-            this.editModal.status = '';
-
-            const response = await fetch(`/memory/context/content/?filename=${encodeURIComponent(filename)}`, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                this.editModal.content = data.content;
-                this.editModal.show = true;
-            } else {
-                this.showStatus(`Failed to load ${filename}`, 'error');
-            }
-        },
-
-        async saveEditFile() {
-            const formData = new FormData();
-            formData.append('filename', this.editModal.filename);
-            formData.append('content', this.editModal.content);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-
-            const response = await fetch('/memory/context/save/', {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-
-            if (response.ok) {
-                this.editModal.status = 'Saved successfully';
-                this.editModal.statusType = 'success';
-                setTimeout(() => {
-                    this.editModal.show = false;
-                }, 1000);
-            } else {
-                this.editModal.status = 'Failed to save';
-                this.editModal.statusType = 'error';
-            }
-        }
-    };
-}
-
-// Global helper function
-function openContextFilesModal() {
-    if (window.contextFilesModalComponent) {
-        window.contextFilesModalComponent.loadFiles();
-        window.contextFilesModalComponent.showModal = true;
-    }
-}
-
-// =============================================================================
-// Persona Context Files Modal Component
-// =============================================================================
-
-function personaContextFilesModal() {
-    return {
-        showModal: false,
-        isDragging: false,
-        files: [],
         persona: '',
         uploadStatus: '',
         uploadStatusType: '',
@@ -795,25 +612,45 @@ function personaContextFilesModal() {
             statusType: ''
         },
 
+        // Config read from data attributes
+        uploadUrl: '',
+        toggleUrl: '',
+        deleteUrl: '',
+        contentUrl: '',
+        saveUrl: '',
+        dataKey: '',
+        badgeSelector: '',
+
         init() {
-            window.personaContextFilesModalComponent = this;
+            this.uploadUrl = this.$el.dataset.uploadUrl;
+            this.toggleUrl = this.$el.dataset.toggleUrl;
+            this.deleteUrl = this.$el.dataset.deleteUrl;
+            this.contentUrl = this.$el.dataset.contentUrl;
+            this.saveUrl = this.$el.dataset.saveUrl;
+            this.dataKey = this.$el.dataset.dataKey;
+            this.badgeSelector = this.$el.dataset.badgeSelector || '';
+
+            // Register on window for global open helpers
+            const componentKey = this.$el.dataset.componentKey;
+            if (componentKey) window[componentKey] = this;
+
             this.loadFiles();
         },
 
         loadFiles() {
-            this.files = window.personaContextFilesData || [];
-            this.persona = window.currentPersonaId || '';
+            this.files = window[this.dataKey] || [];
+            if (this.$el.dataset.personaKey) {
+                this.persona = window[this.$el.dataset.personaKey] || '';
+            }
         },
 
         handleDrop(event) {
             this.isDragging = false;
-            const files = event.dataTransfer.files;
-            this.uploadFiles(files);
+            this.uploadFiles(event.dataTransfer.files);
         },
 
         handleFileSelect(event) {
-            const files = event.target.files;
-            this.uploadFiles(files);
+            this.uploadFiles(event.target.files);
             event.target.value = '';
         },
 
@@ -826,22 +663,20 @@ function personaContextFilesModal() {
 
                 const formData = new FormData();
                 formData.append('file', file);
-                formData.append('persona', this.persona);
+                if (this.persona) formData.append('persona', this.persona);
                 formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
 
                 try {
-                    const response = await fetch('/persona/context/upload/', {
+                    const response = await fetch(this.uploadUrl, {
                         method: 'POST',
                         body: formData,
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
                     });
 
                     if (response.ok) {
                         const data = await response.json();
                         this.files = data.files;
-                        window.personaContextFilesData = data.files;
+                        window[this.dataKey] = data.files;
                         this.showStatus(`Uploaded ${file.name}`, 'success');
                         this.updateBadge();
                     } else {
@@ -856,10 +691,10 @@ function personaContextFilesModal() {
         async toggleFile(filename) {
             const formData = new FormData();
             formData.append('filename', filename);
-            formData.append('persona', this.persona);
+            if (this.persona) formData.append('persona', this.persona);
             formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
 
-            const response = await fetch('/persona/context/toggle/', {
+            const response = await fetch(this.toggleUrl, {
                 method: 'POST',
                 body: formData,
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -868,7 +703,7 @@ function personaContextFilesModal() {
             if (response.ok) {
                 const data = await response.json();
                 this.files = data.files;
-                window.personaContextFilesData = data.files;
+                window[this.dataKey] = data.files;
             }
         },
 
@@ -877,10 +712,10 @@ function personaContextFilesModal() {
 
             const formData = new FormData();
             formData.append('filename', filename);
-            formData.append('persona', this.persona);
+            if (this.persona) formData.append('persona', this.persona);
             formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
 
-            const response = await fetch('/persona/context/delete/', {
+            const response = await fetch(this.deleteUrl, {
                 method: 'POST',
                 body: formData,
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -889,7 +724,7 @@ function personaContextFilesModal() {
             if (response.ok) {
                 const data = await response.json();
                 this.files = data.files;
-                window.personaContextFilesData = data.files;
+                window[this.dataKey] = data.files;
                 this.showStatus(`Deleted ${filename}`, 'success');
                 this.updateBadge();
             }
@@ -904,7 +739,8 @@ function personaContextFilesModal() {
         },
 
         updateBadge() {
-            const badge = document.querySelector('.persona-context-files-btn .badge');
+            if (!this.badgeSelector) return;
+            const badge = document.querySelector(this.badgeSelector);
             if (badge) {
                 badge.textContent = this.files.length;
                 badge.style.display = this.files.length > 0 ? 'inline' : 'none';
@@ -915,7 +751,10 @@ function personaContextFilesModal() {
             this.editModal.filename = filename;
             this.editModal.status = '';
 
-            const response = await fetch(`/persona/context/content/?persona=${encodeURIComponent(this.persona)}&filename=${encodeURIComponent(filename)}`, {
+            let url = `${this.contentUrl}?filename=${encodeURIComponent(filename)}`;
+            if (this.persona) url += `&persona=${encodeURIComponent(this.persona)}`;
+
+            const response = await fetch(url, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
 
@@ -932,10 +771,10 @@ function personaContextFilesModal() {
             const formData = new FormData();
             formData.append('filename', this.editModal.filename);
             formData.append('content', this.editModal.content);
-            formData.append('persona', this.persona);
+            if (this.persona) formData.append('persona', this.persona);
             formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
 
-            const response = await fetch('/persona/context/save/', {
+            const response = await fetch(this.saveUrl, {
                 method: 'POST',
                 body: formData,
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -955,7 +794,14 @@ function personaContextFilesModal() {
     };
 }
 
-// Global helper function
+// Global helper functions
+function openContextFilesModal() {
+    if (window.contextFilesModalComponent) {
+        window.contextFilesModalComponent.loadFiles();
+        window.contextFilesModalComponent.showModal = true;
+    }
+}
+
 function openPersonaContextFilesModal() {
     if (window.personaContextFilesModalComponent) {
         window.personaContextFilesModalComponent.loadFiles();
