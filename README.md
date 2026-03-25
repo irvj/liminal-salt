@@ -1,6 +1,6 @@
 # Liminal Salt
 
-**v0.6.0**
+**v0.6.1**
 
 A self-hosted LLM chatbot with persistent memory, customizable personas, and beautiful themes. Your conversations, your data, your control.
 
