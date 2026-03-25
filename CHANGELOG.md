@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.0] - 2026-03-24
+
+### Changes
+- add local directory context files feature with directory browser
+- update claude file
+
 ## [0.5.17] - 2026-03-11
 
 ### Changes
