@@ -76,6 +76,26 @@ def get_available_personas(personas_dir="personas"):
     return sorted(personas)
 
 
+def get_persona_identity(persona_dir):
+    """
+    Load raw persona identity content (all .md files concatenated, no headers).
+
+    Args:
+        persona_dir: Path to persona folder (e.g., "personas/assistant")
+
+    Returns:
+        Concatenated identity content string, or empty string if not found
+    """
+    identity = ""
+    if os.path.exists(persona_dir):
+        for filename in sorted(os.listdir(persona_dir)):
+            if filename.endswith(".md"):
+                filepath = os.path.join(persona_dir, filename)
+                with open(filepath, 'r') as f:
+                    identity += f.read() + "\n"
+    return identity.strip()
+
+
 def get_persona_config(persona_name, personas_dir="personas"):
     """
     Load config.json from persona directory, if exists.

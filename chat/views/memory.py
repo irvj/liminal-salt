@@ -54,43 +54,44 @@ def _memory_context(context_files):
     }
 
 
+def _build_memory_view_context(config, success=None, error=None, just_updated=False):
+    """Build the full context dict for memory_main.html."""
+    ltm_file = django_settings.LTM_FILE
+
+    memory_content = ""
+    last_update = None
+    if os.path.exists(ltm_file):
+        with open(ltm_file, 'r') as f:
+            memory_content = f.read()
+        last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
+
+    ctx_files = list_context_files()
+    return {
+        'model': config.get("MODEL", ""),
+        'memory_content': memory_content,
+        'last_update': last_update,
+        'success': success,
+        'error': error,
+        'just_updated': just_updated,
+        'context_files': ctx_files,
+        'user_history_max_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
+        'user_history_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
+        **_memory_context(ctx_files),
+    }
+
+
 def memory(request):
     """User memory view"""
     config = load_config()
     if not config:
         return redirect('setup')
 
-    ltm_file = django_settings.LTM_FILE
-    model = config.get("MODEL", "")
+    context = _build_memory_view_context(
+        config,
+        success=request.GET.get('success'),
+        error=request.GET.get('error'),
+    )
 
-    # Get last update time from file
-    last_update = None
-    if os.path.exists(ltm_file):
-        mtime = os.path.getmtime(ltm_file)
-        last_update = datetime.fromtimestamp(mtime)
-
-    # Read memory content
-    memory_content = ""
-    if os.path.exists(ltm_file):
-        with open(ltm_file, 'r') as f:
-            memory_content = f.read()
-
-    # Get user context files
-    context_files = list_context_files()
-
-    context = {
-        'model': model,
-        'memory_content': memory_content,
-        'last_update': last_update,
-        'success': request.GET.get('success'),
-        'error': request.GET.get('error'),
-        'context_files': context_files,
-        'user_history_max_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
-        'user_history_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
-        **_memory_context(context_files),
-    }
-
-    # Return partial for HTMX requests, redirect others to chat
     if request.headers.get('HX-Request'):
         return render(request, 'memory/memory_main.html', context)
 
@@ -111,11 +112,9 @@ def update_memory(request):
         error_msg = None
 
         try:
-            # Get memory generation limits from config
             user_history_max_threads = config.get('USER_HISTORY_MAX_THREADS', 10)
             user_history_messages_per_thread = config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100)
 
-            # Aggregate threads from sessions with limits
             threads = aggregate_all_sessions_messages(
                 user_history_max_threads=user_history_max_threads if user_history_max_threads > 0 else None,
                 user_history_messages_per_thread=user_history_messages_per_thread if user_history_messages_per_thread > 0 else None
@@ -124,7 +123,6 @@ def update_memory(request):
             if not threads:
                 error_msg = "No threads found in any session"
             else:
-                # Update memory
                 summarizer = Summarizer(api_key, model, site_url, site_name)
                 summarizer.update_long_term_memory(threads, str(ltm_file))
                 success_msg = "Memory Updated"
@@ -132,32 +130,13 @@ def update_memory(request):
         except Exception as e:
             error_msg = f"Memory update failed: {str(e)}"
 
-        # For HTMX requests, return the partial directly
         if request.headers.get('HX-Request'):
-            # Re-read the memory content
-            memory_content = ""
-            last_update = None
-            if os.path.exists(ltm_file):
-                with open(ltm_file, 'r') as f:
-                    memory_content = f.read()
-                last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
-
-            ctx_files = list_context_files()
-            context = {
-                'model': model,
-                'memory_content': memory_content,
-                'last_update': last_update,
-                'success': success_msg,
-                'error': error_msg,
-                'just_updated': True if success_msg else False,
-                'context_files': ctx_files,
-                'user_history_max_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
-                'user_history_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
-                **_memory_context(ctx_files),
-            }
+            context = _build_memory_view_context(
+                config, success=success_msg, error=error_msg,
+                just_updated=bool(success_msg),
+            )
             return render(request, 'memory/memory_main.html', context)
 
-        # For regular requests, redirect with query params
         if error_msg:
             return redirect(f"{reverse('memory')}?error={error_msg}")
         return redirect(f"{reverse('memory')}?success={success_msg}")
@@ -200,21 +179,10 @@ def wipe_memory(request):
         if os.path.exists(ltm_file):
             os.remove(ltm_file)
 
-        # For HTMX requests, return the partial directly
         if request.headers.get('HX-Request'):
-            ctx_files = list_context_files()
-            context = {
-                'model': config.get("MODEL", ""),
-                'memory_content': "",
-                'last_update': None,
-                'success': "Memory wiped successfully",
-                'error': None,
-                'just_updated': True,
-                'context_files': ctx_files,
-                'user_history_max_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
-                'user_history_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
-                **_memory_context(ctx_files),
-            }
+            context = _build_memory_view_context(
+                config, success="Memory wiped successfully", just_updated=True,
+            )
             return render(request, 'memory/memory_main.html', context)
 
         return redirect(f"{reverse('memory')}?success=Memory wiped successfully")
@@ -241,29 +209,15 @@ def modify_memory(request):
     site_name = config.get("SITE_NAME")
     ltm_file = django_settings.LTM_FILE
 
-    # Call the summarizer to modify memory
     summarizer = Summarizer(api_key, model, site_url, site_name)
     updated_memory = summarizer.modify_memory_with_command(command, str(ltm_file))
 
-    # Get last update time
-    last_update = None
-    if os.path.exists(ltm_file):
-        last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
-
-    # Return the updated memory view
-    ctx_files = list_context_files()
-    context = {
-        'model': model,
-        'memory_content': updated_memory if updated_memory else "",
-        'last_update': last_update,
-        'success': "Memory Updated" if updated_memory else None,
-        'error': "Failed to update memory" if not updated_memory else None,
-        'just_updated': True,
-        'context_files': ctx_files,
-        'user_history_max_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
-        'user_history_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
-        **_memory_context(ctx_files),
-    }
+    context = _build_memory_view_context(
+        config,
+        success="Memory Updated" if updated_memory else None,
+        error="Failed to update memory" if not updated_memory else None,
+        just_updated=True,
+    )
     return render(request, 'memory/memory_main.html', context)
 
 
@@ -293,28 +247,11 @@ def upload_context_file(request):
 
     # For HTMX requests, return HTML partial
     config = load_config()
-    ltm_file = django_settings.LTM_FILE
-    model = config.get("MODEL", "") if config else ""
-
-    last_update = None
-    if os.path.exists(ltm_file):
-        last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
-
-    memory_content = ""
-    if os.path.exists(ltm_file):
-        with open(ltm_file, 'r') as f:
-            memory_content = f.read()
-
-    ctx_files = list_context_files()
-    context = {
-        'model': model,
-        'memory_content': memory_content,
-        'last_update': last_update,
-        'context_files': ctx_files,
-        'success': f"Uploaded {filename}" if filename else None,
-        'error': "Invalid file type. Only .md and .txt files allowed." if not filename else None,
-        **_memory_context(ctx_files),
-    }
+    context = _build_memory_view_context(
+        config,
+        success=f"Uploaded {filename}" if filename else None,
+        error="Invalid file type. Only .md and .txt files allowed." if not filename else None,
+    )
     return render(request, 'memory/memory_main.html', context)
 
 
@@ -340,28 +277,11 @@ def delete_context_file(request):
 
     # For HTMX requests, return HTML partial
     config = load_config()
-    ltm_file = django_settings.LTM_FILE
-    model = config.get("MODEL", "") if config else ""
-
-    last_update = None
-    if os.path.exists(ltm_file):
-        last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
-
-    memory_content = ""
-    if os.path.exists(ltm_file):
-        with open(ltm_file, 'r') as f:
-            memory_content = f.read()
-
-    ctx_files = list_context_files()
-    context = {
-        'model': model,
-        'memory_content': memory_content,
-        'last_update': last_update,
-        'context_files': ctx_files,
-        'success': f"Deleted {filename}" if deleted else None,
-        'error': f"File not found: {filename}" if not deleted else None,
-        **_memory_context(ctx_files),
-    }
+    context = _build_memory_view_context(
+        config,
+        success=f"Deleted {filename}" if deleted else None,
+        error=f"File not found: {filename}" if not deleted else None,
+    )
     return render(request, 'memory/memory_main.html', context)
 
 
@@ -388,26 +308,7 @@ def toggle_context_file(request):
 
     # For HTMX requests, return HTML partial
     config = load_config()
-    ltm_file = django_settings.LTM_FILE
-    model = config.get("MODEL", "") if config else ""
-
-    last_update = None
-    if os.path.exists(ltm_file):
-        last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
-
-    memory_content = ""
-    if os.path.exists(ltm_file):
-        with open(ltm_file, 'r') as f:
-            memory_content = f.read()
-
-    ctx_files = list_context_files()
-    context = {
-        'model': model,
-        'memory_content': memory_content,
-        'last_update': last_update,
-        'context_files': ctx_files,
-        **_memory_context(ctx_files),
-    }
+    context = _build_memory_view_context(config)
     return render(request, 'memory/memory_main.html', context)
 
 

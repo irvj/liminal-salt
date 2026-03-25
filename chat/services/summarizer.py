@@ -1,6 +1,7 @@
-import requests
-import json
 import os
+
+from .llm_client import call_llm, LLMError
+
 
 class Summarizer:
     def __init__(self, api_key, model, site_url=None, site_name=None):
@@ -61,30 +62,12 @@ class Summarizer:
                 "TITLE:"
             )
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        if self.site_url:
-            headers["HTTP-Referer"] = self.site_url
-        if self.site_name:
-            headers["X-Title"] = self.site_name
-
-        payload = {
-            "model": self.model,
-            "messages": [{"role": "user", "content": prompt}]
-        }
-
         try:
-            response = requests.post(
-                url="https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                data=json.dumps(payload),
-                timeout=30
+            title = call_llm(
+                self.api_key, self.model,
+                [{"role": "user", "content": prompt}],
+                site_url=self.site_url, site_name=self.site_name
             )
-            response.raise_for_status()
-            data = response.json()
-            title = data['choices'][0]['message']['content'].strip()
 
             # Clean up title aggressively
             title = self._clean_title(title)
@@ -94,7 +77,7 @@ class Summarizer:
                 return user_prompt[:50] + ("..." if len(user_prompt) > 50 else "")
 
             return title
-        except Exception:
+        except (LLMError, Exception):
             # Fallback #3: On any error, use truncated user prompt
             return user_prompt[:50] + ("..." if len(user_prompt) > 50 else "")
 
@@ -292,34 +275,13 @@ class Summarizer:
             "FOCUS: This is a profile of the USER, not an encyclopedia. Describe the person, not the world."
         )
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        if self.site_url:
-            headers["HTTP-Referer"] = self.site_url
-        if self.site_name:
-            headers["X-Title"] = self.site_name
-
-        payload = {
-            "model": self.model,
-            "messages": [{"role": "user", "content": prompt}]
-        }
-
         try:
-            response = requests.post(
-                url="https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                data=json.dumps(payload),
-                timeout=30
+            updated_ltm = call_llm(
+                self.api_key, self.model,
+                [{"role": "user", "content": prompt}],
+                site_url=self.site_url, site_name=self.site_name
             )
-            response.raise_for_status()
-            data = response.json()
-            updated_ltm = data['choices'][0]['message']['content'].strip()
 
-            # Clean up tokens
-            updated_ltm = updated_ltm.replace('<s>', '').replace('</s>', '').strip()
-            
             # Safety check
             if len(updated_ltm) < 10 and len(existing_ltm) > 50:
                 return
@@ -328,8 +290,8 @@ class Summarizer:
             with open(ltm_file, 'w') as f:
                 f.write(updated_ltm)
             print(f"Long-term memory and User Profile updated in {ltm_file}")
-            
-        except Exception as e:
+
+        except (LLMError, Exception) as e:
             print(f"Error updating long term memory: {e}")
 
     def modify_memory_with_command(self, command, ltm_file="long_term_memory.md"):
@@ -368,33 +330,12 @@ class Summarizer:
             "Return ONLY the updated memory content, no explanations or commentary."
         )
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        if self.site_url:
-            headers["HTTP-Referer"] = self.site_url
-        if self.site_name:
-            headers["X-Title"] = self.site_name
-
-        payload = {
-            "model": self.model,
-            "messages": [{"role": "user", "content": prompt}]
-        }
-
         try:
-            response = requests.post(
-                url="https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                data=json.dumps(payload),
-                timeout=30
+            updated_ltm = call_llm(
+                self.api_key, self.model,
+                [{"role": "user", "content": prompt}],
+                site_url=self.site_url, site_name=self.site_name
             )
-            response.raise_for_status()
-            data = response.json()
-            updated_ltm = data['choices'][0]['message']['content'].strip()
-
-            # Clean up tokens
-            updated_ltm = updated_ltm.replace('<s>', '').replace('</s>', '').strip()
 
             # Safety check - don't accept empty or too-short responses
             if len(updated_ltm) < 10:
@@ -406,6 +347,6 @@ class Summarizer:
 
             return updated_ltm
 
-        except Exception as e:
+        except (LLMError, Exception) as e:
             print(f"Error modifying memory: {e}")
             return None

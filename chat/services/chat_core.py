@@ -1,9 +1,10 @@
-import requests
 import json
 import os
 import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
+
+from .llm_client import call_llm, LLMError
 
 class ChatCore:
     def __init__(self, api_key, model, site_url=None, site_name=None, system_prompt="", context_history_limit=50, history_file=None, persona="assistant", user_timezone="UTC", assistant_timezone=None):
@@ -129,20 +130,6 @@ class ChatCore:
             timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             self.messages.append({"role": "user", "content": user_input, "timestamp": timestamp})
 
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        if self.site_url:
-            headers["HTTP-Referer"] = self.site_url
-        if self.site_name:
-            headers["X-Title"] = self.site_name
-
-        payload = {
-            "model": self.model,
-            "messages": self._get_payload_messages()
-        }
-
         # Retry logic: Try up to 2 times if we get empty responses
         max_retries = 2
         assistant_message = None
@@ -151,43 +138,21 @@ class ChatCore:
         for attempt in range(max_retries):
             if attempt > 0:
                 print(f"[ChatCore] Retry attempt {attempt + 1}/{max_retries} due to empty response...")
-                # Add delay before retry to give the API time to process
                 time.sleep(2)
 
             try:
-                response = requests.post(
-                    url="https://openrouter.ai/api/v1/chat/completions",
-                    headers=headers,
-                    data=json.dumps(payload),
+                assistant_message = call_llm(
+                    self.api_key, self.model,
+                    self._get_payload_messages(),
+                    site_url=self.site_url, site_name=self.site_name,
                     timeout=120
                 )
-                response.raise_for_status()
-                data = response.json()
-
-                if 'choices' not in data or not data['choices']:
-                    last_error = "No response content from API."
-                    print(f"[ChatCore] Attempt {attempt + 1} failed: No choices in response")
-                    continue  # Retry
-
-                assistant_message = data['choices'][0]['message']['content']
-
-                # Clean up tokens
-                assistant_message = assistant_message.replace('<s>', '').replace('</s>', '').strip()
-
-                if assistant_message:
-                    # Success! We have a valid response
-                    if attempt > 0:
-                        print(f"[ChatCore] Retry successful on attempt {attempt + 1}")
-                    break
-                else:
-                    last_error = "The model returned an empty response."
-                    print(f"[ChatCore] Attempt {attempt + 1} failed: Empty response after cleanup")
-                    # Continue to retry if we have attempts left
-
-            except Exception as e:
+                if attempt > 0:
+                    print(f"[ChatCore] Retry successful on attempt {attempt + 1}")
+                break
+            except LLMError as e:
                 last_error = str(e)
-                print(f"[ChatCore] Attempt {attempt + 1} failed with exception: {last_error}")
-                # Continue to retry if we have attempts left
+                print(f"[ChatCore] Attempt {attempt + 1} failed: {last_error}")
 
         # After all retries, check if we got a valid response
         if not assistant_message:
