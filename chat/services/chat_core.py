@@ -89,9 +89,37 @@ class ChatCore:
         window_size = self.context_history_limit * 2
         recent_messages = self.messages[-window_size:]
 
-        # Add messages without timestamp prefixes (timestamps stored separately for UI)
+        # Resolve timezones for per-message timestamps
+        try:
+            user_tz = ZoneInfo(self.user_timezone)
+        except Exception:
+            user_tz = timezone.utc
+
+        asst_tz = None
+        if self.assistant_timezone and self.assistant_timezone != self.user_timezone:
+            try:
+                asst_tz = ZoneInfo(self.assistant_timezone)
+            except Exception:
+                pass
+
+        # Add messages with time context on each user message
         for msg in recent_messages:
-            payload.append({"role": msg["role"], "content": msg["content"]})
+            if msg["role"] == "user":
+                try:
+                    msg_time = datetime.fromisoformat(msg["timestamp"].replace("Z", "+00:00"))
+                except Exception:
+                    msg_time = datetime.now(timezone.utc)
+                user_local = msg_time.astimezone(user_tz)
+                user_time_str = user_local.strftime("%A, %B %d, %Y at %I:%M %p")
+                if asst_tz:
+                    asst_local = msg_time.astimezone(asst_tz)
+                    asst_time_str = asst_local.strftime("%A, %B %d, %Y at %I:%M %p")
+                    time_prefix = f"[User's time: {user_time_str} | Your time: {asst_time_str}]"
+                else:
+                    time_prefix = f"[{user_time_str}]"
+                payload.append({"role": "user", "content": f"{time_prefix}\n{msg['content']}"})
+            else:
+                payload.append({"role": msg["role"], "content": msg["content"]})
 
         return payload
 
