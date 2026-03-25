@@ -287,6 +287,7 @@
      data-content-url="{% url 'get_context_file_content' %}"
      data-save-url="{% url 'save_context_file_content' %}"
      data-data-key="contextFilesData"
+     data-local-dirs-data-key="contextLocalDirsData"
      data-badge-selector=".context-files-btn .badge"
      data-component-key="contextFilesModalComponent">
     {% include "chat/context_files_modal.html" with empty_text="No context files uploaded." title="Context Files" description="Upload files to provide additional context to the assistant. These are included in every conversation but not used for memory generation." %}
@@ -299,6 +300,7 @@
      data-content-url="{% url 'get_persona_context_file_content' %}"
      data-save-url="{% url 'save_persona_context_file_content' %}"
      data-data-key="personaContextFilesData"
+     data-local-dirs-data-key="personaContextLocalDirsData"
      data-persona-key="currentPersonaId"
      data-badge-selector=".persona-context-files-btn .badge"
      data-component-key="personaContextFilesModalComponent">

@@ -158,7 +158,8 @@ def toggle_file(filename, enabled=None):
 
 def load_enabled_context():
     """
-    Load and concatenate content from all enabled context files.
+    Load and concatenate content from all enabled context files,
+    including both uploaded files and local directory references.
 
     Returns:
         str: Concatenated content with file headers, or empty string if none
@@ -166,21 +167,64 @@ def load_enabled_context():
     files = list_files()
     enabled_files = [f for f in files if f["enabled"]]
 
-    if not enabled_files:
-        return ""
-
     context_dir = get_user_context_dir()
     content_parts = []
 
-    content_parts.append("--- USER CONTEXT FILES ---")
-    content_parts.append("The following files were provided by the user as additional context.\n")
+    if enabled_files:
+        content_parts.append("--- USER CONTEXT FILES ---")
+        content_parts.append("The following files were provided by the user as additional context.\n")
 
-    for file_info in enabled_files:
-        filepath = context_dir / file_info["name"]
-        if os.path.exists(filepath):
-            with open(filepath, 'r') as f:
-                content_parts.append(f"--- {file_info['name']} ---")
-                content_parts.append(f.read())
-                content_parts.append("")  # Empty line between files
+        for file_info in enabled_files:
+            filepath = context_dir / file_info["name"]
+            if os.path.exists(filepath):
+                with open(filepath, 'r') as f:
+                    content_parts.append(f"--- {file_info['name']} ---")
+                    content_parts.append(f.read())
+                    content_parts.append("")  # Empty line between files
 
-    return "\n".join(content_parts)
+    # Append local directory context
+    from .local_context import load_enabled_local_context
+    config = get_config()
+    local_context = load_enabled_local_context(config)
+    if local_context:
+        content_parts.append(local_context)
+
+    return "\n".join(content_parts) if content_parts else ""
+
+
+# =============================================================================
+# Local Directory Wrappers
+# =============================================================================
+
+from .local_context import (
+    add_local_directory_to_config,
+    remove_local_directory_from_config,
+    list_local_directories_from_config,
+    toggle_local_file_in_config,
+    get_local_file_content_from_dir,
+    refresh_local_directory_in_config,
+)
+
+
+def add_local_directory(dir_path):
+    return add_local_directory_to_config(dir_path, get_config, save_config)
+
+
+def remove_local_directory(dir_path):
+    return remove_local_directory_from_config(dir_path, get_config, save_config)
+
+
+def list_local_directories():
+    return list_local_directories_from_config(get_config)
+
+
+def toggle_local_file(dir_path, filename, enabled=None):
+    return toggle_local_file_in_config(dir_path, filename, get_config, save_config, enabled)
+
+
+def get_local_file_content(dir_path, filename):
+    return get_local_file_content_from_dir(dir_path, filename)
+
+
+def refresh_local_directory(dir_path):
+    return refresh_local_directory_in_config(dir_path, get_config, save_config)

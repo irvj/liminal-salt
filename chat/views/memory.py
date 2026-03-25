@@ -3,7 +3,7 @@ import logging
 import os
 from datetime import datetime
 
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.http import HttpResponse, JsonResponse
 from django.conf import settings as django_settings
 from django.urls import reverse
@@ -21,10 +21,37 @@ from ..services import (
     toggle_persona_context_file as do_toggle_persona_context,
     get_persona_context_file_content as do_get_persona_content,
     save_persona_context_file_content as do_save_persona_content,
+    add_context_local_directory, remove_context_local_directory,
+    list_context_local_directories, toggle_context_local_file,
+    get_context_local_file_content, refresh_context_local_directory,
+    add_persona_context_local_directory, remove_persona_context_local_directory,
+    list_persona_context_local_directories, toggle_persona_context_local_file,
+    get_persona_context_local_file_content, refresh_persona_context_local_directory,
+    browse_directory,
 )
 from ..utils import load_config, save_config, aggregate_all_sessions_messages
 
 logger = logging.getLogger(__name__)
+
+
+def _context_badge_count():
+    """Count enabled uploaded files + enabled local directory files."""
+    files = list_context_files()
+    enabled_uploaded = sum(1 for f in files if f.get('enabled'))
+    local_dirs = list_context_local_directories()
+    enabled_local = sum(
+        1 for d in local_dirs for f in d.get('files', []) if f.get('enabled')
+    )
+    return enabled_uploaded + enabled_local
+
+
+def _memory_context(context_files):
+    """Add local directory data to a memory template context dict."""
+    local_dirs = list_context_local_directories()
+    return {
+        'context_local_dirs_json': json.dumps(local_dirs),
+        'context_badge_count': _context_badge_count(),
+    }
 
 
 def memory(request):
@@ -60,6 +87,7 @@ def memory(request):
         'context_files': context_files,
         'user_history_max_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
         'user_history_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
+        **_memory_context(context_files),
     }
 
     # Return partial for HTMX requests, redirect others to chat
@@ -114,6 +142,7 @@ def update_memory(request):
                     memory_content = f.read()
                 last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
 
+            ctx_files = list_context_files()
             context = {
                 'model': model,
                 'memory_content': memory_content,
@@ -121,9 +150,10 @@ def update_memory(request):
                 'success': success_msg,
                 'error': error_msg,
                 'just_updated': True if success_msg else False,
-                'context_files': list_context_files(),
+                'context_files': ctx_files,
                 'user_history_max_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
                 'user_history_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
+                **_memory_context(ctx_files),
             }
             return render(request, 'memory/memory_main.html', context)
 
@@ -172,6 +202,7 @@ def wipe_memory(request):
 
         # For HTMX requests, return the partial directly
         if request.headers.get('HX-Request'):
+            ctx_files = list_context_files()
             context = {
                 'model': config.get("MODEL", ""),
                 'memory_content': "",
@@ -179,7 +210,10 @@ def wipe_memory(request):
                 'success': "Memory wiped successfully",
                 'error': None,
                 'just_updated': True,
-                'context_files': list_context_files(),
+                'context_files': ctx_files,
+                'user_history_max_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
+                'user_history_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
+                **_memory_context(ctx_files),
             }
             return render(request, 'memory/memory_main.html', context)
 
@@ -217,6 +251,7 @@ def modify_memory(request):
         last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
 
     # Return the updated memory view
+    ctx_files = list_context_files()
     context = {
         'model': model,
         'memory_content': updated_memory if updated_memory else "",
@@ -224,7 +259,10 @@ def modify_memory(request):
         'success': "Memory Updated" if updated_memory else None,
         'error': "Failed to update memory" if not updated_memory else None,
         'just_updated': True,
-        'context_files': list_context_files(),
+        'context_files': ctx_files,
+        'user_history_max_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
+        'user_history_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
+        **_memory_context(ctx_files),
     }
     return render(request, 'memory/memory_main.html', context)
 
@@ -267,13 +305,15 @@ def upload_context_file(request):
         with open(ltm_file, 'r') as f:
             memory_content = f.read()
 
+    ctx_files = list_context_files()
     context = {
         'model': model,
         'memory_content': memory_content,
         'last_update': last_update,
-        'context_files': list_context_files(),
+        'context_files': ctx_files,
         'success': f"Uploaded {filename}" if filename else None,
         'error': "Invalid file type. Only .md and .txt files allowed." if not filename else None,
+        **_memory_context(ctx_files),
     }
     return render(request, 'memory/memory_main.html', context)
 
@@ -312,13 +352,15 @@ def delete_context_file(request):
         with open(ltm_file, 'r') as f:
             memory_content = f.read()
 
+    ctx_files = list_context_files()
     context = {
         'model': model,
         'memory_content': memory_content,
         'last_update': last_update,
-        'context_files': list_context_files(),
+        'context_files': ctx_files,
         'success': f"Deleted {filename}" if deleted else None,
         'error': f"File not found: {filename}" if not deleted else None,
+        **_memory_context(ctx_files),
     }
     return render(request, 'memory/memory_main.html', context)
 
@@ -358,11 +400,13 @@ def toggle_context_file(request):
         with open(ltm_file, 'r') as f:
             memory_content = f.read()
 
+    ctx_files = list_context_files()
     context = {
         'model': model,
         'memory_content': memory_content,
         'last_update': last_update,
-        'context_files': list_context_files(),
+        'context_files': ctx_files,
+        **_memory_context(ctx_files),
     }
     return render(request, 'memory/memory_main.html', context)
 
@@ -373,6 +417,7 @@ def get_context_file_content(request):
     if not filename:
         return JsonResponse({'error': 'No filename provided'}, status=400)
 
+    filename = os.path.basename(filename)
     file_path = get_user_context_dir() / filename
     if not file_path.exists():
         return JsonResponse({'error': 'File not found'}, status=404)
@@ -392,6 +437,7 @@ def save_context_file_content(request):
     if not filename:
         return JsonResponse({'error': 'No filename provided'}, status=400)
 
+    filename = os.path.basename(filename)
     file_path = get_user_context_dir() / filename
     if not file_path.exists():
         return JsonResponse({'error': 'File not found'}, status=404)
@@ -512,5 +558,123 @@ def save_persona_context_file_content(request):
     return JsonResponse({'success': True, 'filename': filename})
 
 
-# Import render at module level (used by memory views that return HTML partials)
-from django.shortcuts import render
+# =============================================================================
+# Unified Local Directory Endpoints
+# Both global and persona-scoped, distinguished by optional 'persona' param
+# =============================================================================
+
+def browse_directories(request):
+    """Browse filesystem directories (GET, shared by both global and persona)"""
+    path = request.GET.get('path', '')
+    show_hidden = request.GET.get('show_hidden') == '1'
+    result = browse_directory(path, show_hidden)
+    return JsonResponse(result)
+
+
+def add_local_context_dir(request):
+    """Add a local directory to context config (POST)"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    dir_path = request.POST.get('dir_path', '').strip()
+    if not dir_path:
+        return JsonResponse({'error': 'No directory path provided'}, status=400)
+
+    persona = request.POST.get('persona', '').strip()
+    if persona:
+        success, result, files = add_persona_context_local_directory(persona, dir_path)
+        dirs = list_persona_context_local_directories(persona)
+    else:
+        success, result, files = add_context_local_directory(dir_path)
+        dirs = list_context_local_directories()
+
+    if not success:
+        return JsonResponse({'error': result}, status=400)
+
+    return JsonResponse({'directories': dirs})
+
+
+def remove_local_context_dir(request):
+    """Remove a local directory from context config (POST)"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    dir_path = request.POST.get('dir_path', '').strip()
+    if not dir_path:
+        return JsonResponse({'error': 'No directory path provided'}, status=400)
+
+    persona = request.POST.get('persona', '').strip()
+    if persona:
+        remove_persona_context_local_directory(persona, dir_path)
+        dirs = list_persona_context_local_directories(persona)
+    else:
+        remove_context_local_directory(dir_path)
+        dirs = list_context_local_directories()
+
+    return JsonResponse({'directories': dirs})
+
+
+def toggle_local_context_file(request):
+    """Toggle a file in a local directory (POST)"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    dir_path = request.POST.get('dir_path', '').strip()
+    filename = request.POST.get('filename', '').strip()
+    if not dir_path or not filename:
+        return JsonResponse({'error': 'dir_path and filename required'}, status=400)
+
+    persona = request.POST.get('persona', '').strip()
+    if persona:
+        toggle_persona_context_local_file(persona, dir_path, filename)
+        dirs = list_persona_context_local_directories(persona)
+    else:
+        toggle_context_local_file(dir_path, filename)
+        dirs = list_context_local_directories()
+
+    return JsonResponse({'directories': dirs})
+
+
+def get_local_context_file_content(request):
+    """Read a file from a local directory (GET)"""
+    dir_path = request.GET.get('dir_path', '').strip()
+    filename = request.GET.get('filename', '').strip()
+    if not dir_path or not filename:
+        return JsonResponse({'error': 'dir_path and filename required'}, status=400)
+
+    # Security: verify directory is registered in config
+    persona = request.GET.get('persona', '').strip()
+    if persona:
+        dirs = list_persona_context_local_directories(persona)
+    else:
+        dirs = list_context_local_directories()
+
+    resolved = os.path.realpath(dir_path)
+    if not any(d['path'] == resolved for d in dirs):
+        return JsonResponse({'error': 'Directory not registered'}, status=403)
+
+    content = get_context_local_file_content(dir_path, filename)
+    if content is None:
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    return JsonResponse({'filename': os.path.basename(filename), 'content': content})
+
+
+def refresh_local_context_dir(request):
+    """Refresh files in a local directory (POST)"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    dir_path = request.POST.get('dir_path', '').strip()
+    if not dir_path:
+        return JsonResponse({'error': 'No directory path provided'}, status=400)
+
+    persona = request.POST.get('persona', '').strip()
+    if persona:
+        refresh_persona_context_local_directory(persona, dir_path)
+        dirs = list_persona_context_local_directories(persona)
+    else:
+        refresh_context_local_directory(dir_path)
+        dirs = list_context_local_directories()
+
+    return JsonResponse({'directories': dirs})

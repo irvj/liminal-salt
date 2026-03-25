@@ -220,7 +220,8 @@ def save_file_content(persona_name, filename, content):
 
 def load_enabled_context(persona_name):
     """
-    Load and concatenate content from all enabled context files for a persona.
+    Load and concatenate content from all enabled context files for a persona,
+    including both uploaded files and local directory references.
 
     Args:
         persona_name: Name of the persona
@@ -231,21 +232,72 @@ def load_enabled_context(persona_name):
     files = list_files(persona_name)
     enabled_files = [f for f in files if f["enabled"]]
 
-    if not enabled_files:
-        return ""
-
     context_dir = get_persona_context_dir(persona_name)
     content_parts = []
 
-    content_parts.append("--- PERSONA CONTEXT FILES ---")
-    content_parts.append("The following files provide additional context for this persona.\n")
+    if enabled_files:
+        content_parts.append("--- PERSONA CONTEXT FILES ---")
+        content_parts.append("The following files provide additional context for this persona.\n")
 
-    for file_info in enabled_files:
-        filepath = context_dir / file_info["name"]
-        if os.path.exists(filepath):
-            with open(filepath, 'r') as f:
-                content_parts.append(f"--- {file_info['name']} ---")
-                content_parts.append(f.read())
-                content_parts.append("")  # Empty line between files
+        for file_info in enabled_files:
+            filepath = context_dir / file_info["name"]
+            if os.path.exists(filepath):
+                with open(filepath, 'r') as f:
+                    content_parts.append(f"--- {file_info['name']} ---")
+                    content_parts.append(f.read())
+                    content_parts.append("")  # Empty line between files
 
-    return "\n".join(content_parts)
+    # Append local directory context
+    from .local_context import load_enabled_local_context
+    config = get_config(persona_name)
+    local_context = load_enabled_local_context(config)
+    if local_context:
+        content_parts.append(local_context)
+
+    return "\n".join(content_parts) if content_parts else ""
+
+
+# =============================================================================
+# Local Directory Wrappers
+# =============================================================================
+
+from .local_context import (
+    add_local_directory_to_config,
+    remove_local_directory_from_config,
+    list_local_directories_from_config,
+    toggle_local_file_in_config,
+    get_local_file_content_from_dir,
+    refresh_local_directory_in_config,
+)
+
+
+def add_local_directory(persona_name, dir_path):
+    return add_local_directory_to_config(
+        dir_path, lambda: get_config(persona_name), lambda c: save_config(persona_name, c)
+    )
+
+
+def remove_local_directory(persona_name, dir_path):
+    return remove_local_directory_from_config(
+        dir_path, lambda: get_config(persona_name), lambda c: save_config(persona_name, c)
+    )
+
+
+def list_local_directories(persona_name):
+    return list_local_directories_from_config(lambda: get_config(persona_name))
+
+
+def toggle_local_file(persona_name, dir_path, filename, enabled=None):
+    return toggle_local_file_in_config(
+        dir_path, filename, lambda: get_config(persona_name), lambda c: save_config(persona_name, c), enabled
+    )
+
+
+def get_local_file_content(persona_name, dir_path, filename):
+    return get_local_file_content_from_dir(dir_path, filename)
+
+
+def refresh_local_directory(persona_name, dir_path):
+    return refresh_local_directory_in_config(
+        dir_path, lambda: get_config(persona_name), lambda c: save_config(persona_name, c)
+    )

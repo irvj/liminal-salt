@@ -1,6 +1,6 @@
 # CLAUDE.md - Project Overview & Developer Guide
 
-**Last Updated:** March 11, 2026
+**Last Updated:** March 24, 2026
 **Project:** Liminal Salt - Multi-Session LLM Chatbot with Personas
 **Status:** Production-ready Django application
 
@@ -193,6 +193,7 @@ liminal-salt/
 │   │   ├── chat_core.py         # LLM API & message handling
 │   │   ├── config_manager.py    # Configuration management
 │   │   ├── context_manager.py   # System prompt assembly
+│   │   ├── local_context.py     # Local directory context file management (shared)
 │   │   ├── persona_context.py   # Persona-specific context file management
 │   │   ├── user_context.py      # Global user context file management
 │   │   └── summarizer.py        # Title & memory generation
@@ -238,6 +239,8 @@ liminal-salt/
 │       │   ├── chat_home.html       # New chat home page
 │       │   ├── chat_main.html       # Chat content partial
 │       │   ├── context_files_modal.html # Context files modal partial
+│       │   ├── dir_browser_modal.html  # Directory browser modal partial
+│       │   ├── local_dir_tab.html      # Local directory tab partial
 │       │   ├── sidebar_sessions.html # Sidebar session list
 │       │   ├── new_chat_button.html # Reusable new chat button
 │       │   ├── assistant_fragment.html
@@ -344,8 +347,8 @@ Views check `request.headers.get('HX-Request')` to return either:
 
 **Assembly Order:**
 1. All `.md` files from persona directory (alphabetically)
-2. Persona-specific context files (from `data/user_context/personas/[name]/`)
-3. Global user context files (from `data/user_context/`)
+2. Persona-specific context files (uploaded + local directory, from `data/user_context/personas/[name]/`)
+3. Global user context files (uploaded + local directory, from `data/user_context/`)
 4. Long-term memory file with explicit disclaimer
 
 ### 4. Summarizer (`chat/services/summarizer.py`)
@@ -560,6 +563,20 @@ Message drafts are auto-saved with debounced persistence:
 - "Wipe Memory" with confirmation
 - Status indicator shows update progress
 - Context files can be uploaded to augment memory
+- Local directory references for live file inclusion
+
+### Local Directory Context Files
+
+Reference `.md` and `.txt` files from local directories without copying them into the app:
+
+- **Live Reading:** Files are read from their original location at prompt-assembly time
+- **Tabbed Modal:** "Uploaded Files" and "Local Directory" tabs in both global and persona context modals
+- **Directory Browser:** Visual directory browser for selecting folders
+- **Toggle Enable/Disable:** Control which files are active per directory
+- **Read-Only Viewing:** View local files in the modal without editing
+- **Unified Endpoints:** Single set of `/context/local/` API routes serve both global and persona-scoped requests
+- **Security:** Path resolution with `os.path.realpath()`, DATA_DIR blocking, config registration verification
+- **Config Storage:** Directory paths and file enable states stored in `config.json` under `local_directories` key
 
 ---
 
@@ -837,6 +854,12 @@ Icons are stored as reusable Django template includes in `chat/templates/icons/`
 /persona/context/toggle/       → toggle_persona_context_file
 /persona/context/content/      → get_persona_context_file_content
 /persona/context/save/         → save_persona_context_file_content
+/context/local/browse/         → browse_directories
+/context/local/add/            → add_local_context_dir (accepts optional persona param)
+/context/local/remove/         → remove_local_context_dir (accepts optional persona param)
+/context/local/toggle/         → toggle_local_context_file (accepts optional persona param)
+/context/local/content/        → get_local_context_file_content (accepts optional persona param)
+/context/local/refresh/        → refresh_local_context_dir (accepts optional persona param)
 /settings/                     → settings
 /settings/save/                → save_settings
 /settings/validate-api-key/    → validate_provider_api_key
@@ -961,6 +984,18 @@ Utility functions from `utils.js` are available globally:
 - [ ] Badge count updates correctly
 - [ ] Context appears in LLM prompt only for that persona's chats
 
+**Local Directory Context Files:**
+- [ ] Add local directory via path input or browser
+- [ ] Toggle local files on/off
+- [ ] View local file content (read-only)
+- [ ] Remove directory from context
+- [ ] Refresh directory picks up new files
+- [ ] Badge counts enabled uploaded + enabled local files
+- [ ] Local files appear in LLM system prompt
+- [ ] Persona-scoped local directories work independently
+- [ ] Directory browser navigates filesystem correctly
+- [ ] Nonexistent path shows error, path inside data/ is rejected
+
 **Edge Cases:**
 - [ ] First launch (no config.json)
 - [ ] Empty sessions directory
@@ -979,6 +1014,7 @@ Utility functions from `utils.js` are available globally:
 | `chat/views/` | View functions (split by domain) |
 | `chat/services/chat_core.py` | LLM API calls |
 | `chat/services/persona_context.py` | Persona-specific context file management |
+| `chat/services/local_context.py` | Shared local directory context management |
 | `chat/templates/chat/chat.html` | Main UI template |
 | `chat/static/js/components.js` | Alpine.js component definitions |
 | `chat/static/js/utils.js` | Shared utility functions |

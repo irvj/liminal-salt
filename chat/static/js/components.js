@@ -493,6 +493,7 @@ function openEditPersonaModelModal() {
 function contextFilesModal() {
     return {
         showModal: false,
+        activeTab: 'uploaded',
         isDragging: false,
         files: [],
         persona: '',
@@ -502,8 +503,23 @@ function contextFilesModal() {
             show: false,
             filename: '',
             content: '',
+            readOnly: false,
             status: '',
             statusType: ''
+        },
+        // Local directory state
+        localDirectories: [],
+        newDirPath: '',
+        // Directory browser state
+        dirBrowser: {
+            show: false,
+            current: '',
+            parent: null,
+            dirs: [],
+            hasContextFiles: false,
+            showHidden: false,
+            loading: false,
+            error: ''
         },
 
         // Config read from data attributes
@@ -513,6 +529,7 @@ function contextFilesModal() {
         contentUrl: '',
         saveUrl: '',
         dataKey: '',
+        localDirsDataKey: '',
         badgeSelector: '',
 
         init() {
@@ -522,6 +539,7 @@ function contextFilesModal() {
             this.contentUrl = this.$el.dataset.contentUrl;
             this.saveUrl = this.$el.dataset.saveUrl;
             this.dataKey = this.$el.dataset.dataKey;
+            this.localDirsDataKey = this.$el.dataset.localDirsDataKey || '';
             this.badgeSelector = this.$el.dataset.badgeSelector || '';
 
             // Register on window for global open helpers
@@ -536,6 +554,21 @@ function contextFilesModal() {
             if (this.$el.dataset.personaKey) {
                 this.persona = window[this.$el.dataset.personaKey] || '';
             }
+            if (this.localDirsDataKey) {
+                this.localDirectories = window[this.localDirsDataKey] || [];
+            }
+        },
+
+        _appendPersona(formData) {
+            if (this.persona) formData.append('persona', this.persona);
+        },
+
+        _personaQuery() {
+            return this.persona ? `persona=${encodeURIComponent(this.persona)}&` : '';
+        },
+
+        _csrf() {
+            return document.querySelector('[name=csrfmiddlewaretoken]').value;
         },
 
         handleDrop(event) {
@@ -557,8 +590,8 @@ function contextFilesModal() {
 
                 const formData = new FormData();
                 formData.append('file', file);
-                if (this.persona) formData.append('persona', this.persona);
-                formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+                this._appendPersona(formData);
+                formData.append('csrfmiddlewaretoken', this._csrf());
 
                 try {
                     const response = await fetch(this.uploadUrl, {
@@ -585,8 +618,8 @@ function contextFilesModal() {
         async toggleFile(filename) {
             const formData = new FormData();
             formData.append('filename', filename);
-            if (this.persona) formData.append('persona', this.persona);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            this._appendPersona(formData);
+            formData.append('csrfmiddlewaretoken', this._csrf());
 
             const response = await fetch(this.toggleUrl, {
                 method: 'POST',
@@ -598,6 +631,7 @@ function contextFilesModal() {
                 const data = await response.json();
                 this.files = data.files;
                 window[this.dataKey] = data.files;
+                this.updateBadge();
             }
         },
 
@@ -606,8 +640,8 @@ function contextFilesModal() {
 
             const formData = new FormData();
             formData.append('filename', filename);
-            if (this.persona) formData.append('persona', this.persona);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            this._appendPersona(formData);
+            formData.append('csrfmiddlewaretoken', this._csrf());
 
             const response = await fetch(this.deleteUrl, {
                 method: 'POST',
@@ -627,26 +661,28 @@ function contextFilesModal() {
         showStatus(message, type) {
             this.uploadStatus = message;
             this.uploadStatusType = type;
-            setTimeout(() => {
-                this.uploadStatus = '';
-            }, 3000);
+            setTimeout(() => { this.uploadStatus = ''; }, 3000);
         },
 
         updateBadge() {
             if (!this.badgeSelector) return;
+            const enabledUploadedCount = this.files.filter(f => f.enabled).length;
+            const enabledLocalCount = this.localDirectories.reduce((sum, dir) =>
+                sum + dir.files.filter(f => f.enabled).length, 0);
+            const totalCount = enabledUploadedCount + enabledLocalCount;
             const badge = document.querySelector(this.badgeSelector);
             if (badge) {
-                badge.textContent = this.files.length;
-                badge.style.display = this.files.length > 0 ? 'inline' : 'none';
+                badge.textContent = totalCount;
+                badge.style.display = totalCount > 0 ? 'inline' : 'none';
             }
         },
 
-        async openEditFile(filename) {
+        async openEditFile(filename, readOnly) {
             this.editModal.filename = filename;
+            this.editModal.readOnly = readOnly || false;
             this.editModal.status = '';
 
-            let url = `${this.contentUrl}?filename=${encodeURIComponent(filename)}`;
-            if (this.persona) url += `&persona=${encodeURIComponent(this.persona)}`;
+            let url = `${this.contentUrl}?${this._personaQuery()}filename=${encodeURIComponent(filename)}`;
 
             const response = await fetch(url, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -662,11 +698,13 @@ function contextFilesModal() {
         },
 
         async saveEditFile() {
+            if (this.editModal.readOnly) return;
+
             const formData = new FormData();
             formData.append('filename', this.editModal.filename);
             formData.append('content', this.editModal.content);
-            if (this.persona) formData.append('persona', this.persona);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            this._appendPersona(formData);
+            formData.append('csrfmiddlewaretoken', this._csrf());
 
             const response = await fetch(this.saveUrl, {
                 method: 'POST',
@@ -677,12 +715,181 @@ function contextFilesModal() {
             if (response.ok) {
                 this.editModal.status = 'Saved successfully';
                 this.editModal.statusType = 'success';
-                setTimeout(() => {
-                    this.editModal.show = false;
-                }, 1000);
+                setTimeout(() => { this.editModal.show = false; }, 1000);
             } else {
                 this.editModal.status = 'Failed to save';
                 this.editModal.statusType = 'error';
+            }
+        },
+
+        // Directory browser methods
+        async openBrowser() {
+            this.dirBrowser.show = true;
+            this.dirBrowser.error = '';
+            await this.browseTo('');
+        },
+
+        async browseTo(path) {
+            this.dirBrowser.loading = true;
+            this.dirBrowser.error = '';
+            try {
+                const params = new URLSearchParams({ path: path || '' });
+                if (this.dirBrowser.showHidden) params.append('show_hidden', '1');
+                const response = await fetch(`/context/local/browse/?${params}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.dirBrowser.current = data.current;
+                    this.dirBrowser.parent = data.parent;
+                    this.dirBrowser.dirs = data.dirs;
+                    this.dirBrowser.hasContextFiles = data.has_context_files;
+                    if (data.error) this.dirBrowser.error = data.error;
+                }
+            } catch (err) {
+                this.dirBrowser.error = 'Failed to browse directory';
+            }
+            this.dirBrowser.loading = false;
+        },
+
+        async toggleHidden() {
+            this.dirBrowser.showHidden = !this.dirBrowser.showHidden;
+            await this.browseTo(this.dirBrowser.current);
+        },
+
+        selectBrowserDir() {
+            this.newDirPath = this.dirBrowser.current;
+            this.dirBrowser.show = false;
+            this.addDirectory();
+        },
+
+        // Local directory methods
+        async addDirectory() {
+            if (!this.newDirPath.trim()) return;
+
+            const formData = new FormData();
+            formData.append('dir_path', this.newDirPath.trim());
+            this._appendPersona(formData);
+            formData.append('csrfmiddlewaretoken', this._csrf());
+
+            try {
+                const response = await fetch('/context/local/add/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    this.localDirectories = data.directories;
+                    if (this.localDirsDataKey) window[this.localDirsDataKey] = data.directories;
+                    this.newDirPath = '';
+                    this.showStatus('Directory added', 'success');
+                    this.updateBadge();
+                } else {
+                    this.showStatus(data.error || 'Failed to add directory', 'error');
+                }
+            } catch (err) {
+                this.showStatus('Error adding directory', 'error');
+            }
+        },
+
+        async removeDirectory(dirPath) {
+            if (!confirm('Remove this directory from context?')) return;
+
+            const formData = new FormData();
+            formData.append('dir_path', dirPath);
+            this._appendPersona(formData);
+            formData.append('csrfmiddlewaretoken', this._csrf());
+
+            try {
+                const response = await fetch('/context/local/remove/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.localDirectories = data.directories;
+                    if (this.localDirsDataKey) window[this.localDirsDataKey] = data.directories;
+                    this.showStatus('Directory removed', 'success');
+                    this.updateBadge();
+                }
+            } catch (err) {
+                this.showStatus('Error removing directory', 'error');
+            }
+        },
+
+        async toggleLocalFile(dirPath, filename) {
+            const formData = new FormData();
+            formData.append('dir_path', dirPath);
+            formData.append('filename', filename);
+            this._appendPersona(formData);
+            formData.append('csrfmiddlewaretoken', this._csrf());
+
+            try {
+                const response = await fetch('/context/local/toggle/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.localDirectories = data.directories;
+                    if (this.localDirsDataKey) window[this.localDirsDataKey] = data.directories;
+                    this.updateBadge();
+                }
+            } catch (err) {
+                this.showStatus('Error toggling file', 'error');
+            }
+        },
+
+        async viewLocalFile(dirPath, filename) {
+            this.editModal.filename = filename;
+            this.editModal.readOnly = true;
+            this.editModal.status = '';
+
+            try {
+                const response = await fetch(`/context/local/content/?${this._personaQuery()}dir_path=${encodeURIComponent(dirPath)}&filename=${encodeURIComponent(filename)}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.editModal.content = data.content;
+                    this.editModal.show = true;
+                } else {
+                    this.showStatus(`Failed to load ${filename}`, 'error');
+                }
+            } catch (err) {
+                this.showStatus(`Error loading ${filename}`, 'error');
+            }
+        },
+
+        async refreshDirectory(dirPath) {
+            const formData = new FormData();
+            formData.append('dir_path', dirPath);
+            this._appendPersona(formData);
+            formData.append('csrfmiddlewaretoken', this._csrf());
+
+            try {
+                const response = await fetch('/context/local/refresh/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.localDirectories = data.directories;
+                    if (this.localDirsDataKey) window[this.localDirsDataKey] = data.directories;
+                    this.showStatus('Directory refreshed', 'success');
+                    this.updateBadge();
+                }
+            } catch (err) {
+                this.showStatus('Error refreshing directory', 'error');
             }
         }
     };

@@ -9,7 +9,13 @@ from .user_context import (
     delete_file as delete_context_file,
     toggle_file as toggle_context_file,
     load_enabled_context,
-    get_user_context_dir
+    get_user_context_dir,
+    add_local_directory as add_context_local_directory,
+    remove_local_directory as remove_context_local_directory,
+    list_local_directories as list_context_local_directories,
+    toggle_local_file as toggle_context_local_file,
+    get_local_file_content as get_context_local_file_content,
+    refresh_local_directory as refresh_context_local_directory,
 )
 from .persona_context import (
     list_files as list_persona_context_files,
@@ -18,5 +24,12 @@ from .persona_context import (
     toggle_file as toggle_persona_context_file,
     get_file_content as get_persona_context_file_content,
     save_file_content as save_persona_context_file_content,
-    load_enabled_context as load_enabled_persona_context
+    load_enabled_context as load_enabled_persona_context,
+    add_local_directory as add_persona_context_local_directory,
+    remove_local_directory as remove_persona_context_local_directory,
+    list_local_directories as list_persona_context_local_directories,
+    toggle_local_file as toggle_persona_context_local_file,
+    get_local_file_content as get_persona_context_local_file_content,
+    refresh_local_directory as refresh_persona_context_local_directory,
 )
+from .local_context import browse_directory

@@ -22,7 +22,7 @@
         </form>
 
         <button tabindex="0" onclick="openContextFilesModal()" class="w-full md:w-auto group context-files-btn px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
-            Context Files{% if context_files %}<span class="badge bg-accent text-foreground-on-accent rounded-xl px-2 py-0.5 text-xs ml-2 group-hover:bg-foreground-on-accent group-hover:text-accent">{{ context_files|length }}</span>{% endif %}
+            Context Files{% if context_badge_count %}<span class="badge bg-accent text-foreground-on-accent rounded-xl px-2 py-0.5 text-xs ml-2 group-hover:bg-foreground-on-accent group-hover:text-accent">{{ context_badge_count }}</span>{% endif %}
         </button>
 
         <button tabindex="0" onclick="openWipeMemoryModal()" class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent">Wipe Memory</button>
@@ -119,5 +119,6 @@
             { name: "{{ file.name }}", enabled: {{ file.enabled|yesno:"true,false" }} }{% if not forloop.last %},{% endif %}
             {% endfor %}
         ];
+        window.contextLocalDirsData = {{ context_local_dirs_json|safe|default:"[]" }};
     </script>
 </div>

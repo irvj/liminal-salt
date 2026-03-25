@@ -11,6 +11,7 @@ from ..services import (
     fetch_available_models, get_providers,
     get_available_personas, get_persona_model, get_persona_config,
     list_persona_context_files,
+    list_persona_context_local_directories,
 )
 from ..utils import (
     load_config, save_config, group_models_by_provider,
@@ -18,6 +19,26 @@ from ..utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _persona_context_badge_count(persona_name):
+    """Count enabled uploaded files + enabled local directory files for a persona."""
+    files = list_persona_context_files(persona_name)
+    enabled_uploaded = sum(1 for f in files if f.get('enabled'))
+    local_dirs = list_persona_context_local_directories(persona_name)
+    enabled_local = sum(
+        1 for d in local_dirs for f in d.get('files', []) if f.get('enabled')
+    )
+    return enabled_uploaded + enabled_local
+
+
+def _persona_context_extras(persona_name):
+    """Return extra context dict keys for local directory support."""
+    local_dirs = list_persona_context_local_directories(persona_name)
+    return {
+        'persona_context_local_dirs_json': json.dumps(local_dirs),
+        'persona_context_badge_count': _persona_context_badge_count(persona_name),
+    }
 
 
 def _update_sessions_persona(old_name, new_name):
@@ -87,6 +108,7 @@ def persona_settings(request):
         'persona_context_files': persona_context_files,
         'persona_context_files_json': json.dumps(persona_context_files),
         'success': request.GET.get('success'),
+        **_persona_context_extras(selected_persona),
     }
 
     # Return partial for HTMX requests, redirect others to chat
@@ -195,7 +217,10 @@ def save_persona_file(request):
         'persona_model': persona_model or '',
         'available_models': available_models,
         'available_models_json': json.dumps(available_models),
+        'persona_context_files': list_persona_context_files(final_persona),
+        'persona_context_files_json': json.dumps(list_persona_context_files(final_persona)),
         'success': "Persona saved" + (" and renamed" if is_rename else ""),
+        **_persona_context_extras(final_persona),
     }
     return render(request, 'persona/persona_main.html', context)
 
@@ -263,7 +288,10 @@ def create_persona(request):
         'persona_model': '',  # New persona has no model override
         'available_models': available_models,
         'available_models_json': json.dumps(available_models),
+        'persona_context_files': [],
+        'persona_context_files_json': '[]',
         'success': "Persona created",
+        **_persona_context_extras(name),
     }
     return render(request, 'persona/persona_main.html', context)
 
@@ -354,7 +382,10 @@ def delete_persona(request):
         'persona_model': persona_model or '',
         'available_models': available_models,
         'available_models_json': json.dumps(available_models),
+        'persona_context_files': list_persona_context_files(default_persona),
+        'persona_context_files_json': json.dumps(list_persona_context_files(default_persona)),
         'success': "Persona deleted",
+        **_persona_context_extras(default_persona),
     }
     return render(request, 'persona/persona_main.html', context)
 
