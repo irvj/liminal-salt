@@ -152,6 +152,10 @@ def save_persona_file(request):
         if os.path.exists(old_path):
             shutil.move(old_path, new_path)
 
+            # Rename memory file if it exists
+            from ..services import rename_memory
+            rename_memory(persona, new_name)
+
             # Update all session files that reference the old persona
             _update_sessions_persona(persona, new_name)
 
@@ -321,8 +325,10 @@ def delete_persona(request):
     if len(available_personas) <= 1:
         return HttpResponse("Cannot delete the only persona", status=400)
 
-    # Delete the folder
+    # Delete the folder and memory file
     shutil.rmtree(persona_path)
+    from ..services import delete_memory
+    delete_memory(persona)
 
     # Update config if this was the default persona
     default_persona = config.get("DEFAULT_PERSONA", "")

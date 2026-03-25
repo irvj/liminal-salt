@@ -102,8 +102,7 @@ def setup_wizard(request):
                 "DEFAULT_PERSONA": "assistant",
                 "PERSONAS_DIR": "personas",
                 "CONTEXT_HISTORY_LIMIT": 50,
-                "SESSIONS_DIR": "sessions",
-                "LTM_FILE": "long_term_memory.md"
+                "SESSIONS_DIR": "sessions"
             }
             save_config(partial_config)
             logger.info(f"Provider ({provider}) and API key saved to config.json")

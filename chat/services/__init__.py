@@ -3,6 +3,12 @@ from .chat_core import ChatCore
 from .config_manager import fetch_available_models, validate_api_key, get_providers
 from .context_manager import load_context, get_available_personas, get_persona_config, get_persona_model, get_persona_identity
 from .llm_client import call_llm, LLMError
+from .memory_manager import (
+    MemoryManager,
+    get_memory_file, get_memory_content, save_memory_content,
+    delete_memory, rename_memory, list_persona_memories,
+    get_memory_model,
+)
 from .summarizer import Summarizer
 from .user_context import (
     list_files as list_context_files,

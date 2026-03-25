@@ -4,17 +4,19 @@ from pathlib import Path
 from .user_context import load_enabled_context
 from .persona_context import load_enabled_context as load_enabled_persona_context
 
-def load_context(persona_dir, ltm_file="long_term_memory.md"):
+def load_context(persona_dir, persona_name=None):
     """
     Load context from a specific persona directory.
 
     Args:
         persona_dir: Path to persona folder (e.g., "personas/assistant")
-        ltm_file: Path to long-term memory file
+        persona_name: Persona name for loading per-persona memory
 
     Returns:
         Concatenated system prompt string
     """
+    from .memory_manager import get_memory_content
+
     context_str = ""
 
     # Load all .md files from persona directory (alphabetically)
@@ -31,8 +33,8 @@ def load_context(persona_dir, ltm_file="long_term_memory.md"):
         context_str += f"Expected directory: {persona_dir}\n\n"
 
     # Append persona-specific context files (if any are enabled)
-    persona_name = os.path.basename(persona_dir)
-    persona_context = load_enabled_persona_context(persona_name)
+    resolved_persona = persona_name or os.path.basename(persona_dir)
+    persona_context = load_enabled_persona_context(resolved_persona)
     if persona_context:
         context_str += persona_context + "\n\n"
 
@@ -41,15 +43,15 @@ def load_context(persona_dir, ltm_file="long_term_memory.md"):
     if user_context:
         context_str += user_context + "\n\n"
 
-    # Append long-term memory (optional, reference-only)
-    if os.path.exists(ltm_file):
-        with open(ltm_file, 'r') as f:
-            context_str += "--- USER PROFILE (BACKGROUND KNOWLEDGE) ---\n"
-            context_str += "The following information describes the USER (not you). "
-            context_str += "Use this to understand who you're talking to, but DO NOT let it change your personality or communication style. "
-            context_str += "If it mentions how the user writes or speaks, that describes THEM, not how YOU should respond. "
-            context_str += "Maintain your own personality's communication standards at all times.\n\n"
-            context_str += f.read() + "\n\n"
+    # Append per-persona memory
+    if persona_name:
+        memory_content = get_memory_content(persona_name)
+        if memory_content:
+            context_str += "--- YOUR MEMORY ABOUT THIS USER ---\n"
+            context_str += "The following is your memory about the person you're talking to. "
+            context_str += "It is written to you, about them — these are things you know, "
+            context_str += "have observed, and carry from previous conversations.\n\n"
+            context_str += memory_content + "\n\n"
 
     return context_str.strip()
 

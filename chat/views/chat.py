@@ -106,7 +106,6 @@ def chat(request):
     # Load session data
     session_path = django_settings.SESSIONS_DIR / session_id
     personas_dir = str(django_settings.PERSONAS_DIR)
-    ltm_file = str(django_settings.LTM_FILE)
     api_key = config.get("OPENROUTER_API_KEY")
     context_history_limit = config.get("CONTEXT_HISTORY_LIMIT", 50)
     site_url = config.get("SITE_URL")
@@ -139,7 +138,7 @@ def chat(request):
 
     # Load context and create ChatCore
     persona_path = os.path.join(personas_dir, session_persona)
-    system_prompt = load_context(persona_path, ltm_file=ltm_file)
+    system_prompt = load_context(persona_path, persona_name=session_persona)
 
     chat_core = ChatCore(
         api_key=api_key,
@@ -369,7 +368,6 @@ def delete_chat(request):
                 new_session_id = remaining[0]["id"]
                 set_current_session(request, new_session_id)
 
-                ltm_file = str(django_settings.LTM_FILE)
                 api_key = config.get("OPENROUTER_API_KEY")
                 context_history_limit = config.get("CONTEXT_HISTORY_LIMIT", 50)
                 site_url = config.get("SITE_URL")
@@ -395,7 +393,7 @@ def delete_chat(request):
 
                 # Load context and create ChatCore for new session
                 persona_path = os.path.join(personas_dir, session_persona)
-                system_prompt = load_context(persona_path, ltm_file=ltm_file)
+                system_prompt = load_context(persona_path, persona_name=session_persona)
                 user_timezone = request.session.get('user_timezone', 'UTC')
 
                 chat_core = ChatCore(
@@ -613,7 +611,6 @@ def send_message(request):
     # Load session data (same as chat view)
     session_path = django_settings.SESSIONS_DIR / session_id
     personas_dir = str(django_settings.PERSONAS_DIR)
-    ltm_file = str(django_settings.LTM_FILE)
     api_key = config.get("OPENROUTER_API_KEY")
     context_history_limit = config.get("CONTEXT_HISTORY_LIMIT", 50)
     site_url = config.get("SITE_URL")
@@ -643,7 +640,7 @@ def send_message(request):
 
     # Load context and create ChatCore
     persona_path = os.path.join(personas_dir, session_persona)
-    system_prompt = load_context(persona_path, ltm_file=ltm_file)
+    system_prompt = load_context(persona_path, persona_name=session_persona)
 
     chat_core = ChatCore(
         api_key=api_key,
@@ -790,7 +787,7 @@ def retry_message(request):
     site_name = config.get("SITE_NAME")
 
     persona_path = os.path.join(str(django_settings.PERSONAS_DIR), session_persona)
-    system_prompt = load_context(persona_path, ltm_file=str(django_settings.LTM_FILE))
+    system_prompt = load_context(persona_path, persona_name=session_persona)
 
     user_timezone = request.session.get('user_timezone', 'UTC')
 

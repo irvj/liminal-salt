@@ -129,13 +129,14 @@ def toggle_persona_group(request, persona):
     set_collapsed_personas(request, collapsed)
 
 
-def aggregate_all_sessions_messages(user_history_max_threads=None, user_history_messages_per_thread=None):
+def aggregate_all_sessions_messages(user_history_max_threads=None, user_history_messages_per_thread=None, persona_filter=None):
     """
     Collect messages from session files for memory update, organized by thread.
 
     Args:
         user_history_max_threads: Limit to N most recent sessions (by file modification time)
         user_history_messages_per_thread: Limit to N most recent messages from each session
+        persona_filter: Only include sessions matching this persona name
 
     Returns:
         List of thread dictionaries, each containing:
@@ -166,6 +167,10 @@ def aggregate_all_sessions_messages(user_history_max_threads=None, user_history_
                 title = data.get("title", "Untitled")
                 persona = data.get("persona", "assistant")
                 messages = data.get("messages", [])
+
+                # Skip sessions that don't match the persona filter
+                if persona_filter and persona != persona_filter:
+                    continue
 
                 if isinstance(messages, list) and messages:
                     # Limit to most recent messages per thread

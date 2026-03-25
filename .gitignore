@@ -6,8 +6,10 @@
 
 # Session files and chat history
 sessions/
-long_term_memory.md
 chat_history.json
+
+# Per-persona memory files
+data/memory/
 
 # User uploaded context files
 user_context/

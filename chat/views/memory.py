@@ -9,7 +9,9 @@ from django.conf import settings as django_settings
 from django.urls import reverse
 
 from ..services import (
-    Summarizer,
+    MemoryManager,
+    get_memory_file, get_memory_content, delete_memory, get_memory_model,
+    get_available_personas, get_persona_identity,
     list_context_files,
     upload_context_file as do_upload_context,
     delete_context_file as do_delete_context,
@@ -54,26 +56,27 @@ def _memory_context(context_files):
     }
 
 
-def _build_memory_view_context(config, success=None, error=None, just_updated=False):
+def _build_memory_view_context(config, selected_persona, success=None, error=None, just_updated=False):
     """Build the full context dict for memory_main.html."""
-    ltm_file = django_settings.LTM_FILE
+    memory_content = get_memory_content(selected_persona)
+    memory_file = get_memory_file(selected_persona)
 
-    memory_content = ""
     last_update = None
-    if os.path.exists(ltm_file):
-        with open(ltm_file, 'r') as f:
-            memory_content = f.read()
-        last_update = datetime.fromtimestamp(os.path.getmtime(ltm_file))
+    if memory_file.exists():
+        last_update = datetime.fromtimestamp(os.path.getmtime(memory_file))
 
     ctx_files = list_context_files()
     return {
         'model': config.get("MODEL", ""),
+        'selected_persona': selected_persona,
+        'available_personas': get_available_personas(str(django_settings.PERSONAS_DIR)),
         'memory_content': memory_content,
         'last_update': last_update,
         'success': success,
         'error': error,
         'just_updated': just_updated,
         'context_files': ctx_files,
+        'memory_size_limit': config.get('MEMORY_SIZE_LIMIT', 8000),
         'user_history_max_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
         'user_history_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
         **_memory_context(ctx_files),
@@ -86,8 +89,10 @@ def memory(request):
     if not config:
         return redirect('setup')
 
+    selected_persona = request.GET.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
+
     context = _build_memory_view_context(
-        config,
+        config, selected_persona,
         success=request.GET.get('success'),
         error=request.GET.get('error'),
     )
@@ -99,12 +104,11 @@ def memory(request):
 
 
 def update_memory(request):
-    """Update long-term memory (POST)"""
+    """Update per-persona memory (POST)"""
     if request.method == 'POST':
         config = load_config()
-        ltm_file = django_settings.LTM_FILE
+        selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
         api_key = config.get("OPENROUTER_API_KEY")
-        model = config.get("MODEL")
         site_url = config.get("SITE_URL")
         site_name = config.get("SITE_NAME")
 
@@ -117,22 +121,32 @@ def update_memory(request):
 
             threads = aggregate_all_sessions_messages(
                 user_history_max_threads=user_history_max_threads if user_history_max_threads > 0 else None,
-                user_history_messages_per_thread=user_history_messages_per_thread if user_history_messages_per_thread > 0 else None
+                user_history_messages_per_thread=user_history_messages_per_thread if user_history_messages_per_thread > 0 else None,
+                persona_filter=selected_persona,
             )
 
             if not threads:
-                error_msg = "No threads found in any session"
+                persona_display = selected_persona.replace('_', ' ').title()
+                error_msg = f"No conversations found for {persona_display}. Chat with this persona first to build memory."
             else:
-                summarizer = Summarizer(api_key, model, site_url, site_name)
-                summarizer.update_long_term_memory(threads, str(ltm_file))
-                success_msg = "Memory Updated"
+                persona_dir = str(django_settings.PERSONAS_DIR / selected_persona)
+                persona_identity = get_persona_identity(persona_dir)
+                memory_model = get_memory_model(config, selected_persona, str(django_settings.PERSONAS_DIR))
+                size_limit = config.get('MEMORY_SIZE_LIMIT', 8000)
+
+                manager = MemoryManager(api_key, memory_model, site_url, site_name)
+                if manager.update_persona_memory(selected_persona, persona_identity, threads, size_limit):
+                    success_msg = "Memory Updated"
+                else:
+                    error_msg = "Memory update failed — the model returned an unusable response."
 
         except Exception as e:
             error_msg = f"Memory update failed: {str(e)}"
 
         if request.headers.get('HX-Request'):
             context = _build_memory_view_context(
-                config, success=success_msg, error=error_msg,
+                config, selected_persona,
+                success=success_msg, error=error_msg,
                 just_updated=bool(success_msg),
             )
             return render(request, 'memory/memory_main.html', context)
@@ -153,35 +167,40 @@ def save_memory_settings(request):
 
     user_history_max_threads = request.POST.get('user_history_max_threads', 0)
     user_history_messages_per_thread = request.POST.get('user_history_messages_per_thread', 0)
+    memory_size_limit = request.POST.get('memory_size_limit', 8000)
 
     try:
         user_history_max_threads = int(user_history_max_threads)
         user_history_messages_per_thread = int(user_history_messages_per_thread)
+        memory_size_limit = int(memory_size_limit)
         # Clamp to reasonable values (0 = unlimited)
         user_history_max_threads = max(0, min(100, user_history_max_threads))
         user_history_messages_per_thread = max(0, min(10000, user_history_messages_per_thread))
+        memory_size_limit = max(0, min(100000, memory_size_limit))
     except ValueError:
         user_history_max_threads = 0
         user_history_messages_per_thread = 0
+        memory_size_limit = 8000
 
     config['USER_HISTORY_MAX_THREADS'] = user_history_max_threads
     config['USER_HISTORY_MESSAGES_PER_THREAD'] = user_history_messages_per_thread
+    config['MEMORY_SIZE_LIMIT'] = memory_size_limit
     save_config(config)
 
     return JsonResponse({'success': True})
 
 
 def wipe_memory(request):
-    """Wipe long-term memory (POST)"""
+    """Wipe per-persona memory (POST)"""
     if request.method == 'POST':
         config = load_config()
-        ltm_file = django_settings.LTM_FILE
-        if os.path.exists(ltm_file):
-            os.remove(ltm_file)
+        selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
+        delete_memory(selected_persona)
 
         if request.headers.get('HX-Request'):
             context = _build_memory_view_context(
-                config, success="Memory wiped successfully", just_updated=True,
+                config, selected_persona,
+                success="Memory wiped successfully", just_updated=True,
             )
             return render(request, 'memory/memory_main.html', context)
 
@@ -203,17 +222,20 @@ def modify_memory(request):
     if not config:
         return HttpResponse("Configuration not found", status=500)
 
+    selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
     api_key = config.get("OPENROUTER_API_KEY")
-    model = config.get("MODEL")
     site_url = config.get("SITE_URL")
     site_name = config.get("SITE_NAME")
-    ltm_file = django_settings.LTM_FILE
 
-    summarizer = Summarizer(api_key, model, site_url, site_name)
-    updated_memory = summarizer.modify_memory_with_command(command, str(ltm_file))
+    persona_dir = str(django_settings.PERSONAS_DIR / selected_persona)
+    persona_identity = get_persona_identity(persona_dir)
+    memory_model = get_memory_model(config, selected_persona, str(django_settings.PERSONAS_DIR))
+
+    manager = MemoryManager(api_key, memory_model, site_url, site_name)
+    updated_memory = manager.modify_memory_with_command(selected_persona, persona_identity, command)
 
     context = _build_memory_view_context(
-        config,
+        config, selected_persona,
         success="Memory Updated" if updated_memory else None,
         error="Failed to update memory" if not updated_memory else None,
         just_updated=True,
@@ -247,8 +269,9 @@ def upload_context_file(request):
 
     # For HTMX requests, return HTML partial
     config = load_config()
+    selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
     context = _build_memory_view_context(
-        config,
+        config, selected_persona,
         success=f"Uploaded {filename}" if filename else None,
         error="Invalid file type. Only .md and .txt files allowed." if not filename else None,
     )
@@ -277,8 +300,9 @@ def delete_context_file(request):
 
     # For HTMX requests, return HTML partial
     config = load_config()
+    selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
     context = _build_memory_view_context(
-        config,
+        config, selected_persona,
         success=f"Deleted {filename}" if deleted else None,
         error=f"File not found: {filename}" if not deleted else None,
     )
@@ -308,7 +332,8 @@ def toggle_context_file(request):
 
     # For HTMX requests, return HTML partial
     config = load_config()
-    context = _build_memory_view_context(config)
+    selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
+    context = _build_memory_view_context(config, selected_persona)
     return render(request, 'memory/memory_main.html', context)
 
 

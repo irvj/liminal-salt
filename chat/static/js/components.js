@@ -25,6 +25,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('sidebarState', sidebarState);
     Alpine.data('providerModelSettings', providerModelSettings);
     Alpine.data('homePersonaPicker', homePersonaPicker);
+    Alpine.data('memoryPersonaPicker', memoryPersonaPicker);
     Alpine.data('personaSettingsPicker', personaSettingsPicker);
     Alpine.data('providerPicker', providerPicker);
     Alpine.data('modelPicker', modelPicker);
@@ -178,13 +179,20 @@ function wipeMemoryModal() {
             this.showModal = false;
             const csrfToken = getCsrfToken();
 
-            // Send wipe request via HTMX-style fetch
+            // Include current persona in the wipe request
+            const personaInput = document.querySelector('input[name="persona"]');
+            const persona = personaInput ? personaInput.value : '';
+            const body = new URLSearchParams();
+            body.append('persona', persona);
+
             fetch(this.wipeUrl, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': csrfToken,
-                    'HX-Request': 'true'
-                }
+                    'HX-Request': 'true',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: body.toString()
             }).then(response => response.text())
             .then(html => {
                 const mainContent = document.getElementById('main-content');
@@ -1158,6 +1166,37 @@ function homePersonaPicker() {
 
             // Set timezone
             setTimezoneInput();
+        }
+    };
+}
+
+// =============================================================================
+// Memory Persona Picker Component
+// =============================================================================
+
+function memoryPersonaPicker() {
+    return {
+        selectedPersona: '',
+        personaItems: [],
+        memoryUrl: '',
+
+        onPersonaSelect(detail) {
+            this.selectedPersona = detail.id;
+            htmx.ajax('GET', this.memoryUrl + '?persona=' + detail.id, {target: '#main-content', swap: 'innerHTML'});
+        },
+
+        init() {
+            const el = this.$el;
+
+            try {
+                const personas = JSON.parse(el.dataset.personas || '[]');
+                this.personaItems = personas.map(p => ({ id: p.id, label: p.display }));
+            } catch (e) {
+                this.personaItems = [];
+            }
+
+            this.selectedPersona = el.dataset.selectedPersona || '';
+            this.memoryUrl = el.dataset.memoryUrl || '/memory/';
         }
     };
 }

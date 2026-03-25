@@ -1,7 +1,7 @@
 {% load markdown_extras %}
 <!-- Header -->
 <header class="bg-surface-secondary px-5 py-4 border-b border-border">
-    <h1 class="text-2xl text-foreground">User Memory</h1>
+    <h1 class="text-2xl text-foreground">{{ selected_persona|display_name }}'s Memory</h1>
     <div class="text-xs text-foreground-secondary mt-1">Model: {{ model }}</div>
 </header>
 
@@ -11,6 +11,21 @@
     <div class="p-3 px-4 rounded mb-4 bg-danger text-white flex items-center gap-2">{% include 'icons/alert.html' with class='w-5 h-5' %} {{ error }}</div>
     {% endif %}
 
+    <!-- Persona Selector -->
+    <div class="mb-5"
+         x-data="memoryPersonaPicker"
+         data-selected-persona="{{ selected_persona }}"
+         data-memory-url="{% url 'memory' %}"
+         data-personas='[{% for p in available_personas %}{ "id": "{{ p }}", "display": "{{ p|display_name|escapejs }}" }{% if not forloop.last %}, {% endif %}{% endfor %}]'
+         @dropdown-select="onPersonaSelect($event.detail)">
+        <label class="block mb-2 font-medium text-foreground">Persona:</label>
+        <div class="w-full md:max-w-md">
+            <div x-data="selectDropdown" :data-items="JSON.stringify(personaItems)" :data-selected="selectedPersona">
+                {% include 'components/select_dropdown.html' with searchable='true' placeholder='Search personas...' %}
+            </div>
+        </div>
+    </div>
+
     <div class="flex flex-col md:flex-row gap-3 my-5">
         <form hx-post="{% url 'update_memory' %}"
               hx-target="#main-content"
@@ -18,7 +33,8 @@
               hx-on::before-request="showMemoryUpdating()"
               class="w-full md:w-auto">
             {% csrf_token %}
-            <button type="submit" tabindex="0" class="w-full md:w-auto px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover" id="update-memory-btn">Update User Memory</button>
+            <input type="hidden" name="persona" value="{{ selected_persona }}">
+            <button type="submit" tabindex="0" class="w-full md:w-auto px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover" id="update-memory-btn">Update Memory</button>
         </form>
 
         <button tabindex="0" onclick="openContextFilesModal()" class="w-full md:w-auto group context-files-btn px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
@@ -29,11 +45,12 @@
     </div>
 
     <!-- Memory Generation Settings -->
-    <h2 class="text-foreground text-xl mb-4">Memory Generation Limits</h2>
+    <h2 class="text-foreground text-xl mb-4">Memory Generation Settings</h2>
     <div class="mb-5"
          x-data="{
              userHistoryMaxThreads: {{ user_history_max_threads }},
              userHistoryMessagesPerThread: {{ user_history_messages_per_thread }},
+             memorySizeLimit: {{ memory_size_limit }},
              saved: true,
              saving: false,
              async save() {
@@ -41,6 +58,7 @@
                  const form = new FormData();
                  form.append('user_history_max_threads', this.userHistoryMaxThreads);
                  form.append('user_history_messages_per_thread', this.userHistoryMessagesPerThread);
+                 form.append('memory_size_limit', this.memorySizeLimit);
                  form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
                  const resp = await fetch('{% url "save_memory_settings" %}', { method: 'POST', body: form });
                  if (resp.ok) { this.saved = true; }
@@ -60,17 +78,23 @@
                        min="0" max="10000" step="100" placeholder="0"
                        class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
             </div>
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Memory Size Limit</label>
+                <input type="number" x-model="memorySizeLimit" @input="saved = false"
+                       min="0" max="100000" step="1000" placeholder="8000"
+                       class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
             <button type="button" tabindex="0" @click="save()" x-show="!saved" :disabled="saving"
                     class="px-3 py-2 bg-accent text-foreground-on-accent rounded text-sm font-medium cursor-pointer hover:bg-accent-hover">
                 <span x-show="!saving">Save</span>
                 <span x-show="saving">...</span>
             </button>
         </div>
-        <p class="text-xs text-foreground-muted mt-2">Set to 0 for unlimited. Limits help reduce token usage when generating memory.</p>
+        <p class="text-xs text-foreground-muted mt-2">Set to 0 for unlimited. Memory size limit is a target in characters (~4 chars per word).</p>
     </div>
 
     <div class="text-xs text-foreground-secondary mb-4">
-        {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update|date:'U' }}"></span>{% else %}Never updated from all sessions{% endif %}<span id="memory-status" class="{% if not just_updated %}hidden{% endif %}"> · {% if just_updated %}{% include 'icons/check-circle.html' with class='w-4 h-4 inline' %} {{ success }}{% else %}Updating memory from all sessions<span class="updating-dots"><span class="animate-blink">.</span><span class="animate-blink blink-2">.</span><span class="animate-blink blink-3">.</span></span>{% endif %}</span>
+        {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update|date:'U' }}"></span>{% else %}No memory yet for {{ selected_persona|display_name }}{% endif %}<span id="memory-status" class="{% if not just_updated %}hidden{% endif %}"> · {% if just_updated %}{% include 'icons/check-circle.html' with class='w-4 h-4 inline' %} {{ success }}{% else %}Updating memory<span class="updating-dots"><span class="animate-blink">.</span><span class="animate-blink blink-2">.</span><span class="animate-blink blink-3">.</span></span>{% endif %}</span>
     </div>
     <script>
         (function() {
@@ -87,7 +111,7 @@
         <div class="prose prose-invert max-w-none !text-foreground-secondary prose-headings:!text-foreground-secondary">{{ memory_content|markdown }}</div>
         {% else %}
             <div class="text-center text-foreground-secondary py-10 px-5">
-                <strong>No long-term memory found yet.</strong><br>
+                <strong>No memory yet for {{ selected_persona|display_name }}.</strong><br>
                 Memory will be created after your first update.
             </div>
         {% endif %}
@@ -101,10 +125,11 @@
               hx-on::before-request="showMemoryModifying(event)"
               class="flex gap-3 items-end">
             {% csrf_token %}
+            <input type="hidden" name="persona" value="{{ selected_persona }}">
             <input type="text"
                    name="command"
                    id="memory-command-input"
-                   placeholder="Update your memory..."
+                   placeholder="Tell {{ selected_persona|display_name }} to remember or forget something..."
                    required
                    autocomplete="off"
                    class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-secondary">
