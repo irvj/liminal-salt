@@ -23,6 +23,7 @@ urlpatterns = [
     path('memory/wipe/', views.wipe_memory, name='wipe_memory'),
     path('memory/modify/', views.modify_memory, name='modify_memory'),
     path('memory/save-settings/', views.save_memory_settings, name='save_memory_settings'),
+    path('memory/update-status/', views.memory_update_status, name='memory_update_status'),
     path('memory/context/upload/', views.upload_context_file, name='upload_context_file'),
     path('memory/context/delete/', views.delete_context_file, name='delete_context_file'),
     path('memory/context/toggle/', views.toggle_context_file, name='toggle_context_file'),

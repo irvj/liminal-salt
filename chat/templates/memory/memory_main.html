@@ -51,14 +51,17 @@
              userHistoryMaxThreads: {{ user_history_max_threads }},
              userHistoryMessagesPerThread: {{ user_history_messages_per_thread }},
              memorySizeLimit: {{ memory_size_limit }},
+             autoMemoryInterval: {{ auto_memory_interval }},
              saved: true,
              saving: false,
              async save() {
                  this.saving = true;
                  const form = new FormData();
+                 form.append('persona', '{{ selected_persona }}');
                  form.append('user_history_max_threads', this.userHistoryMaxThreads);
                  form.append('user_history_messages_per_thread', this.userHistoryMessagesPerThread);
                  form.append('memory_size_limit', this.memorySizeLimit);
+                 form.append('auto_memory_interval', this.autoMemoryInterval);
                  form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
                  const resp = await fetch('{% url "save_memory_settings" %}', { method: 'POST', body: form });
                  if (resp.ok) { this.saved = true; }
@@ -84,17 +87,27 @@
                        min="0" max="100000" step="1000" placeholder="8000"
                        class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
             </div>
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Auto-Update (min)</label>
+                <input type="number" x-model="autoMemoryInterval" @input="saved = false"
+                       min="0" max="1440" placeholder="0"
+                       class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
             <button type="button" tabindex="0" @click="save()" x-show="!saved" :disabled="saving"
                     class="px-3 py-2 bg-accent text-foreground-on-accent rounded text-sm font-medium cursor-pointer hover:bg-accent-hover">
                 <span x-show="!saving">Save</span>
                 <span x-show="saving">...</span>
             </button>
         </div>
-        <p class="text-xs text-foreground-muted mt-2">Set to 0 for unlimited. Memory size limit is a target in characters (~4 chars per word).</p>
+        <p class="text-xs text-foreground-muted mt-2">Set to 0 for unlimited/disabled. Auto-update checks for new conversations at the given interval (0 = off, minimum 5 minutes).</p>
     </div>
 
-    <div class="text-xs text-foreground-secondary mb-4">
-        {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update|date:'U' }}"></span>{% else %}No memory yet for {{ selected_persona|display_name }}{% endif %}<span id="memory-status" class="{% if not just_updated %}hidden{% endif %}"> · {% if just_updated %}{% include 'icons/check-circle.html' with class='w-4 h-4 inline' %} {{ success }}{% else %}Updating memory<span class="updating-dots"><span class="animate-blink">.</span><span class="animate-blink blink-2">.</span><span class="animate-blink blink-3">.</span></span>{% endif %}</span>
+    <div class="text-xs text-foreground-secondary mb-4"
+         id="memory-status-bar"
+         data-status-url="{% url 'memory_update_status' %}"
+         data-memory-url="{% url 'memory' %}"
+         data-persona="{{ selected_persona }}">
+        {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update|date:'U' }}"></span>{% else %}No memory yet for {{ selected_persona|display_name }}{% endif %}<span id="memory-status" class="{% if not just_updated and not memory_updating %}hidden{% endif %}"> · {% if just_updated %}{% include 'icons/check-circle.html' with class='w-4 h-4 inline' %} {{ success }}{% else %}Updating memory<span class="updating-dots"><span class="animate-blink">.</span><span class="animate-blink blink-2">.</span><span class="animate-blink blink-3">.</span></span>{% endif %}</span>
     </div>
     <script>
         (function() {
@@ -103,6 +116,17 @@
                 const date = new Date(parseInt(el.dataset.timestamp) * 1000);
                 el.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
             }
+            // If memory is currently updating, start polling
+            {% if memory_updating %}
+            const bar = document.getElementById('memory-status-bar');
+            if (bar) {
+                pollMemoryUpdateStatus(
+                    bar.dataset.persona,
+                    bar.dataset.statusUrl,
+                    bar.dataset.memoryUrl
+                );
+            }
+            {% endif %}
         })();
     </script>
 

@@ -625,6 +625,79 @@ function showMemoryUpdating() {
 }
 
 /**
+ * Poll the memory update status endpoint until complete or failed.
+ * @param {string} persona - Persona name
+ * @param {string} statusUrl - URL for the status endpoint
+ * @param {string} memoryUrl - URL to reload the memory view on completion
+ */
+function pollMemoryUpdateStatus(persona, statusUrl, memoryUrl) {
+    // Clear any existing poll first
+    if (window._memoryPollInterval) {
+        clearInterval(window._memoryPollInterval);
+        window._memoryPollInterval = null;
+    }
+
+    const maxDuration = 5 * 60 * 1000; // 5 minutes
+    const interval = 3000; // 3 seconds
+    const startTime = Date.now();
+    let cancelled = false;
+
+    function isStillViewing() {
+        const bar = document.getElementById('memory-status-bar');
+        return bar && bar.dataset.persona === persona;
+    }
+
+    const poll = setInterval(() => {
+        if (cancelled || !isStillViewing()) {
+            clearInterval(poll);
+            window._memoryPollInterval = null;
+            return;
+        }
+
+        if (Date.now() - startTime > maxDuration) {
+            clearInterval(poll);
+            window._memoryPollInterval = null;
+            const status = document.getElementById('memory-status');
+            if (status) status.innerHTML = ' · Update timed out';
+            const btn = document.getElementById('update-memory-btn');
+            if (btn) btn.disabled = false;
+            return;
+        }
+
+        fetch(statusUrl + '?persona=' + encodeURIComponent(persona))
+            .then(r => r.json())
+            .then(data => {
+                // Always re-check before acting on results
+                if (cancelled || !isStillViewing()) {
+                    clearInterval(poll);
+                    window._memoryPollInterval = null;
+                    return;
+                }
+
+                if (data.state === 'completed') {
+                    cancelled = true;
+                    clearInterval(poll);
+                    window._memoryPollInterval = null;
+                    htmx.ajax('GET', memoryUrl + '?persona=' + encodeURIComponent(persona), {target: '#main-content', swap: 'innerHTML'});
+                } else if (data.state === 'failed') {
+                    cancelled = true;
+                    clearInterval(poll);
+                    window._memoryPollInterval = null;
+                    const status = document.getElementById('memory-status');
+                    if (status) status.innerHTML = ' · Update failed: ' + (data.error || 'Unknown error');
+                    const btn = document.getElementById('update-memory-btn');
+                    if (btn) btn.disabled = false;
+                }
+            })
+            .catch(() => {
+                // Network error — keep polling
+            });
+    }, interval);
+
+    window._memoryPollInterval = poll;
+}
+
+/**
  * Show memory modifying indicator and clear input (called via HTMX hx-on::before-request).
  * @param {Event} event - The event
  */

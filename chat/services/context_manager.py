@@ -98,6 +98,23 @@ def get_persona_identity(persona_dir):
     return identity.strip()
 
 
+def save_persona_config(persona_name, config_data, personas_dir="personas"):
+    """
+    Save config.json for a persona directory.
+
+    Args:
+        persona_name: Name of the persona folder
+        config_data: Dict of config values to save
+        personas_dir: Base directory containing personas
+    """
+    config_path = Path(personas_dir) / persona_name / "config.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, 'w') as f:
+        json.dump(config_data, f, indent=4)
+        f.flush()
+        os.fsync(f.fileno())
+
+
 def get_persona_config(persona_name, personas_dir="personas"):
     """
     Load config.json from persona directory, if exists.

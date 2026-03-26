@@ -8,10 +8,12 @@ from django.http import HttpResponse, JsonResponse
 from django.conf import settings as django_settings
 from django.urls import reverse
 
+from ..services.memory_worker import start_manual_update, get_update_status
 from ..services import (
     MemoryManager,
     get_memory_file, get_memory_content, delete_memory, get_memory_model,
     get_available_personas, get_persona_identity,
+    get_persona_config, save_persona_config,
     list_context_files,
     upload_context_file as do_upload_context,
     delete_context_file as do_delete_context,
@@ -31,7 +33,7 @@ from ..services import (
     get_persona_context_local_file_content, refresh_persona_context_local_directory,
     browse_directory,
 )
-from ..utils import load_config, save_config, aggregate_all_sessions_messages
+from ..utils import load_config
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +58,7 @@ def _memory_context(context_files):
     }
 
 
-def _build_memory_view_context(config, selected_persona, success=None, error=None, just_updated=False):
+def _build_memory_view_context(config, selected_persona, success=None, error=None, just_updated=False, memory_updating=False):
     """Build the full context dict for memory_main.html."""
     memory_content = get_memory_content(selected_persona)
     memory_file = get_memory_file(selected_persona)
@@ -64,6 +66,9 @@ def _build_memory_view_context(config, selected_persona, success=None, error=Non
     last_update = None
     if memory_file.exists():
         last_update = datetime.fromtimestamp(os.path.getmtime(memory_file))
+
+    # Load per-persona memory settings
+    persona_config = get_persona_config(selected_persona, str(django_settings.PERSONAS_DIR))
 
     ctx_files = list_context_files()
     return {
@@ -75,10 +80,12 @@ def _build_memory_view_context(config, selected_persona, success=None, error=Non
         'success': success,
         'error': error,
         'just_updated': just_updated,
+        'memory_updating': memory_updating,
         'context_files': ctx_files,
-        'memory_size_limit': config.get('MEMORY_SIZE_LIMIT', 8000),
-        'user_history_max_threads': config.get('USER_HISTORY_MAX_THREADS', 10),
-        'user_history_messages_per_thread': config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100),
+        'memory_size_limit': persona_config.get('memory_size_limit', 8000),
+        'user_history_max_threads': persona_config.get('user_history_max_threads', 10),
+        'user_history_messages_per_thread': persona_config.get('user_history_messages_per_thread', 100),
+        'auto_memory_interval': persona_config.get('auto_memory_interval', 0),
         **_memory_context(ctx_files),
     }
 
@@ -91,10 +98,15 @@ def memory(request):
 
     selected_persona = request.GET.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
 
+    # Check if an update is currently running for this persona
+    status = get_update_status(selected_persona)
+    is_updating = status.get('state') == 'running'
+
     context = _build_memory_view_context(
         config, selected_persona,
         success=request.GET.get('success'),
         error=request.GET.get('error'),
+        memory_updating=is_updating,
     )
 
     if request.headers.get('HX-Request'):
@@ -104,88 +116,76 @@ def memory(request):
 
 
 def update_memory(request):
-    """Update per-persona memory (POST)"""
+    """Start a background memory update for a persona (POST, non-blocking)"""
     if request.method == 'POST':
         config = load_config()
         selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
-        api_key = config.get("OPENROUTER_API_KEY")
-        site_url = config.get("SITE_URL")
-        site_name = config.get("SITE_NAME")
 
-        success_msg = None
-        error_msg = None
-
-        try:
-            user_history_max_threads = config.get('USER_HISTORY_MAX_THREADS', 10)
-            user_history_messages_per_thread = config.get('USER_HISTORY_MESSAGES_PER_THREAD', 100)
-
-            threads = aggregate_all_sessions_messages(
-                user_history_max_threads=user_history_max_threads if user_history_max_threads > 0 else None,
-                user_history_messages_per_thread=user_history_messages_per_thread if user_history_messages_per_thread > 0 else None,
-                persona_filter=selected_persona,
-            )
-
-            if not threads:
-                persona_display = selected_persona.replace('_', ' ').title()
-                error_msg = f"No conversations found for {persona_display}. Chat with this persona first to build memory."
-            else:
-                persona_dir = str(django_settings.PERSONAS_DIR / selected_persona)
-                persona_identity = get_persona_identity(persona_dir)
-                memory_model = get_memory_model(config, selected_persona, str(django_settings.PERSONAS_DIR))
-                size_limit = config.get('MEMORY_SIZE_LIMIT', 8000)
-
-                manager = MemoryManager(api_key, memory_model, site_url, site_name)
-                if manager.update_persona_memory(selected_persona, persona_identity, threads, size_limit):
-                    success_msg = "Memory Updated"
-                else:
-                    error_msg = "Memory update failed — the model returned an unusable response."
-
-        except Exception as e:
-            error_msg = f"Memory update failed: {str(e)}"
+        started = start_manual_update(selected_persona, config)
 
         if request.headers.get('HX-Request'):
+            if not started:
+                context = _build_memory_view_context(
+                    config, selected_persona,
+                    error="Memory update already in progress.",
+                )
+                return render(request, 'memory/memory_main.html', context)
+
             context = _build_memory_view_context(
-                config, selected_persona,
-                success=success_msg, error=error_msg,
-                just_updated=bool(success_msg),
+                config, selected_persona, memory_updating=True,
             )
             return render(request, 'memory/memory_main.html', context)
 
-        if error_msg:
-            return redirect(f"{reverse('memory')}?error={error_msg}")
-        return redirect(f"{reverse('memory')}?success={success_msg}")
+        return redirect(f"{reverse('memory')}?persona={selected_persona}")
 
     return redirect('memory')
 
 
+def memory_update_status(request):
+    """Poll endpoint for background memory update status (GET, JSON)"""
+    persona = request.GET.get('persona', 'assistant')
+    status = get_update_status(persona)
+    return JsonResponse(status)
+
+
 def save_memory_settings(request):
-    """Save memory generation settings (AJAX endpoint)"""
+    """Save per-persona memory generation settings (AJAX endpoint)"""
     if request.method != 'POST':
         return HttpResponse(status=405)
 
-    config = load_config()
+    persona = request.POST.get('persona', 'assistant')
+    personas_dir = str(django_settings.PERSONAS_DIR)
 
     user_history_max_threads = request.POST.get('user_history_max_threads', 0)
     user_history_messages_per_thread = request.POST.get('user_history_messages_per_thread', 0)
     memory_size_limit = request.POST.get('memory_size_limit', 8000)
+    auto_memory_interval = request.POST.get('auto_memory_interval', 0)
 
     try:
         user_history_max_threads = int(user_history_max_threads)
         user_history_messages_per_thread = int(user_history_messages_per_thread)
         memory_size_limit = int(memory_size_limit)
-        # Clamp to reasonable values (0 = unlimited)
+        auto_memory_interval = int(auto_memory_interval)
+        # Clamp to reasonable values (0 = unlimited/disabled)
         user_history_max_threads = max(0, min(100, user_history_max_threads))
         user_history_messages_per_thread = max(0, min(10000, user_history_messages_per_thread))
         memory_size_limit = max(0, min(100000, memory_size_limit))
+        # 0 = disabled, otherwise min 5 minutes
+        if auto_memory_interval > 0:
+            auto_memory_interval = max(5, min(1440, auto_memory_interval))
     except ValueError:
         user_history_max_threads = 0
         user_history_messages_per_thread = 0
         memory_size_limit = 8000
+        auto_memory_interval = 0
 
-    config['USER_HISTORY_MAX_THREADS'] = user_history_max_threads
-    config['USER_HISTORY_MESSAGES_PER_THREAD'] = user_history_messages_per_thread
-    config['MEMORY_SIZE_LIMIT'] = memory_size_limit
-    save_config(config)
+    # Load existing persona config (preserves model override etc.) and merge
+    persona_config = get_persona_config(persona, personas_dir)
+    persona_config['user_history_max_threads'] = user_history_max_threads
+    persona_config['user_history_messages_per_thread'] = user_history_messages_per_thread
+    persona_config['memory_size_limit'] = memory_size_limit
+    persona_config['auto_memory_interval'] = auto_memory_interval
+    save_persona_config(persona, persona_config, personas_dir)
 
     return JsonResponse({'success': True})
 
