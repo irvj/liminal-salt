@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.1] - 2026-03-26
+
+### Changes
+- move global context files to Settings and show files in directory browser
+
 ## [0.7.0] - 2026-03-25
 
 ### Changes
