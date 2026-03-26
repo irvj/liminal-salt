@@ -18,7 +18,23 @@ if not venv.exists():
     print()
 
 url = "http://localhost:8420"
-print(f"Starting Liminal Salt at \033]8;;{url}\033\\{url}\033]8;;\033\\")
+
+# Get version
+try:
+    version = subprocess.run(
+        [str(python), "-c", "from liminal_salt import __version__; print(__version__)"],
+        capture_output=True, text=True
+    ).stdout.strip()
+except Exception:
+    version = "unknown"
+
+print()
+print(f"  Liminal Salt v{version}")
+print(f"  {'-' * 30}")
+print(f"  Running at: \033]8;;{url}\033\\{url}\033]8;;\033\\")
+print(f"  Press Ctrl+C to stop")
+print()
+
 subprocess.run([str(python), "-c",
     "from waitress import serve; "
     "from liminal_salt.wsgi import application; "
