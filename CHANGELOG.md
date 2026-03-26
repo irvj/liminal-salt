@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.0] - 2026-03-25
+
+### Changes
+- add version and instructions to server startup output
+- update CLAUDE.md and README.md for living memory and background updates
+- fix new chat draft not clearing on submit
+- add background memory updates with per-persona settings and auto-update scheduler
+- add per-persona living memory system with incremental merge
+- extract shared LLM client, persona identity loader, and memory view helper
+
 ## [0.6.1] - 2026-03-24
 
 ### Changes
