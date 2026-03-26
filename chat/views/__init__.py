@@ -6,8 +6,6 @@ from .chat import (
 )
 from .memory import (
     memory, update_memory, memory_update_status, save_memory_settings, wipe_memory, modify_memory,
-    upload_context_file, delete_context_file, toggle_context_file,
-    get_context_file_content, save_context_file_content,
     upload_persona_context_file, delete_persona_context_file,
     toggle_persona_context_file, get_persona_context_file_content,
     save_persona_context_file_content,
@@ -23,5 +21,7 @@ from .personas import (
 from .settings import (
     settings, save_settings, save_context_history_limit,
     validate_provider_api_key, save_provider_model,
+    upload_context_file, delete_context_file, toggle_context_file,
+    get_context_file_content, save_context_file_content,
 )
 from .api import get_available_themes, get_available_models, save_theme

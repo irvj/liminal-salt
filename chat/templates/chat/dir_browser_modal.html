@@ -37,9 +37,14 @@
             <p x-show="dirBrowser.dirs.length === 0 && dirBrowser.parent === null" class="text-border italic text-center py-5 text-sm">No subdirectories found.</p>
         </div>
 
-        <!-- Context files indicator -->
-        <div x-show="dirBrowser.hasContextFiles" class="text-xs text-success mb-4">
-            {% include 'icons/check-circle.html' with class='w-4 h-4 inline' %} This directory contains .md/.txt files
+        <!-- Context files in this directory -->
+        <div x-show="dirBrowser.contextFiles.length > 0" class="mb-4">
+            <p class="text-xs text-success mb-2">{% include 'icons/check-circle.html' with class='w-4 h-4 inline' %} Found <span x-text="dirBrowser.contextFiles.length"></span> file<span x-show="dirBrowser.contextFiles.length !== 1">s</span>:</p>
+            <div class="max-h-[120px] overflow-y-auto border border-border rounded bg-surface px-3">
+                <template x-for="file in dirBrowser.contextFiles" :key="file">
+                    <div class="flex items-center gap-2 py-1.5 border-b border-border last:border-b-0 text-sm text-foreground-secondary font-mono" x-text="file"></div>
+                </template>
+            </div>
         </div>
 
         <!-- Actions -->

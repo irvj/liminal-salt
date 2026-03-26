@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 from datetime import datetime
@@ -14,11 +13,6 @@ from ..services import (
     get_memory_file, get_memory_content, delete_memory, get_memory_model,
     get_available_personas, get_persona_identity,
     get_persona_config, save_persona_config,
-    list_context_files,
-    upload_context_file as do_upload_context,
-    delete_context_file as do_delete_context,
-    toggle_context_file as do_toggle_context,
-    get_user_context_dir,
     list_persona_context_files,
     upload_persona_context_file as do_upload_persona_context,
     delete_persona_context_file as do_delete_persona_context,
@@ -38,26 +32,6 @@ from ..utils import load_config
 logger = logging.getLogger(__name__)
 
 
-def _context_badge_count():
-    """Count enabled uploaded files + enabled local directory files."""
-    files = list_context_files()
-    enabled_uploaded = sum(1 for f in files if f.get('enabled'))
-    local_dirs = list_context_local_directories()
-    enabled_local = sum(
-        1 for d in local_dirs for f in d.get('files', []) if f.get('enabled')
-    )
-    return enabled_uploaded + enabled_local
-
-
-def _memory_context(context_files):
-    """Add local directory data to a memory template context dict."""
-    local_dirs = list_context_local_directories()
-    return {
-        'context_local_dirs_json': json.dumps(local_dirs),
-        'context_badge_count': _context_badge_count(),
-    }
-
-
 def _build_memory_view_context(config, selected_persona, success=None, error=None, just_updated=False, memory_updating=False):
     """Build the full context dict for memory_main.html."""
     memory_content = get_memory_content(selected_persona)
@@ -70,7 +44,6 @@ def _build_memory_view_context(config, selected_persona, success=None, error=Non
     # Load per-persona memory settings
     persona_config = get_persona_config(selected_persona, str(django_settings.PERSONAS_DIR))
 
-    ctx_files = list_context_files()
     return {
         'model': config.get("MODEL", ""),
         'selected_persona': selected_persona,
@@ -81,12 +54,10 @@ def _build_memory_view_context(config, selected_persona, success=None, error=Non
         'error': error,
         'just_updated': just_updated,
         'memory_updating': memory_updating,
-        'context_files': ctx_files,
         'memory_size_limit': persona_config.get('memory_size_limit', 8000),
         'user_history_max_threads': persona_config.get('user_history_max_threads', 10),
         'user_history_messages_per_thread': persona_config.get('user_history_messages_per_thread', 100),
         'auto_memory_interval': persona_config.get('auto_memory_interval', 0),
-        **_memory_context(ctx_files),
     }
 
 
@@ -241,135 +212,6 @@ def modify_memory(request):
         just_updated=True,
     )
     return render(request, 'memory/memory_main.html', context)
-
-
-# =============================================================================
-# Global Context File Endpoints
-# =============================================================================
-
-def upload_context_file(request):
-    """Upload a user context file (HTMX/AJAX endpoint)"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
-    uploaded_file = request.FILES.get('file')
-    if not uploaded_file:
-        return HttpResponse("No file provided", status=400)
-
-    # Upload the file
-    filename = do_upload_context(uploaded_file)
-
-    # For AJAX requests (from modal), return JSON
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return JsonResponse({
-            'success': bool(filename),
-            'filename': filename,
-            'files': list_context_files()
-        })
-
-    # For HTMX requests, return HTML partial
-    config = load_config()
-    selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
-    context = _build_memory_view_context(
-        config, selected_persona,
-        success=f"Uploaded {filename}" if filename else None,
-        error="Invalid file type. Only .md and .txt files allowed." if not filename else None,
-    )
-    return render(request, 'memory/memory_main.html', context)
-
-
-def delete_context_file(request):
-    """Delete a user context file (HTMX/AJAX endpoint)"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
-    filename = request.POST.get('filename', '')
-    if not filename:
-        return HttpResponse("No filename provided", status=400)
-
-    # Delete the file
-    deleted = do_delete_context(filename)
-
-    # For AJAX requests (from modal), return JSON
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return JsonResponse({
-            'success': deleted,
-            'filename': filename,
-            'files': list_context_files()
-        })
-
-    # For HTMX requests, return HTML partial
-    config = load_config()
-    selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
-    context = _build_memory_view_context(
-        config, selected_persona,
-        success=f"Deleted {filename}" if deleted else None,
-        error=f"File not found: {filename}" if not deleted else None,
-    )
-    return render(request, 'memory/memory_main.html', context)
-
-
-def toggle_context_file(request):
-    """Toggle enabled status of a user context file (HTMX/AJAX endpoint)"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
-    filename = request.POST.get('filename', '')
-    if not filename:
-        return HttpResponse("No filename provided", status=400)
-
-    # Toggle the file
-    new_status = do_toggle_context(filename)
-
-    # For AJAX requests (from modal), return JSON
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return JsonResponse({
-            'success': True,
-            'filename': filename,
-            'enabled': new_status,
-            'files': list_context_files()
-        })
-
-    # For HTMX requests, return HTML partial
-    config = load_config()
-    selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
-    context = _build_memory_view_context(config, selected_persona)
-    return render(request, 'memory/memory_main.html', context)
-
-
-def get_context_file_content(request):
-    """GET endpoint to retrieve context file content for editing"""
-    filename = request.GET.get('filename')
-    if not filename:
-        return JsonResponse({'error': 'No filename provided'}, status=400)
-
-    filename = os.path.basename(filename)
-    file_path = get_user_context_dir() / filename
-    if not file_path.exists():
-        return JsonResponse({'error': 'File not found'}, status=404)
-
-    content = file_path.read_text()
-    return JsonResponse({'filename': filename, 'content': content})
-
-
-def save_context_file_content(request):
-    """POST endpoint to save edited context file content"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
-    filename = request.POST.get('filename')
-    content = request.POST.get('content', '')
-
-    if not filename:
-        return JsonResponse({'error': 'No filename provided'}, status=400)
-
-    filename = os.path.basename(filename)
-    file_path = get_user_context_dir() / filename
-    if not file_path.exists():
-        return JsonResponse({'error': 'File not found'}, status=404)
-
-    file_path.write_text(content)
-    return JsonResponse({'success': True, 'filename': filename})
 
 
 # =============================================================================

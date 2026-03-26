@@ -312,12 +312,14 @@ def browse_directory(path, show_hidden=False):
     if parent != resolved:
         result["parent"] = parent
 
-    # Check for context files in current directory
+    # List context files in current directory
     try:
-        for f in os.listdir(resolved):
+        context_files = []
+        for f in sorted(os.listdir(resolved)):
             if f.endswith(('.md', '.txt')) and os.path.isfile(os.path.join(resolved, f)):
-                result["has_context_files"] = True
-                break
+                context_files.append(f)
+        result["context_files"] = context_files
+        result["has_context_files"] = len(context_files) > 0
     except PermissionError:
         result["error"] = "Permission denied"
         return result

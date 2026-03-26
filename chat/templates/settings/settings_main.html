@@ -117,6 +117,17 @@
         </button>
     </div>
 
+    <!-- Context Files Section -->
+    <h2 class="text-foreground text-xl mb-4">Context Files</h2>
+    <div class="mb-6">
+        <p class="text-foreground-secondary text-sm mb-3">
+            Upload files to provide additional context to all personas. These are included in every conversation.
+        </p>
+        <button tabindex="0" onclick="openContextFilesModal()" class="w-full md:w-auto group context-files-btn px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
+            Manage Context Files<span class="badge bg-accent text-foreground-on-accent rounded-xl px-2 py-0.5 text-xs ml-2 group-hover:bg-foreground-on-accent group-hover:text-accent" {% if not context_badge_count %}style="display:none"{% endif %}>{{ context_badge_count|default:"0" }}</span>
+        </button>
+    </div>
+
     <!-- Chat Settings Section -->
     <h2 class="text-foreground text-xl mb-4">Chat Settings</h2>
     <div class="mb-6">
@@ -158,6 +169,16 @@
         </div>
     </div>
 </div>
+
+<!-- Pass context files data to Alpine.js -->
+<script>
+    window.contextFilesData = [
+        {% for file in context_files %}
+        { name: "{{ file.name }}", enabled: {{ file.enabled|yesno:"true,false" }} }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+    window.contextLocalDirsData = {{ context_local_dirs_json|safe|default:"[]" }};
+</script>
 
 <!-- Out-of-band swap: Update New Chat button in sidebar -->
 <div id="new-chat-button" hx-swap-oob="true">

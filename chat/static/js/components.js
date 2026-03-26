@@ -525,6 +525,7 @@ function contextFilesModal() {
             parent: null,
             dirs: [],
             hasContextFiles: false,
+            contextFiles: [],
             showHidden: false,
             loading: false,
             error: ''
@@ -752,6 +753,7 @@ function contextFilesModal() {
                     this.dirBrowser.parent = data.parent;
                     this.dirBrowser.dirs = data.dirs;
                     this.dirBrowser.hasContextFiles = data.has_context_files;
+                    this.dirBrowser.contextFiles = data.context_files || [];
                     if (data.error) this.dirBrowser.error = data.error;
                 }
             } catch (err) {

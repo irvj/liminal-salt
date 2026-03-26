@@ -9,6 +9,12 @@ from django.conf import settings as django_settings
 from ..services import (
     fetch_available_models, validate_api_key, get_providers,
     get_available_personas, get_persona_model, list_persona_context_files,
+    list_context_files,
+    upload_context_file as do_upload_context,
+    delete_context_file as do_delete_context,
+    toggle_context_file as do_toggle_context,
+    get_user_context_dir,
+    list_context_local_directories,
 )
 from ..utils import (
     load_config, save_config, group_models_by_provider,
@@ -16,6 +22,17 @@ from ..utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _context_badge_count():
+    """Count enabled uploaded files + enabled local directory files."""
+    files = list_context_files()
+    enabled_uploaded = sum(1 for f in files if f.get('enabled'))
+    local_dirs = list_context_local_directories()
+    enabled_local = sum(
+        1 for d in local_dirs for f in d.get('files', []) if f.get('enabled')
+    )
+    return enabled_uploaded + enabled_local
 
 
 def settings(request):
@@ -34,6 +51,10 @@ def settings(request):
         api_key = config.get("OPENROUTER_API_KEY")
         has_api_key = bool(api_key)
 
+    # Global context files
+    ctx_files = list_context_files()
+    local_dirs = list_context_local_directories()
+
     context = {
         'model': model,
         'provider': provider,
@@ -41,6 +62,9 @@ def settings(request):
         'providers_json': json.dumps(providers),
         'has_api_key': has_api_key,
         'context_history_limit': config.get('CONTEXT_HISTORY_LIMIT', 50),
+        'context_files': ctx_files,
+        'context_local_dirs_json': json.dumps(local_dirs),
+        'context_badge_count': _context_badge_count(),
         'success': request.GET.get('success'),
     }
 
@@ -242,3 +266,99 @@ def save_provider_model(request):
         'provider': provider,
         'model': model
     })
+
+
+# =============================================================================
+# Global Context File Endpoints
+# =============================================================================
+
+def upload_context_file(request):
+    """Upload a user context file (AJAX endpoint)"""
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    uploaded_file = request.FILES.get('file')
+    if not uploaded_file:
+        return JsonResponse({'error': 'No file provided'}, status=400)
+
+    filename = do_upload_context(uploaded_file)
+    if not filename:
+        return JsonResponse({
+            'error': 'Invalid file type. Only .md and .txt files allowed.'
+        }, status=400)
+
+    return JsonResponse({
+        'success': True,
+        'filename': filename,
+        'files': list_context_files()
+    })
+
+
+def delete_context_file(request):
+    """Delete a user context file (AJAX endpoint)"""
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    filename = request.POST.get('filename', '')
+    if not filename:
+        return JsonResponse({'error': 'No filename provided'}, status=400)
+
+    deleted = do_delete_context(filename)
+    return JsonResponse({
+        'success': deleted,
+        'filename': filename,
+        'files': list_context_files()
+    })
+
+
+def toggle_context_file(request):
+    """Toggle enabled status of a user context file (AJAX endpoint)"""
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    filename = request.POST.get('filename', '')
+    if not filename:
+        return JsonResponse({'error': 'No filename provided'}, status=400)
+
+    new_status = do_toggle_context(filename)
+    return JsonResponse({
+        'success': True,
+        'filename': filename,
+        'enabled': new_status,
+        'files': list_context_files()
+    })
+
+
+def get_context_file_content(request):
+    """GET endpoint to retrieve context file content for editing"""
+    filename = request.GET.get('filename')
+    if not filename:
+        return JsonResponse({'error': 'No filename provided'}, status=400)
+
+    filename = os.path.basename(filename)
+    file_path = get_user_context_dir() / filename
+    if not file_path.exists():
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    content = file_path.read_text()
+    return JsonResponse({'filename': filename, 'content': content})
+
+
+def save_context_file_content(request):
+    """POST endpoint to save edited context file content"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    filename = request.POST.get('filename')
+    content = request.POST.get('content', '')
+
+    if not filename:
+        return JsonResponse({'error': 'No filename provided'}, status=400)
+
+    filename = os.path.basename(filename)
+    file_path = get_user_context_dir() / filename
+    if not file_path.exists():
+        return JsonResponse({'error': 'File not found'}, status=404)
+
+    file_path.write_text(content)
+    return JsonResponse({'success': True, 'filename': filename})
