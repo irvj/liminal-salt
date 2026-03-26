@@ -37,11 +37,13 @@ Open source and easy to extend. Personas are just Markdown files. Themes are JSO
 - **In-App Editor** — Create and edit personas directly from the web interface
 
 ### Memory
-- **Long-Term Memory** — Builds a persistent user profile across all conversations
+- **Per-Persona Living Memory** — Each persona maintains its own memory about the user, written from the persona's perspective
+- **Incremental Merge** — Memory grows naturally as new information is merged in, rather than being fully rewritten
+- **Background Updates** — Memory updates run in the background without blocking the UI
+- **Auto-Update Scheduler** — Optionally auto-update memory on a configurable interval per persona
+- **Per-Persona Settings** — Control history limits, memory size, and auto-update interval per persona
 - **Global Context Files** — Upload documents or reference local directories available to all personas
 - **Local Directory Context** — Reference `.md`/`.txt` files from local directories without copying them into the app
-- **Configurable Limits** — Control how much history is used when generating memory
-- **Manual Updates** — Control when and how memory gets updated
 
 ### Interface
 - **16 Color Themes** — Including the custom Liminal Salt theme, with dark and light modes
