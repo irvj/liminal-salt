@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.2] - 2026-03-26
+
+### Changes
+- add seed memory, background modify, unified memory merge, and persona modal fix
+
 ## [0.7.1] - 2026-03-26
 
 ### Changes
