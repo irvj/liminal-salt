@@ -164,6 +164,136 @@ def start_manual_update(persona_name, config):
     return True
 
 
+def start_modify_update(persona_name, config, command):
+    """
+    Start a background memory modify for a persona.
+
+    Returns False if an update is already running for this persona.
+    """
+    lock = _get_persona_lock(persona_name)
+    if lock.locked():
+        return False
+
+    thread = threading.Thread(
+        target=_run_modify_update,
+        args=(persona_name, config, command),
+        daemon=True,
+    )
+    thread.start()
+    return True
+
+
+def _run_modify_update(persona_name, config, command):
+    """Run a memory modify command. Acquires per-persona lock."""
+    lock = _get_persona_lock(persona_name)
+    if not lock.acquire(blocking=False):
+        return False
+
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        _set_status(persona_name, state="running", source="modify", started_at=now, error=None)
+        logger.info(f"Memory modify started for '{persona_name}'")
+
+        api_key = config.get("OPENROUTER_API_KEY")
+        site_url = config.get("SITE_URL")
+        site_name = config.get("SITE_NAME")
+        personas_dir = str(django_settings.PERSONAS_DIR)
+
+        persona_cfg = get_persona_config(persona_name, personas_dir)
+        size_limit = persona_cfg.get('memory_size_limit', 8000)
+
+        persona_dir = os.path.join(personas_dir, persona_name)
+        persona_identity = get_persona_identity(persona_dir)
+        memory_model = get_memory_model(config, persona_name, personas_dir)
+
+        manager = MemoryManager(api_key, memory_model, site_url, site_name)
+        success = manager.modify_memory_with_command(persona_name, persona_identity, command, size_limit)
+
+        finished = datetime.now(timezone.utc).isoformat()
+        if success:
+            _set_status(persona_name, state="completed", finished_at=finished)
+            logger.info(f"Memory modify completed for '{persona_name}'")
+        else:
+            _set_status(persona_name, state="failed", finished_at=finished,
+                        error="The model returned an unusable response.")
+            logger.warning(f"Memory modify failed for '{persona_name}': unusable response")
+        return True
+
+    except Exception as e:
+        finished = datetime.now(timezone.utc).isoformat()
+        _set_status(persona_name, state="failed", finished_at=finished, error=str(e))
+        logger.error(f"Memory modify failed for '{persona_name}': {e}")
+        return True
+
+    finally:
+        lock.release()
+
+
+def start_seed_update(persona_name, config, seed_content):
+    """
+    Start a background memory seed for a persona.
+
+    Returns False if an update is already running for this persona.
+    """
+    lock = _get_persona_lock(persona_name)
+    if lock.locked():
+        return False
+
+    thread = threading.Thread(
+        target=_run_seed_update,
+        args=(persona_name, config, seed_content),
+        daemon=True,
+    )
+    thread.start()
+    return True
+
+
+def _run_seed_update(persona_name, config, seed_content):
+    """Run a memory seed update. Acquires per-persona lock."""
+    lock = _get_persona_lock(persona_name)
+    if not lock.acquire(blocking=False):
+        return False
+
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        _set_status(persona_name, state="running", source="seed", started_at=now, error=None)
+        logger.info(f"Memory seed started for '{persona_name}'")
+
+        api_key = config.get("OPENROUTER_API_KEY")
+        site_url = config.get("SITE_URL")
+        site_name = config.get("SITE_NAME")
+        personas_dir = str(django_settings.PERSONAS_DIR)
+
+        persona_cfg = get_persona_config(persona_name, personas_dir)
+        size_limit = persona_cfg.get('memory_size_limit', 8000)
+
+        persona_dir = os.path.join(personas_dir, persona_name)
+        persona_identity = get_persona_identity(persona_dir)
+        memory_model = get_memory_model(config, persona_name, personas_dir)
+
+        manager = MemoryManager(api_key, memory_model, site_url, site_name)
+        success = manager.seed_memory(persona_name, persona_identity, seed_content, size_limit)
+
+        finished = datetime.now(timezone.utc).isoformat()
+        if success:
+            _set_status(persona_name, state="completed", finished_at=finished)
+            logger.info(f"Memory seed completed for '{persona_name}'")
+        else:
+            _set_status(persona_name, state="failed", finished_at=finished,
+                        error="The model returned an unusable response.")
+            logger.warning(f"Memory seed failed for '{persona_name}': unusable response")
+        return True
+
+    except Exception as e:
+        finished = datetime.now(timezone.utc).isoformat()
+        _set_status(persona_name, state="failed", finished_at=finished, error=str(e))
+        logger.error(f"Memory seed failed for '{persona_name}': {e}")
+        return True
+
+    finally:
+        lock.release()
+
+
 # =============================================================================
 # Auto-update scheduler
 # =============================================================================

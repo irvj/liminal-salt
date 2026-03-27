@@ -5,7 +5,7 @@ from .chat import (
     retry_message, edit_message, get_model_for_persona,
 )
 from .memory import (
-    memory, update_memory, memory_update_status, save_memory_settings, wipe_memory, modify_memory,
+    memory, update_memory, memory_update_status, save_memory_settings, wipe_memory, modify_memory, seed_memory,
     upload_persona_context_file, delete_persona_context_file,
     toggle_persona_context_file, get_persona_context_file_content,
     save_persona_context_file_content,

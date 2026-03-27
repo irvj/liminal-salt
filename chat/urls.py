@@ -22,6 +22,7 @@ urlpatterns = [
     path('memory/update/', views.update_memory, name='update_memory'),
     path('memory/wipe/', views.wipe_memory, name='wipe_memory'),
     path('memory/modify/', views.modify_memory, name='modify_memory'),
+    path('memory/seed/', views.seed_memory, name='seed_memory'),
     path('memory/save-settings/', views.save_memory_settings, name='save_memory_settings'),
     path('memory/update-status/', views.memory_update_status, name='memory_update_status'),
     path('persona/', views.persona_settings, name='persona_settings'),

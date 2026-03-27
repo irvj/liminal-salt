@@ -287,8 +287,7 @@ function editPersonaModal() {
 // Global helper functions
 function openEditPersonaModal() {
     if (window.editPersonaModalComponent) {
-        const select = document.getElementById('persona');
-        const persona = select ? select.value : '';
+        const persona = document.querySelector('[name="persona"]')?.value || '';
 
         // Read content from template element (survives HTMX swaps, preserves formatting)
         const contentTemplate = document.getElementById('persona-raw-content');
@@ -352,8 +351,7 @@ function deletePersonaModal() {
 // Global helper function
 function openDeletePersonaModal() {
     if (window.deletePersonaModalComponent) {
-        const select = document.getElementById('persona');
-        const persona = select ? select.value : '';
+        const persona = document.querySelector('[name="persona"]')?.value || '';
         window.deletePersonaModalComponent.open(persona);
     }
 }

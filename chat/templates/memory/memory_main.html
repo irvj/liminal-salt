@@ -37,6 +37,21 @@
             <button type="submit" tabindex="0" class="w-full md:w-auto px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover" id="update-memory-btn">Update Memory</button>
         </form>
 
+        <form hx-post="{% url 'seed_memory' %}"
+              hx-target="#main-content"
+              hx-swap="innerHTML"
+              hx-on::before-request="showMemoryUpdating()"
+              hx-encoding="multipart/form-data"
+              class="w-full md:w-auto">
+            {% csrf_token %}
+            <input type="hidden" name="persona" value="{{ selected_persona }}">
+            <input type="file" name="file" accept=".md,.txt" class="hidden" id="seed-file-input"
+                   onchange="this.closest('form').requestSubmit()">
+            <button type="button" tabindex="0"
+                    onclick="document.getElementById('seed-file-input').click()"
+                    class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Seed Memory</button>
+        </form>
+
         <button tabindex="0" onclick="openWipeMemoryModal()" class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent">Wipe Memory</button>
     </div>
 

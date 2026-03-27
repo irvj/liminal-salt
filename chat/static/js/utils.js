@@ -637,7 +637,7 @@ function pollMemoryUpdateStatus(persona, statusUrl, memoryUrl) {
         window._memoryPollInterval = null;
     }
 
-    const maxDuration = 5 * 60 * 1000; // 5 minutes
+    const maxDuration = 10 * 60 * 1000; // 10 minutes
     const interval = 3000; // 3 seconds
     const startTime = Date.now();
     let cancelled = false;

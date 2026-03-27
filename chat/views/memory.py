@@ -7,11 +7,10 @@ from django.http import HttpResponse, JsonResponse
 from django.conf import settings as django_settings
 from django.urls import reverse
 
-from ..services.memory_worker import start_manual_update, get_update_status
+from ..services.memory_worker import start_manual_update, start_seed_update, start_modify_update, get_update_status
 from ..services import (
-    MemoryManager,
-    get_memory_file, get_memory_content, delete_memory, get_memory_model,
-    get_available_personas, get_persona_identity,
+    get_memory_file, get_memory_content, delete_memory,
+    get_available_personas,
     get_persona_config, save_persona_config,
     list_persona_context_files,
     upload_persona_context_file as do_upload_persona_context,
@@ -181,7 +180,7 @@ def wipe_memory(request):
 
 
 def modify_memory(request):
-    """Modify memory based on user command (HTMX endpoint)"""
+    """Start a background memory modify for a persona (POST, non-blocking)"""
     if request.method != 'POST':
         return HttpResponse(status=405)
 
@@ -194,24 +193,71 @@ def modify_memory(request):
         return HttpResponse("Configuration not found", status=500)
 
     selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
-    api_key = config.get("OPENROUTER_API_KEY")
-    site_url = config.get("SITE_URL")
-    site_name = config.get("SITE_NAME")
 
-    persona_dir = str(django_settings.PERSONAS_DIR / selected_persona)
-    persona_identity = get_persona_identity(persona_dir)
-    memory_model = get_memory_model(config, selected_persona, str(django_settings.PERSONAS_DIR))
+    started = start_modify_update(selected_persona, config, command)
 
-    manager = MemoryManager(api_key, memory_model, site_url, site_name)
-    updated_memory = manager.modify_memory_with_command(selected_persona, persona_identity, command)
+    if request.headers.get('HX-Request'):
+        if not started:
+            context = _build_memory_view_context(
+                config, selected_persona,
+                error="Memory update already in progress.",
+            )
+            return render(request, 'memory/memory_main.html', context)
 
-    context = _build_memory_view_context(
-        config, selected_persona,
-        success="Memory Updated" if updated_memory else None,
-        error="Failed to update memory" if not updated_memory else None,
-        just_updated=True,
-    )
-    return render(request, 'memory/memory_main.html', context)
+        context = _build_memory_view_context(
+            config, selected_persona, memory_updating=True,
+        )
+        return render(request, 'memory/memory_main.html', context)
+
+    return redirect(f"{reverse('memory')}?persona={selected_persona}")
+
+
+def seed_memory(request):
+    """Upload a file to seed/merge into persona memory (POST, non-blocking)"""
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    config = load_config()
+    if not config:
+        return HttpResponse("Configuration not found", status=500)
+
+    selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
+
+    uploaded_file = request.FILES.get('file')
+    if not uploaded_file:
+        if request.headers.get('HX-Request'):
+            context = _build_memory_view_context(
+                config, selected_persona, error="No file provided.",
+            )
+            return render(request, 'memory/memory_main.html', context)
+        return HttpResponse("No file provided", status=400)
+
+    if not uploaded_file.name.endswith(('.md', '.txt')):
+        if request.headers.get('HX-Request'):
+            context = _build_memory_view_context(
+                config, selected_persona, error="Only .md and .txt files are accepted.",
+            )
+            return render(request, 'memory/memory_main.html', context)
+        return HttpResponse("Invalid file type", status=400)
+
+    seed_content = uploaded_file.read().decode('utf-8', errors='replace')
+
+    started = start_seed_update(selected_persona, config, seed_content)
+
+    if request.headers.get('HX-Request'):
+        if not started:
+            context = _build_memory_view_context(
+                config, selected_persona,
+                error="Memory update already in progress.",
+            )
+            return render(request, 'memory/memory_main.html', context)
+
+        context = _build_memory_view_context(
+            config, selected_persona, memory_updating=True,
+        )
+        return render(request, 'memory/memory_main.html', context)
+
+    return redirect(f"{reverse('memory')}?persona={selected_persona}")
 
 
 # =============================================================================
