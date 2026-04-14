@@ -427,7 +427,11 @@ function addUserMessage(event) {
     // Wrap content in prose div to match page load structure
     const proseDiv = document.createElement('div');
     proseDiv.className = 'prose prose-invert';
-    proseDiv.textContent = message;
+    if (typeof marked !== 'undefined') {
+        proseDiv.innerHTML = marked.parse(message);
+    } else {
+        proseDiv.textContent = message;
+    }
     userDiv.appendChild(proseDiv);
 
     container.appendChild(userDiv);
