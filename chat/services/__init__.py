@@ -8,6 +8,12 @@ from .session_manager import (
     update_persona_across_sessions, get_session_path,
     generate_session_id, make_user_timestamp,
 )
+from .persona_manager import (
+    get_persona_preview, save_persona_identity,
+    create_persona as create_persona_dir,
+    delete_persona as delete_persona_dir,
+    rename_persona, persona_exists,
+)
 from .config_manager import fetch_available_models, validate_api_key, get_providers
 from .context_manager import load_context, get_available_personas, get_persona_config, save_persona_config, get_persona_model, get_persona_identity, ensure_default_personas
 from .llm_client import call_llm, LLMError
