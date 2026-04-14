@@ -491,13 +491,18 @@ function animateAssistantResponse() {
     const messagesInner = document.getElementById('messages-inner');
     if (!messagesInner) return;
 
-    // Scroll to show the new response (once, before typewriter starts)
-    scrollToBottom();
-
     // Get the last assistant message (the newly inserted one)
     const assistantMessages = messagesInner.querySelectorAll('.message.assistant:not(.thinking)');
     const lastMessage = assistantMessages[assistantMessages.length - 1];
     if (!lastMessage) return;
+
+    // Scroll so the top of the new message bubble is visible
+    const messageContainer = lastMessage.closest('.message-container');
+    if (messageContainer) {
+        messageContainer.scrollIntoView({ block: 'start' });
+    } else {
+        scrollToBottom();
+    }
 
     // Apply typewriter to the entire message
     typewriterReveal(lastMessage);
@@ -558,12 +563,12 @@ function typewriterReveal(element) {
             if (index % 20 === 0) {
                 updateScrollButtonVisibility();
             }
-        }, index * 25);
+        }, index * 35);
     });
 
     // Final visibility check after all words revealed
     if (allWords.length > 0) {
-        setTimeout(() => updateScrollButtonVisibility(), allWords.length * 25 + 100);
+        setTimeout(() => updateScrollButtonVisibility(), allWords.length * 35 + 100);
     }
 }
 
