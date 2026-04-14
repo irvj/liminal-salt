@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.8.0] - 2026-04-14
+
+### Changes
+- Merge branch 'soc-refactor-backend'
+- add @require_POST decorators to all POST-only views
+- extract shared view utilities for model fetching and theme list
+- unify context file services into single ContextFileManager class
+- extract PersonaManager service, fix persona rename/delete context dir cleanup
+- extract SessionManager service, remove all direct session file I/O from views
+- add roadmap planning doc
+
 ## [0.7.3] - 2026-04-14
 
 ### Changes
