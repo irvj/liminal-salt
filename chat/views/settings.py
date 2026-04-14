@@ -5,21 +5,21 @@ import os
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, JsonResponse
 from django.conf import settings as django_settings
+from django.views.decorators.http import require_POST
 
 from ..services import (
-    fetch_available_models, validate_api_key, get_providers,
+    validate_api_key, get_providers,
     get_available_personas, get_persona_model, list_persona_context_files,
     list_context_files,
     upload_context_file as do_upload_context,
     delete_context_file as do_delete_context,
     toggle_context_file as do_toggle_context,
-    get_user_context_dir,
+    get_context_file_content as do_get_context_content,
+    save_context_file_content as do_save_context_content,
     list_context_local_directories,
 )
-from ..utils import (
-    load_config, save_config, group_models_by_provider,
-    flatten_models_with_provider_prefix,
-)
+from ..services.persona_manager import get_persona_preview
+from ..utils import load_config, save_config, get_formatted_model_list
 
 logger = logging.getLogger(__name__)
 
@@ -75,103 +75,81 @@ def settings(request):
     return redirect('chat')
 
 
+@require_POST
 def save_settings(request):
     """Save settings (POST) - handles saving default persona"""
-    if request.method == 'POST':
-        selected_persona = request.POST.get('persona', '').strip()
-        redirect_to = request.POST.get('redirect_to', 'settings')
-        config = load_config()
-        success_msg = None
+    selected_persona = request.POST.get('persona', '').strip()
+    redirect_to = request.POST.get('redirect_to', 'settings')
+    config = load_config()
+    success_msg = None
 
-        # Personality is required - fall back to "assistant" if empty
-        if not selected_persona:
-            selected_persona = "assistant"
+    # Personality is required - fall back to "assistant" if empty
+    if not selected_persona:
+        selected_persona = "assistant"
 
-        # Update if different from current
-        if selected_persona != config.get("DEFAULT_PERSONA", ""):
-            config["DEFAULT_PERSONA"] = selected_persona
-            save_config(config)
-            success_msg = "Default persona updated"
+    # Update if different from current
+    if selected_persona != config.get("DEFAULT_PERSONA", ""):
+        config["DEFAULT_PERSONA"] = selected_persona
+        save_config(config)
+        success_msg = "Default persona updated"
 
-        # For HTMX requests, return the appropriate partial
-        if request.headers.get('HX-Request'):
-            personas_dir = str(django_settings.PERSONAS_DIR)
-            available_personas = get_available_personas(personas_dir)
-            default_persona = config.get("DEFAULT_PERSONA", "")
-            model = config.get("MODEL", "")
-            provider = config.get("PROVIDER", "openrouter")
+    # For HTMX requests, return the appropriate partial
+    if request.headers.get('HX-Request'):
+        personas_dir = str(django_settings.PERSONAS_DIR)
+        available_personas = get_available_personas(personas_dir)
+        default_persona = config.get("DEFAULT_PERSONA", "")
+        model = config.get("MODEL", "")
+        provider = config.get("PROVIDER", "openrouter")
 
-            # Check if API key exists and fetch models
-            has_api_key = False
-            api_key = None
-            available_models = []
-            if provider == 'openrouter':
-                api_key = config.get("OPENROUTER_API_KEY")
-                has_api_key = bool(api_key)
-            if has_api_key and api_key:
-                models_list = fetch_available_models(api_key)
-                if models_list:
-                    grouped = group_models_by_provider(models_list)
-                    model_options = flatten_models_with_provider_prefix(grouped)
-                    available_models = [{'id': m[0], 'display': m[1]} for m in model_options]
+        # Fetch models
+        api_key = config.get("OPENROUTER_API_KEY", "")
+        has_api_key = bool(api_key)
+        available_models = get_formatted_model_list(api_key)
 
-            # Read persona preview for the newly set default (if set)
-            persona_preview = ""
-            persona_model = None
-            if default_persona:
-                persona_path = os.path.join(personas_dir, default_persona)
-                if os.path.exists(persona_path):
-                    md_files = [f for f in os.listdir(persona_path) if f.endswith(".md")]
-                    if md_files:
-                        with open(os.path.join(persona_path, md_files[0]), 'r') as f:
-                            content = f.read()
-                            persona_preview = content
-                persona_model = get_persona_model(default_persona, personas_dir)
+        # Read persona preview for the newly set default (if set)
+        persona_preview = get_persona_preview(default_persona) if default_persona else ""
+        persona_model = get_persona_model(default_persona, personas_dir) if default_persona else None
 
-            # Return persona page if redirecting there
-            if redirect_to == 'persona':
-                persona_context_files = list_persona_context_files(default_persona) if default_persona else []
-                context = {
-                    'model': model,
-                    'personas': available_personas,
-                    'default_persona': default_persona,
-                    'selected_persona': default_persona,
-                    'persona_preview': persona_preview,
-                    'persona_model': persona_model or '',
-                    'persona_context_files': persona_context_files,
-                    'persona_context_files_json': json.dumps(persona_context_files),
-                    'available_models': available_models,
-                    'available_models_json': json.dumps(available_models),
-                    'success': success_msg,
-                }
-                return render(request, 'persona/persona_main.html', context)
-
-            # Otherwise return settings page
-            providers = get_providers()
+        # Return persona page if redirecting there
+        if redirect_to == 'persona':
+            persona_context_files = list_persona_context_files(default_persona) if default_persona else []
             context = {
                 'model': model,
-                'provider': provider,
-                'providers': providers,
-                'providers_json': json.dumps(providers),
-                'has_api_key': has_api_key,
+                'personas': available_personas,
+                'default_persona': default_persona,
+                'selected_persona': default_persona,
+                'persona_preview': persona_preview,
+                'persona_model': persona_model or '',
+                'persona_context_files': persona_context_files,
+                'persona_context_files_json': json.dumps(persona_context_files),
+                'available_models': available_models,
+                'available_models_json': json.dumps(available_models),
                 'success': success_msg,
             }
-            return render(request, 'settings/settings_main.html', context)
+            return render(request, 'persona/persona_main.html', context)
 
-        # Non-HTMX redirect
-        redirect_url = 'persona_settings' if redirect_to == 'persona' else 'settings'
-        if success_msg:
-            return redirect(redirect_url + '?success=' + success_msg)
-        return redirect(redirect_url)
+        # Otherwise return settings page
+        providers = get_providers()
+        context = {
+            'model': model,
+            'provider': provider,
+            'providers': providers,
+            'providers_json': json.dumps(providers),
+            'has_api_key': has_api_key,
+            'success': success_msg,
+        }
+        return render(request, 'settings/settings_main.html', context)
 
-    return redirect('settings')
+    # Non-HTMX redirect
+    redirect_url = 'persona_settings' if redirect_to == 'persona' else 'settings'
+    if success_msg:
+        return redirect(redirect_url + '?success=' + success_msg)
+    return redirect(redirect_url)
 
 
+@require_POST
 def save_context_history_limit(request):
     """Save CONTEXT_HISTORY_LIMIT setting (AJAX endpoint)"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     context_history_limit = request.POST.get('context_history_limit', 50)
     try:
         context_history_limit = int(context_history_limit)
@@ -186,11 +164,9 @@ def save_context_history_limit(request):
     return JsonResponse({'success': True, 'context_history_limit': context_history_limit})
 
 
+@require_POST
 def validate_provider_api_key(request):
     """Validate API key and return models list (JSON endpoint for Settings page)"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
     provider = request.POST.get('provider', 'openrouter')
     api_key = request.POST.get('api_key', '').strip()
     use_existing = request.POST.get('use_existing', 'false') == 'true'
@@ -211,27 +187,21 @@ def validate_provider_api_key(request):
             return JsonResponse({'valid': False, 'error': 'Invalid API key'})
 
         # Fetch models for this key
-        models = fetch_available_models(api_key)
-        if not models:
+        available_models = get_formatted_model_list(api_key)
+        if not available_models:
             return JsonResponse({'valid': False, 'error': 'Could not fetch models'})
-
-        # Format models for frontend
-        grouped = group_models_by_provider(models)
-        model_options = flatten_models_with_provider_prefix(grouped)
 
         return JsonResponse({
             'valid': True,
-            'models': [{'id': m[0], 'display': m[1]} for m in model_options]
+            'models': available_models
         })
 
     return JsonResponse({'valid': False, 'error': 'Unknown provider'})
 
 
+@require_POST
 def save_provider_model(request):
     """Save provider and model settings (JSON endpoint for Settings page)"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
     provider = request.POST.get('provider', '').strip()
     api_key = request.POST.get('api_key', '').strip()
     model = request.POST.get('model', '').strip()
@@ -272,11 +242,9 @@ def save_provider_model(request):
 # Global Context File Endpoints
 # =============================================================================
 
+@require_POST
 def upload_context_file(request):
     """Upload a user context file (AJAX endpoint)"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     uploaded_file = request.FILES.get('file')
     if not uploaded_file:
         return JsonResponse({'error': 'No file provided'}, status=400)
@@ -294,11 +262,9 @@ def upload_context_file(request):
     })
 
 
+@require_POST
 def delete_context_file(request):
     """Delete a user context file (AJAX endpoint)"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     filename = request.POST.get('filename', '')
     if not filename:
         return JsonResponse({'error': 'No filename provided'}, status=400)
@@ -311,11 +277,9 @@ def delete_context_file(request):
     })
 
 
+@require_POST
 def toggle_context_file(request):
     """Toggle enabled status of a user context file (AJAX endpoint)"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     filename = request.POST.get('filename', '')
     if not filename:
         return JsonResponse({'error': 'No filename provided'}, status=400)
@@ -335,30 +299,23 @@ def get_context_file_content(request):
     if not filename:
         return JsonResponse({'error': 'No filename provided'}, status=400)
 
-    filename = os.path.basename(filename)
-    file_path = get_user_context_dir() / filename
-    if not file_path.exists():
+    content = do_get_context_content(filename)
+    if content is None:
         return JsonResponse({'error': 'File not found'}, status=404)
 
-    content = file_path.read_text()
-    return JsonResponse({'filename': filename, 'content': content})
+    return JsonResponse({'filename': os.path.basename(filename), 'content': content})
 
 
+@require_POST
 def save_context_file_content(request):
     """POST endpoint to save edited context file content"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
     filename = request.POST.get('filename')
     content = request.POST.get('content', '')
 
     if not filename:
         return JsonResponse({'error': 'No filename provided'}, status=400)
 
-    filename = os.path.basename(filename)
-    file_path = get_user_context_dir() / filename
-    if not file_path.exists():
+    if not do_save_context_content(filename, content):
         return JsonResponse({'error': 'File not found'}, status=404)
 
-    file_path.write_text(content)
-    return JsonResponse({'success': True, 'filename': filename})
+    return JsonResponse({'success': True, 'filename': os.path.basename(filename)})

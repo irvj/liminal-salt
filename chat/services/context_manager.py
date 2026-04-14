@@ -3,8 +3,28 @@ import json
 import logging
 import shutil
 from pathlib import Path
-from .user_context import load_enabled_context
-from .persona_context import load_enabled_context as load_enabled_persona_context
+from django.conf import settings as django_settings
+from .context_files import ContextFileManager
+
+# Global (user-level) context
+_global_context = ContextFileManager(
+    base_dir=django_settings.DATA_DIR / 'user_context',
+    scope_label="USER",
+    header_description="The following files were provided by the user as additional context.",
+)
+
+def _load_enabled_user_context():
+    return _global_context.load_enabled_context()
+
+def _load_enabled_persona_context(persona_name):
+    import os
+    persona_name = os.path.basename(persona_name)
+    mgr = ContextFileManager(
+        base_dir=django_settings.DATA_DIR / 'user_context' / 'personas' / persona_name,
+        scope_label="PERSONA",
+        header_description="The following files provide additional context for this persona.",
+    )
+    return mgr.load_enabled_context()
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +80,12 @@ def load_context(persona_dir, persona_name=None):
 
     # Append persona-specific context files (if any are enabled)
     resolved_persona = persona_name or os.path.basename(persona_dir)
-    persona_context = load_enabled_persona_context(resolved_persona)
+    persona_context = _load_enabled_persona_context(resolved_persona)
     if persona_context:
         context_str += persona_context + "\n\n"
 
     # Append global user context files (if any are enabled)
-    user_context = load_enabled_context()
+    user_context = _load_enabled_user_context()
     if user_context:
         context_str += user_context + "\n\n"
 
