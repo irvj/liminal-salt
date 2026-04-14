@@ -5,6 +5,7 @@ import os
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from django.conf import settings as django_settings
+from django.views.decorators.http import require_POST
 
 from ..services import (
     load_context, get_available_personas, get_persona_model,
@@ -222,12 +223,12 @@ def chat(request):
     return render(request, 'chat/chat.html', context)
 
 
+@require_POST
 def switch_session(request):
     """HTMX endpoint to switch current session"""
-    if request.method == 'POST':
-        session_id = request.POST.get('session_id')
-        if session_id:
-            set_current_session(request, session_id)
+    session_id = request.POST.get('session_id')
+    if session_id:
+        set_current_session(request, session_id)
 
     return chat(request)
 
@@ -265,10 +266,9 @@ def new_chat(request):
     return render(request, 'chat/chat.html', {**context, 'show_home': True})
 
 
+@require_POST
 def start_chat(request):
     """Start a new chat - creates session, saves user message, returns chat view with thinking indicator"""
-    if request.method != 'POST':
-        return redirect('chat')
 
     config = load_config()
     if not config:
@@ -315,85 +315,81 @@ def start_chat(request):
     return render(request, 'chat/chat_main.html', context)
 
 
+@require_POST
 def delete_chat(request):
     """Delete chat session (POST) - supports HTMX for reactive updates"""
-    if request.method == 'POST':
-        session_id = request.POST.get('session_id')
-        if not session_id:
-            session_id = get_current_session(request)
-        if not session_id:
-            return redirect('chat')
-
-        delete_session_file(session_id)
-
-        remaining = [s for s in get_sessions_with_titles() if s["id"] != session_id]
-
-        if request.headers.get('HX-Request'):
-            config = load_config()
-
-            if remaining:
-                new_session_id = remaining[0]["id"]
-                set_current_session(request, new_session_id)
-
-                session_data = load_session(new_session_id)
-                session_persona = _resolve_session_persona(session_data, config)
-
-                user_timezone = request.session.get('user_timezone', 'UTC')
-                chat_core, model = _build_chat_core(config, new_session_id, session_persona, user_timezone)
-
-                sessions = get_sessions_with_titles()
-                pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
-                available_personas = get_available_personas(str(django_settings.PERSONAS_DIR))
-                default_persona = config.get("DEFAULT_PERSONA", "")
-
-                context = {
-                    'session_id': new_session_id,
-                    'title': chat_core.title,
-                    'persona': chat_core.persona,
-                    'model': model,
-                    'messages': chat_core.messages,
-                    'pinned_sessions': pinned_sessions,
-                    'grouped_sessions': grouped_sessions,
-                    'current_session': new_session_id,
-                    'available_personas': available_personas,
-                    'default_persona': default_persona,
-                    'is_htmx': True,
-                }
-
-                return render(request, 'chat/chat_main.html', context)
-            else:
-                set_current_session(request, None)
-
-                sessions = get_sessions_with_titles()
-                pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
-                available_personas = get_available_personas(str(django_settings.PERSONAS_DIR))
-                default_persona = config.get("DEFAULT_PERSONA", "") or "assistant"
-                default_model = config.get("MODEL", "")
-                persona_models = _build_persona_model_map(available_personas, default_model)
-
-                context = {
-                    'personas': available_personas,
-                    'default_persona': default_persona,
-                    'default_model': default_model,
-                    'persona_models_json': json.dumps(persona_models),
-                    'pinned_sessions': pinned_sessions,
-                    'grouped_sessions': grouped_sessions,
-                    'current_session': None,
-                    'is_htmx': True,
-                }
-
-                return render(request, 'chat/chat_home.html', context)
-
+    session_id = request.POST.get('session_id')
+    if not session_id:
+        session_id = get_current_session(request)
+    if not session_id:
         return redirect('chat')
+
+    delete_session_file(session_id)
+
+    remaining = [s for s in get_sessions_with_titles() if s["id"] != session_id]
+
+    if request.headers.get('HX-Request'):
+        config = load_config()
+
+        if remaining:
+            new_session_id = remaining[0]["id"]
+            set_current_session(request, new_session_id)
+
+            session_data = load_session(new_session_id)
+            session_persona = _resolve_session_persona(session_data, config)
+
+            user_timezone = request.session.get('user_timezone', 'UTC')
+            chat_core, model = _build_chat_core(config, new_session_id, session_persona, user_timezone)
+
+            sessions = get_sessions_with_titles()
+            pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
+            available_personas = get_available_personas(str(django_settings.PERSONAS_DIR))
+            default_persona = config.get("DEFAULT_PERSONA", "")
+
+            context = {
+                'session_id': new_session_id,
+                'title': chat_core.title,
+                'persona': chat_core.persona,
+                'model': model,
+                'messages': chat_core.messages,
+                'pinned_sessions': pinned_sessions,
+                'grouped_sessions': grouped_sessions,
+                'current_session': new_session_id,
+                'available_personas': available_personas,
+                'default_persona': default_persona,
+                'is_htmx': True,
+            }
+
+            return render(request, 'chat/chat_main.html', context)
+        else:
+            set_current_session(request, None)
+
+            sessions = get_sessions_with_titles()
+            pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
+            available_personas = get_available_personas(str(django_settings.PERSONAS_DIR))
+            default_persona = config.get("DEFAULT_PERSONA", "") or "assistant"
+            default_model = config.get("MODEL", "")
+            persona_models = _build_persona_model_map(available_personas, default_model)
+
+            context = {
+                'personas': available_personas,
+                'default_persona': default_persona,
+                'default_model': default_model,
+                'persona_models_json': json.dumps(persona_models),
+                'pinned_sessions': pinned_sessions,
+                'grouped_sessions': grouped_sessions,
+                'current_session': None,
+                'is_htmx': True,
+            }
+
+            return render(request, 'chat/chat_home.html', context)
 
     return redirect('chat')
 
 
+@require_POST
 def toggle_pin_chat(request):
     """Toggle pinned status of a chat session (POST) - returns updated sidebar"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     session_id = request.POST.get('session_id')
     if not session_id:
         return HttpResponse(status=400)
@@ -415,11 +411,9 @@ def toggle_pin_chat(request):
     return render(request, 'chat/sidebar_sessions.html', context)
 
 
+@require_POST
 def rename_chat(request):
     """Rename a chat session (POST) - returns updated sidebar"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     session_id = request.POST.get('session_id')
     new_title = request.POST.get('new_title', '').strip()[:50]
 
@@ -442,11 +436,9 @@ def rename_chat(request):
     return render(request, 'chat/sidebar_sessions.html', context)
 
 
+@require_POST
 def save_draft(request):
     """Save draft text for a session (POST) - returns minimal response"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     session_id = request.POST.get('session_id')
     draft = request.POST.get('draft', '')
 
@@ -459,11 +451,9 @@ def save_draft(request):
     return HttpResponse(status=204)
 
 
+@require_POST
 def send_message(request):
     """Send message to chat (HTMX endpoint) - returns HTML fragment"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     user_message = request.POST.get('message', '').strip()
     if not user_message:
         return HttpResponse(status=400)
@@ -532,11 +522,9 @@ def send_message(request):
     return response
 
 
+@require_POST
 def retry_message(request):
     """Retry the last assistant message - removes it and resubmits the user message"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     session_id = get_current_session(request)
     if not session_id:
         return HttpResponse(status=400)
@@ -562,11 +550,9 @@ def retry_message(request):
     })
 
 
+@require_POST
 def edit_message(request):
     """Edit the last user message"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     session_id = get_current_session(request)
     if not session_id:
         return HttpResponse(status=400)

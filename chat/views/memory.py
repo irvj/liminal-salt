@@ -6,6 +6,7 @@ from django.shortcuts import redirect, render
 from django.http import HttpResponse, JsonResponse
 from django.conf import settings as django_settings
 from django.urls import reverse
+from django.views.decorators.http import require_POST
 
 from ..services.memory_worker import start_manual_update, start_seed_update, start_modify_update, get_update_status
 from ..services import (
@@ -85,30 +86,28 @@ def memory(request):
     return redirect('chat')
 
 
+@require_POST
 def update_memory(request):
     """Start a background memory update for a persona (POST, non-blocking)"""
-    if request.method == 'POST':
-        config = load_config()
-        selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
+    config = load_config()
+    selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
 
-        started = start_manual_update(selected_persona, config)
+    started = start_manual_update(selected_persona, config)
 
-        if request.headers.get('HX-Request'):
-            if not started:
-                context = _build_memory_view_context(
-                    config, selected_persona,
-                    error="Memory update already in progress.",
-                )
-                return render(request, 'memory/memory_main.html', context)
-
+    if request.headers.get('HX-Request'):
+        if not started:
             context = _build_memory_view_context(
-                config, selected_persona, memory_updating=True,
+                config, selected_persona,
+                error="Memory update already in progress.",
             )
             return render(request, 'memory/memory_main.html', context)
 
-        return redirect(f"{reverse('memory')}?persona={selected_persona}")
+        context = _build_memory_view_context(
+            config, selected_persona, memory_updating=True,
+        )
+        return render(request, 'memory/memory_main.html', context)
 
-    return redirect('memory')
+    return redirect(f"{reverse('memory')}?persona={selected_persona}")
 
 
 def memory_update_status(request):
@@ -118,11 +117,9 @@ def memory_update_status(request):
     return JsonResponse(status)
 
 
+@require_POST
 def save_memory_settings(request):
     """Save per-persona memory generation settings (AJAX endpoint)"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     persona = request.POST.get('persona', 'assistant')
     personas_dir = str(django_settings.PERSONAS_DIR)
 
@@ -160,30 +157,26 @@ def save_memory_settings(request):
     return JsonResponse({'success': True})
 
 
+@require_POST
 def wipe_memory(request):
     """Wipe per-persona memory (POST)"""
-    if request.method == 'POST':
-        config = load_config()
-        selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
-        delete_memory(selected_persona)
+    config = load_config()
+    selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
+    delete_memory(selected_persona)
 
-        if request.headers.get('HX-Request'):
-            context = _build_memory_view_context(
-                config, selected_persona,
-                success="Memory wiped successfully", just_updated=True,
-            )
-            return render(request, 'memory/memory_main.html', context)
+    if request.headers.get('HX-Request'):
+        context = _build_memory_view_context(
+            config, selected_persona,
+            success="Memory wiped successfully", just_updated=True,
+        )
+        return render(request, 'memory/memory_main.html', context)
 
-        return redirect(f"{reverse('memory')}?success=Memory wiped successfully")
-
-    return redirect('memory')
+    return redirect(f"{reverse('memory')}?success=Memory wiped successfully")
 
 
+@require_POST
 def modify_memory(request):
     """Start a background memory modify for a persona (POST, non-blocking)"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     command = request.POST.get('command', '').strip()
     if not command:
         return HttpResponse(status=400)
@@ -212,11 +205,9 @@ def modify_memory(request):
     return redirect(f"{reverse('memory')}?persona={selected_persona}")
 
 
+@require_POST
 def seed_memory(request):
     """Upload a file to seed/merge into persona memory (POST, non-blocking)"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     config = load_config()
     if not config:
         return HttpResponse("Configuration not found", status=500)
@@ -264,11 +255,9 @@ def seed_memory(request):
 # Persona-specific Context File Endpoints
 # =============================================================================
 
+@require_POST
 def upload_persona_context_file(request):
     """Upload a context file for a specific persona (AJAX endpoint)"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
     persona = request.POST.get('persona')
     if not persona:
         return JsonResponse({'error': 'No persona specified'}, status=400)
@@ -290,11 +279,9 @@ def upload_persona_context_file(request):
     })
 
 
+@require_POST
 def delete_persona_context_file(request):
     """Delete a context file from a specific persona (AJAX endpoint)"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
     persona = request.POST.get('persona')
     if not persona:
         return JsonResponse({'error': 'No persona specified'}, status=400)
@@ -311,11 +298,9 @@ def delete_persona_context_file(request):
     })
 
 
+@require_POST
 def toggle_persona_context_file(request):
     """Toggle enabled status of a persona's context file (AJAX endpoint)"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
     persona = request.POST.get('persona')
     if not persona:
         return JsonResponse({'error': 'No persona specified'}, status=400)
@@ -350,11 +335,9 @@ def get_persona_context_file_content(request):
     return JsonResponse({'filename': filename, 'content': content})
 
 
+@require_POST
 def save_persona_context_file_content(request):
     """POST endpoint to save edited persona context file content"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
     persona = request.POST.get('persona')
     if not persona:
         return JsonResponse({'error': 'No persona specified'}, status=400)
@@ -385,11 +368,9 @@ def browse_directories(request):
     return JsonResponse(result)
 
 
+@require_POST
 def add_local_context_dir(request):
     """Add a local directory to context config (POST)"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
     dir_path = request.POST.get('dir_path', '').strip()
     if not dir_path:
         return JsonResponse({'error': 'No directory path provided'}, status=400)
@@ -408,11 +389,9 @@ def add_local_context_dir(request):
     return JsonResponse({'directories': dirs})
 
 
+@require_POST
 def remove_local_context_dir(request):
     """Remove a local directory from context config (POST)"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
     dir_path = request.POST.get('dir_path', '').strip()
     if not dir_path:
         return JsonResponse({'error': 'No directory path provided'}, status=400)
@@ -428,11 +407,9 @@ def remove_local_context_dir(request):
     return JsonResponse({'directories': dirs})
 
 
+@require_POST
 def toggle_local_context_file(request):
     """Toggle a file in a local directory (POST)"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
     dir_path = request.POST.get('dir_path', '').strip()
     filename = request.POST.get('filename', '').strip()
     if not dir_path or not filename:
@@ -474,11 +451,9 @@ def get_local_context_file_content(request):
     return JsonResponse({'filename': os.path.basename(filename), 'content': content})
 
 
+@require_POST
 def refresh_local_context_dir(request):
     """Refresh files in a local directory (POST)"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
     dir_path = request.POST.get('dir_path', '').strip()
     if not dir_path:
         return JsonResponse({'error': 'No directory path provided'}, status=400)

@@ -3,6 +3,7 @@ import logging
 
 from django.shortcuts import render, redirect
 from django.conf import settings as django_settings
+from django.views.decorators.http import require_http_methods
 
 from ..services import validate_api_key, get_providers
 from ..utils import (
@@ -29,6 +30,7 @@ def index(request):
         return redirect('setup')
     return redirect('chat')
 
+@require_http_methods(["GET", "POST"])
 def setup_wizard(request):
     """First-time setup wizard - 2 steps: API key validation, model selection"""
     # Check if already configured (both API key AND model must be set)

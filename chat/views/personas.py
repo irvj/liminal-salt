@@ -4,6 +4,7 @@ import logging
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, JsonResponse
 from django.conf import settings as django_settings
+from django.views.decorators.http import require_POST
 
 from ..services import (
     get_providers,
@@ -97,11 +98,9 @@ def persona_settings(request):
     return redirect('chat')
 
 
+@require_POST
 def save_persona_file(request):
     """Save edited persona file content and optionally rename persona"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     persona = request.POST.get('persona', '').strip()
     new_name = request.POST.get('new_name', '').strip()
     content = request.POST.get('content', '')
@@ -160,11 +159,9 @@ def save_persona_file(request):
     return render(request, 'persona/persona_main.html', context)
 
 
+@require_POST
 def create_persona(request):
     """Create a new persona"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     name = request.POST.get('name', '').strip()
     content = request.POST.get('content', '')
 
@@ -207,11 +204,9 @@ def create_persona(request):
     return render(request, 'persona/persona_main.html', context)
 
 
+@require_POST
 def delete_persona(request):
     """Delete a persona"""
-    if request.method != 'POST':
-        return HttpResponse(status=405)
-
     persona = request.POST.get('persona', '').strip()
 
     if not persona:
@@ -273,11 +268,9 @@ def delete_persona(request):
     return render(request, 'persona/persona_main.html', context)
 
 
+@require_POST
 def save_persona_model(request):
     """Save model override for a persona (POST)"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
-
     persona = request.POST.get('persona', '').strip()
     model = request.POST.get('model', '').strip()
 
