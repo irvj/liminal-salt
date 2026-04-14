@@ -1,5 +1,13 @@
 # Business logic services
 from .chat_core import ChatCore
+from .session_manager import (
+    load_session, create_session, delete_session,
+    get_session_persona, get_session_draft,
+    toggle_pin, rename_session, save_draft, clear_draft,
+    remove_last_assistant_message, update_last_user_message,
+    update_persona_across_sessions, get_session_path,
+    generate_session_id, make_user_timestamp,
+)
 from .config_manager import fetch_available_models, validate_api_key, get_providers
 from .context_manager import load_context, get_available_personas, get_persona_config, save_persona_config, get_persona_model, get_persona_identity, ensure_default_personas
 from .llm_client import call_llm, LLMError

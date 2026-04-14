@@ -13,6 +13,7 @@ from ..services import (
     list_persona_context_files,
     list_persona_context_local_directories,
 )
+from ..services.session_manager import update_persona_across_sessions
 from ..utils import (
     load_config, save_config, group_models_by_provider,
     flatten_models_with_provider_prefix,
@@ -40,27 +41,6 @@ def _persona_context_extras(persona_name):
         'persona_context_badge_count': _persona_context_badge_count(persona_name),
     }
 
-
-def _update_sessions_persona(old_name, new_name):
-    """Update all session files that reference the old persona name"""
-    sessions_dir = django_settings.SESSIONS_DIR
-    if not os.path.exists(sessions_dir):
-        return
-
-    for filename in os.listdir(sessions_dir):
-        if filename.endswith('.json'):
-            filepath = os.path.join(sessions_dir, filename)
-            try:
-                with open(filepath, 'r') as f:
-                    data = json.load(f)
-
-                if isinstance(data, dict) and data.get('persona') == old_name:
-                    data['persona'] = new_name
-                    with open(filepath, 'w') as f:
-                        json.dump(data, f, indent=4)
-            except Exception as e:
-                logger.error(f"Error updating session {filename}: {e}")
-                continue
 
 
 def persona_settings(request):
@@ -157,7 +137,7 @@ def save_persona_file(request):
             rename_memory(persona, new_name)
 
             # Update all session files that reference the old persona
-            _update_sessions_persona(persona, new_name)
+            update_persona_across_sessions(persona, new_name)
 
             # Update config.json if DEFAULT_PERSONA matches old name
             if config.get("DEFAULT_PERSONA") == persona:
