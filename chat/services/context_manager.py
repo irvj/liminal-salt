@@ -1,8 +1,34 @@
 import os
 import json
+import logging
+import shutil
 from pathlib import Path
 from .user_context import load_enabled_context
 from .persona_context import load_enabled_context as load_enabled_persona_context
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_PERSONAS_DIR = Path(__file__).resolve().parent.parent / 'default_personas'
+
+
+def ensure_default_personas(personas_dir):
+    """
+    Copy bundled default personas into the data personas directory
+    if they don't already exist. Called on app startup.
+    """
+    personas_dir = Path(personas_dir)
+    personas_dir.mkdir(parents=True, exist_ok=True)
+
+    if not DEFAULT_PERSONAS_DIR.exists():
+        return
+
+    for persona in DEFAULT_PERSONAS_DIR.iterdir():
+        if not persona.is_dir():
+            continue
+        target = personas_dir / persona.name
+        if not target.exists():
+            shutil.copytree(persona, target)
+            logger.info(f"Seeded default persona: {persona.name}")
 
 def load_context(persona_dir, persona_name=None):
     """

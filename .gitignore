@@ -4,21 +4,11 @@
 # User Data (never commit personal data)
 # =============================================================================
 
-# Session files and chat history
-sessions/
-chat_history.json
-
-# Per-persona memory files
-data/memory/
-
-# User uploaded context files
-user_context/
+# User data (sessions, personas, memory, context files)
+data/
 
 # API keys and secrets
 config.json
-
-# Beta personas
-data/personas/lottie/
 
 # =============================================================================
 # Python
