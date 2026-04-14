@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.3] - 2026-04-14
+
+### Changes
+- fix markdown rendering issues
+- fix scroll to bottom issue on model response
+- refactor for default persona seeding on first run
+
 ## [0.7.2] - 2026-03-26
 
 ### Changes
