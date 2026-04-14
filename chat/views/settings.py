@@ -13,7 +13,8 @@ from ..services import (
     upload_context_file as do_upload_context,
     delete_context_file as do_delete_context,
     toggle_context_file as do_toggle_context,
-    get_user_context_dir,
+    get_context_file_content as do_get_context_content,
+    save_context_file_content as do_save_context_content,
     list_context_local_directories,
 )
 from ..utils import (
@@ -335,13 +336,11 @@ def get_context_file_content(request):
     if not filename:
         return JsonResponse({'error': 'No filename provided'}, status=400)
 
-    filename = os.path.basename(filename)
-    file_path = get_user_context_dir() / filename
-    if not file_path.exists():
+    content = do_get_context_content(filename)
+    if content is None:
         return JsonResponse({'error': 'File not found'}, status=404)
 
-    content = file_path.read_text()
-    return JsonResponse({'filename': filename, 'content': content})
+    return JsonResponse({'filename': os.path.basename(filename), 'content': content})
 
 
 def save_context_file_content(request):
@@ -355,10 +354,7 @@ def save_context_file_content(request):
     if not filename:
         return JsonResponse({'error': 'No filename provided'}, status=400)
 
-    filename = os.path.basename(filename)
-    file_path = get_user_context_dir() / filename
-    if not file_path.exists():
+    if not do_save_context_content(filename, content):
         return JsonResponse({'error': 'File not found'}, status=404)
 
-    file_path.write_text(content)
-    return JsonResponse({'success': True, 'filename': filename})
+    return JsonResponse({'success': True, 'filename': os.path.basename(filename)})

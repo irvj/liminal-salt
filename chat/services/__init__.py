@@ -24,33 +24,86 @@ from .memory_manager import (
     get_memory_model,
 )
 from .summarizer import Summarizer
-from .user_context import (
-    list_files as list_context_files,
-    upload_file as upload_context_file,
-    delete_file as delete_context_file,
-    toggle_file as toggle_context_file,
-    load_enabled_context,
-    get_user_context_dir,
-    add_local_directory as add_context_local_directory,
-    remove_local_directory as remove_context_local_directory,
-    list_local_directories as list_context_local_directories,
-    toggle_local_file as toggle_context_local_file,
-    get_local_file_content as get_context_local_file_content,
-    refresh_local_directory as refresh_context_local_directory,
-)
-from .persona_context import (
-    list_files as list_persona_context_files,
-    upload_file as upload_persona_context_file,
-    delete_file as delete_persona_context_file,
-    toggle_file as toggle_persona_context_file,
-    get_file_content as get_persona_context_file_content,
-    save_file_content as save_persona_context_file_content,
-    load_enabled_context as load_enabled_persona_context,
-    add_local_directory as add_persona_context_local_directory,
-    remove_local_directory as remove_persona_context_local_directory,
-    list_local_directories as list_persona_context_local_directories,
-    toggle_local_file as toggle_persona_context_local_file,
-    get_local_file_content as get_persona_context_local_file_content,
-    refresh_local_directory as refresh_persona_context_local_directory,
-)
+from .context_files import ContextFileManager
 from .local_context import browse_directory
+
+from django.conf import settings as _django_settings
+
+# ---------------------------------------------------------------------------
+# Global (user-level) context files — singleton instance
+# ---------------------------------------------------------------------------
+_global_context = ContextFileManager(
+    base_dir=_django_settings.DATA_DIR / 'user_context',
+    scope_label="USER",
+    header_description="The following files were provided by the user as additional context.",
+)
+
+def get_user_context_dir():
+    return _global_context._ensure_dir()
+
+list_context_files          = _global_context.list_files
+upload_context_file         = _global_context.upload_file
+delete_context_file         = _global_context.delete_file
+toggle_context_file         = _global_context.toggle_file
+load_enabled_context        = _global_context.load_enabled_context
+get_context_file_content    = _global_context.get_file_content
+save_context_file_content   = _global_context.save_file_content
+add_context_local_directory      = _global_context.add_local_directory
+remove_context_local_directory   = _global_context.remove_local_directory
+list_context_local_directories   = _global_context.list_local_directories
+toggle_context_local_file        = _global_context.toggle_local_file
+get_context_local_file_content   = _global_context.get_local_file_content
+refresh_context_local_directory  = _global_context.refresh_local_directory
+
+# ---------------------------------------------------------------------------
+# Per-persona context files — factory function creates scoped instances
+# ---------------------------------------------------------------------------
+import os as _os
+
+def _persona_ctx(persona_name):
+    """Get a ContextFileManager scoped to a specific persona."""
+    persona_name = _os.path.basename(persona_name)
+    return ContextFileManager(
+        base_dir=_django_settings.DATA_DIR / 'user_context' / 'personas' / persona_name,
+        scope_label="PERSONA",
+        header_description="The following files provide additional context for this persona.",
+    )
+
+def list_persona_context_files(persona_name):
+    return _persona_ctx(persona_name).list_files()
+
+def upload_persona_context_file(persona_name, uploaded_file):
+    return _persona_ctx(persona_name).upload_file(uploaded_file)
+
+def delete_persona_context_file(persona_name, filename):
+    return _persona_ctx(persona_name).delete_file(filename)
+
+def toggle_persona_context_file(persona_name, filename, enabled=None):
+    return _persona_ctx(persona_name).toggle_file(filename, enabled)
+
+def get_persona_context_file_content(persona_name, filename):
+    return _persona_ctx(persona_name).get_file_content(filename)
+
+def save_persona_context_file_content(persona_name, filename, content):
+    return _persona_ctx(persona_name).save_file_content(filename, content)
+
+def load_enabled_persona_context(persona_name):
+    return _persona_ctx(persona_name).load_enabled_context()
+
+def add_persona_context_local_directory(persona_name, dir_path):
+    return _persona_ctx(persona_name).add_local_directory(dir_path)
+
+def remove_persona_context_local_directory(persona_name, dir_path):
+    return _persona_ctx(persona_name).remove_local_directory(dir_path)
+
+def list_persona_context_local_directories(persona_name):
+    return _persona_ctx(persona_name).list_local_directories()
+
+def toggle_persona_context_local_file(persona_name, dir_path, filename, enabled=None):
+    return _persona_ctx(persona_name).toggle_local_file(dir_path, filename, enabled)
+
+def get_persona_context_local_file_content(persona_name, dir_path, filename):
+    return _persona_ctx(persona_name).get_local_file_content(dir_path, filename)
+
+def refresh_persona_context_local_directory(persona_name, dir_path):
+    return _persona_ctx(persona_name).refresh_local_directory(dir_path)
