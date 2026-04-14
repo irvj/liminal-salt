@@ -7,7 +7,7 @@ from django.http import HttpResponse, JsonResponse
 from django.conf import settings as django_settings
 
 from ..services import (
-    fetch_available_models, validate_api_key, get_providers,
+    validate_api_key, get_providers,
     get_available_personas, get_persona_model, list_persona_context_files,
     list_context_files,
     upload_context_file as do_upload_context,
@@ -17,10 +17,8 @@ from ..services import (
     save_context_file_content as do_save_context_content,
     list_context_local_directories,
 )
-from ..utils import (
-    load_config, save_config, group_models_by_provider,
-    flatten_models_with_provider_prefix,
-)
+from ..services.persona_manager import get_persona_preview
+from ..utils import load_config, save_config, get_formatted_model_list
 
 logger = logging.getLogger(__name__)
 
@@ -102,32 +100,14 @@ def save_settings(request):
             model = config.get("MODEL", "")
             provider = config.get("PROVIDER", "openrouter")
 
-            # Check if API key exists and fetch models
-            has_api_key = False
-            api_key = None
-            available_models = []
-            if provider == 'openrouter':
-                api_key = config.get("OPENROUTER_API_KEY")
-                has_api_key = bool(api_key)
-            if has_api_key and api_key:
-                models_list = fetch_available_models(api_key)
-                if models_list:
-                    grouped = group_models_by_provider(models_list)
-                    model_options = flatten_models_with_provider_prefix(grouped)
-                    available_models = [{'id': m[0], 'display': m[1]} for m in model_options]
+            # Fetch models
+            api_key = config.get("OPENROUTER_API_KEY", "")
+            has_api_key = bool(api_key)
+            available_models = get_formatted_model_list(api_key)
 
             # Read persona preview for the newly set default (if set)
-            persona_preview = ""
-            persona_model = None
-            if default_persona:
-                persona_path = os.path.join(personas_dir, default_persona)
-                if os.path.exists(persona_path):
-                    md_files = [f for f in os.listdir(persona_path) if f.endswith(".md")]
-                    if md_files:
-                        with open(os.path.join(persona_path, md_files[0]), 'r') as f:
-                            content = f.read()
-                            persona_preview = content
-                persona_model = get_persona_model(default_persona, personas_dir)
+            persona_preview = get_persona_preview(default_persona) if default_persona else ""
+            persona_model = get_persona_model(default_persona, personas_dir) if default_persona else None
 
             # Return persona page if redirecting there
             if redirect_to == 'persona':
@@ -212,17 +192,13 @@ def validate_provider_api_key(request):
             return JsonResponse({'valid': False, 'error': 'Invalid API key'})
 
         # Fetch models for this key
-        models = fetch_available_models(api_key)
-        if not models:
+        available_models = get_formatted_model_list(api_key)
+        if not available_models:
             return JsonResponse({'valid': False, 'error': 'Could not fetch models'})
-
-        # Format models for frontend
-        grouped = group_models_by_provider(models)
-        model_options = flatten_models_with_provider_prefix(grouped)
 
         return JsonResponse({
             'valid': True,
-            'models': [{'id': m[0], 'display': m[1]} for m in model_options]
+            'models': available_models
         })
 
     return JsonResponse({'valid': False, 'error': 'Unknown provider'})

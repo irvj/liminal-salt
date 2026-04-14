@@ -4,33 +4,13 @@ import logging
 from django.shortcuts import render, redirect
 from django.conf import settings as django_settings
 
-from ..services import fetch_available_models, validate_api_key, get_providers
+from ..services import validate_api_key, get_providers
 from ..utils import (
-    load_config, save_config, group_models_by_provider,
-    flatten_models_with_provider_prefix,
+    load_config, save_config, get_formatted_model_list, get_theme_list,
 )
 
 logger = logging.getLogger(__name__)
 
-
-def _get_theme_list():
-    """Helper function to get list of available themes from the themes directory"""
-    themes_dir = django_settings.BASE_DIR / 'chat' / 'static' / 'themes'
-    themes = []
-
-    if themes_dir.exists():
-        for theme_file in sorted(themes_dir.glob('*.json')):
-            try:
-                with open(theme_file) as f:
-                    data = json.load(f)
-                    themes.append({
-                        'id': data.get('id', theme_file.stem),
-                        'name': data.get('name', theme_file.stem.title())
-                    })
-            except (json.JSONDecodeError, KeyError):
-                continue
-
-    return themes
 
 
 def _get_theme_context(config=None):
@@ -137,15 +117,14 @@ def setup_wizard(request):
 
             if not selected_model:
                 # Re-fetch models and themes for error display
-                models = fetch_available_models(api_key)
-                if models:
-                    grouped_models = group_models_by_provider(models)
-                    model_options = flatten_models_with_provider_prefix(grouped_models)
-                    themes = _get_theme_list()
+                available_models = get_formatted_model_list(api_key)
+                if available_models:
+                    themes = get_theme_list()
                     return render(request, 'setup/step2.html', {
                         'error': 'Please select a model',
-                        'model_count': len(models),
-                        'model_options': model_options,
+                        'model_count': len(available_models),
+                        'available_models': available_models,
+                        'available_models_json': json.dumps(available_models),
                         'selected_model': selected_model,
                         'themes': themes,
                         'themes_json': json.dumps(themes),
@@ -174,22 +153,21 @@ def setup_wizard(request):
 
         # Display step 2 form - fetch models using API key from config
         logger.info("Fetching models for step 2 display from config.json")
-        models = fetch_available_models(api_key)
+        available_models = get_formatted_model_list(api_key)
 
-        if not models or len(models) == 0:
+        if not available_models:
             # API key is no longer valid, go back to step 1
             logger.error("Failed to fetch models for step 2 display")
             request.session['setup_step'] = 1
             request.session.modified = True
             return redirect('setup')
 
-        grouped_models = group_models_by_provider(models)
-        model_options = flatten_models_with_provider_prefix(grouped_models)
-        themes = _get_theme_list()
+        themes = get_theme_list()
 
         return render(request, 'setup/step2.html', {
-            'model_count': len(models),
-            'model_options': model_options,
+            'model_count': len(available_models),
+            'available_models': available_models,
+            'available_models_json': json.dumps(available_models),
             'themes': themes,
             'themes_json': json.dumps(themes),
             'selected_theme': 'liminal-salt',

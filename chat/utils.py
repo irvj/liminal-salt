@@ -290,3 +290,52 @@ def flatten_models_with_provider_prefix(grouped_models):
                 display_name = model_name
             options.append((model["id"], display_name))
     return options
+
+
+def get_formatted_model_list(api_key):
+    """
+    Fetch models from OpenRouter and return them formatted for display.
+
+    Wraps the fetch → group → flatten chain into a single call.
+
+    Args:
+        api_key: OpenRouter API key
+
+    Returns:
+        List of dicts: [{"id": "model/id", "display": "Provider: Name - $X/$Y per 1M"}, ...]
+        Empty list if fetch fails or no API key.
+    """
+    if not api_key:
+        return []
+
+    from .services import fetch_available_models
+
+    models = fetch_available_models(api_key)
+    if not models:
+        return []
+
+    grouped = group_models_by_provider(models)
+    options = flatten_models_with_provider_prefix(grouped)
+    return [{'id': m[0], 'display': m[1]} for m in options]
+
+
+def get_theme_list():
+    """Get list of available themes from the themes directory."""
+    import json as _json
+
+    themes_dir = settings.BASE_DIR / 'chat' / 'static' / 'themes'
+    themes = []
+
+    if themes_dir.exists():
+        for theme_file in sorted(themes_dir.glob('*.json')):
+            try:
+                with open(theme_file) as f:
+                    data = _json.load(f)
+                    themes.append({
+                        'id': data.get('id', theme_file.stem),
+                        'name': data.get('name', theme_file.stem.title())
+                    })
+            except (_json.JSONDecodeError, KeyError):
+                continue
+
+    return themes

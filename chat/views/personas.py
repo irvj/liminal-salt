@@ -6,7 +6,7 @@ from django.http import HttpResponse, JsonResponse
 from django.conf import settings as django_settings
 
 from ..services import (
-    fetch_available_models, get_providers,
+    get_providers,
     get_available_personas, get_persona_model, get_persona_config,
     save_persona_config,
     list_persona_context_files,
@@ -19,10 +19,7 @@ from ..services.persona_manager import (
     rename_persona, persona_exists,
 )
 from ..services.session_manager import update_persona_across_sessions
-from ..utils import (
-    load_config, save_config, group_models_by_provider,
-    flatten_models_with_provider_prefix,
-)
+from ..utils import load_config, save_config, get_formatted_model_list
 
 logger = logging.getLogger(__name__)
 
@@ -49,21 +46,10 @@ def _persona_context_extras(persona_name):
 
 def _fetch_available_models_list(config):
     """Fetch and format available models if API key exists. Returns (has_api_key, models_list)."""
-    provider = config.get("PROVIDER", "openrouter")
-    api_key = None
-    if provider == 'openrouter':
-        api_key = config.get("OPENROUTER_API_KEY")
-
+    api_key = config.get("OPENROUTER_API_KEY", "")
     if not api_key:
         return False, []
-
-    models_list = fetch_available_models(api_key)
-    if not models_list:
-        return True, []
-
-    grouped = group_models_by_provider(models_list)
-    model_options = flatten_models_with_provider_prefix(grouped)
-    return True, [{'id': m[0], 'display': m[1]} for m in model_options]
+    return True, get_formatted_model_list(api_key)
 
 
 def persona_settings(request):

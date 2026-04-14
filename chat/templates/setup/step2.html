@@ -54,7 +54,7 @@
             <div class="mb-5"
                  x-data="modelPicker"
                  data-selected-model="{{ selected_model|default:'' }}"
-                 data-models='[{% for model_id, display_name in model_options %}{ "id": "{{ model_id }}", "display": "{{ display_name|escapejs }}" }{% if not forloop.last %}, {% endif %}{% endfor %}]'
+                 data-models='{{ available_models_json|safe }}'
                  @dropdown-select="onModelSelect($event.detail)">
                 <label class="block mb-2 font-medium">Select a model:</label>
                 <div x-data="selectDropdown" :data-items="JSON.stringify(modelItems)" :data-selected="selectedId">
