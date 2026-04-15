@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.0] - 2026-04-14
+
+### Changes
+- update roadmap for next major updates
+- update CLAUDE.md after major backend and frontend soc refactor
+- Merge branch 'soc-refactor-frontend'
+- extract inline scripts and Alpine logic from templates, replace window globals with data attributes
+- eliminate hardcoded URLs in JS, standardize async patterns and CSRF retrieval
+- replace inline event handlers and window globals with Alpine directives and dispatched events
+
 ## [0.8.0] - 2026-04-14
 
 ### Changes
