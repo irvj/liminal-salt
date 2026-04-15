@@ -32,6 +32,8 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('themePicker', themePicker);
     Alpine.data('setupThemePicker', setupThemePicker);
     Alpine.data('themeModeToggle', themeModeToggle);
+    Alpine.data('memorySettings', memorySettings);
+    Alpine.data('contextHistoryLimit', contextHistoryLimit);
 });
 
 // =============================================================================
@@ -498,8 +500,6 @@ function contextFilesModal() {
         deleteUrl: '',
         contentUrl: '',
         saveUrl: '',
-        dataKey: '',
-        localDirsDataKey: '',
         badgeSelector: '',
 
         init() {
@@ -508,9 +508,8 @@ function contextFilesModal() {
             this.deleteUrl = this.$el.dataset.deleteUrl;
             this.contentUrl = this.$el.dataset.contentUrl;
             this.saveUrl = this.$el.dataset.saveUrl;
-            this.dataKey = this.$el.dataset.dataKey;
-            this.localDirsDataKey = this.$el.dataset.localDirsDataKey || '';
             this.badgeSelector = this.$el.dataset.badgeSelector || '';
+            this._filesSourceId = this.$el.dataset.filesSource || '';
 
             // Listen for open events
             const eventName = this.$el.dataset.openEvent;
@@ -524,13 +523,29 @@ function contextFilesModal() {
             this.loadFiles();
         },
 
+        _getSourceEl() {
+            return this._filesSourceId ? document.getElementById(this._filesSourceId) : null;
+        },
+
+        _syncFilesToSource() {
+            const el = this._getSourceEl();
+            if (el) el.dataset.files = JSON.stringify(this.files);
+        },
+
+        _syncDirsToSource() {
+            const el = this._getSourceEl();
+            if (el) el.dataset.localDirs = JSON.stringify(this.localDirectories);
+        },
+
         loadFiles() {
-            this.files = window[this.dataKey] || [];
-            if (this.$el.dataset.personaKey) {
-                this.persona = window[this.$el.dataset.personaKey] || '';
-            }
-            if (this.localDirsDataKey) {
-                this.localDirectories = window[this.localDirsDataKey] || [];
+            const sourceEl = this._getSourceEl();
+            if (sourceEl) {
+                try { this.files = JSON.parse(sourceEl.dataset.files || '[]'); } catch (e) { this.files = []; }
+                this.persona = sourceEl.dataset.persona || '';
+                try { this.localDirectories = JSON.parse(sourceEl.dataset.localDirs || '[]'); } catch (e) { this.localDirectories = []; }
+            } else {
+                this.files = [];
+                this.localDirectories = [];
             }
         },
 
@@ -578,7 +593,7 @@ function contextFilesModal() {
                     if (response.ok) {
                         const data = await response.json();
                         this.files = data.files;
-                        window[this.dataKey] = data.files;
+                        this._syncFilesToSource();
                         this.showStatus(`Uploaded ${file.name}`, 'success');
                         this.updateBadge();
                     } else {
@@ -605,7 +620,7 @@ function contextFilesModal() {
             if (response.ok) {
                 const data = await response.json();
                 this.files = data.files;
-                window[this.dataKey] = data.files;
+                this._syncFilesToSource();
                 this.updateBadge();
             }
         },
@@ -627,7 +642,7 @@ function contextFilesModal() {
             if (response.ok) {
                 const data = await response.json();
                 this.files = data.files;
-                window[this.dataKey] = data.files;
+                this._syncFilesToSource();
                 this.showStatus(`Deleted ${filename}`, 'success');
                 this.updateBadge();
             }
@@ -758,7 +773,7 @@ function contextFilesModal() {
                 const data = await response.json();
                 if (response.ok) {
                     this.localDirectories = data.directories;
-                    if (this.localDirsDataKey) window[this.localDirsDataKey] = data.directories;
+                    this._syncDirsToSource();
                     this.newDirPath = '';
                     this.showStatus('Directory added', 'success');
                     this.updateBadge();
@@ -788,7 +803,7 @@ function contextFilesModal() {
                 if (response.ok) {
                     const data = await response.json();
                     this.localDirectories = data.directories;
-                    if (this.localDirsDataKey) window[this.localDirsDataKey] = data.directories;
+                    this._syncDirsToSource();
                     this.showStatus('Directory removed', 'success');
                     this.updateBadge();
                 }
@@ -814,7 +829,7 @@ function contextFilesModal() {
                 if (response.ok) {
                     const data = await response.json();
                     this.localDirectories = data.directories;
-                    if (this.localDirsDataKey) window[this.localDirsDataKey] = data.directories;
+                    this._syncDirsToSource();
                     this.updateBadge();
                 }
             } catch (err) {
@@ -860,7 +875,7 @@ function contextFilesModal() {
                 if (response.ok) {
                     const data = await response.json();
                     this.localDirectories = data.directories;
-                    if (this.localDirsDataKey) window[this.localDirsDataKey] = data.directories;
+                    this._syncDirsToSource();
                     this.showStatus('Directory refreshed', 'success');
                     this.updateBadge();
                 }
@@ -1371,6 +1386,93 @@ function themeModeToggle() {
             window.addEventListener('theme-mode-changed', (e) => {
                 this.isDark = e.detail.mode === 'dark';
             });
+        }
+    };
+}
+
+// =============================================================================
+// Memory Settings Component (inline save via fetch)
+// =============================================================================
+
+function memorySettings() {
+    return {
+        userHistoryMaxThreads: 0,
+        userHistoryMessagesPerThread: 0,
+        memorySizeLimit: 8000,
+        autoMemoryInterval: 0,
+        saved: true,
+        saving: false,
+        _saveUrl: '',
+        _persona: '',
+
+        init() {
+            const el = this.$el;
+            this._saveUrl = el.dataset.saveUrl;
+            this._persona = el.dataset.persona;
+            this.userHistoryMaxThreads = parseInt(el.dataset.maxThreads) || 0;
+            this.userHistoryMessagesPerThread = parseInt(el.dataset.messagesPerThread) || 0;
+            this.memorySizeLimit = parseInt(el.dataset.sizeLimit) || 8000;
+            this.autoMemoryInterval = parseInt(el.dataset.autoInterval) || 0;
+        },
+
+        async save() {
+            this.saving = true;
+            const form = new FormData();
+            form.append('persona', this._persona);
+            form.append('user_history_max_threads', this.userHistoryMaxThreads);
+            form.append('user_history_messages_per_thread', this.userHistoryMessagesPerThread);
+            form.append('memory_size_limit', this.memorySizeLimit);
+            form.append('auto_memory_interval', this.autoMemoryInterval);
+
+            try {
+                const resp = await fetch(this._saveUrl, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrfToken() },
+                    body: form
+                });
+                if (resp.ok) this.saved = true;
+            } catch (e) {
+                console.error('Failed to save memory settings:', e);
+            } finally {
+                this.saving = false;
+            }
+        }
+    };
+}
+
+// =============================================================================
+// Context History Limit Component (inline save via fetch)
+// =============================================================================
+
+function contextHistoryLimit() {
+    return {
+        value: 50,
+        saved: true,
+        saving: false,
+        _saveUrl: '',
+
+        init() {
+            this._saveUrl = this.$el.dataset.saveUrl;
+            this.value = parseInt(this.$el.dataset.currentValue) || 50;
+        },
+
+        async save() {
+            this.saving = true;
+            const form = new FormData();
+            form.append('context_history_limit', this.value);
+
+            try {
+                const resp = await fetch(this._saveUrl, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrfToken() },
+                    body: form
+                });
+                if (resp.ok) this.saved = true;
+            } catch (e) {
+                console.error('Failed to save context history limit:', e);
+            } finally {
+                this.saving = false;
+            }
         }
     };
 }

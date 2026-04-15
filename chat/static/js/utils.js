@@ -30,6 +30,19 @@
 })();
 
 // =============================================================================
+// HTMX CSRF Configuration
+// =============================================================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.body.addEventListener('htmx:configRequest', function(event) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (csrfToken) {
+            event.detail.headers['X-CSRFToken'] = csrfToken;
+        }
+    });
+});
+
+// =============================================================================
 // URL Configuration (read from data attributes set by Django templates)
 // =============================================================================
 
@@ -648,6 +661,26 @@ function showMemoryUpdating() {
         status.innerHTML = ' · Updating Memory<span class="updating-dots"><span>.</span><span>.</span><span>.</span></span>';
     }
     if (btn) btn.disabled = true;
+}
+
+/**
+ * Initialize memory view: format the last-update timestamp and start polling if updating.
+ * Called after memory_main.html is loaded (initial or HTMX swap).
+ */
+function initMemoryView() {
+    // Format last-update timestamp
+    const el = document.getElementById('last-update-time');
+    if (el && el.dataset.timestamp) {
+        const date = new Date(parseInt(el.dataset.timestamp) * 1000);
+        el.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+
+    // Start polling if memory is currently updating
+    const bar = document.getElementById('memory-status-bar');
+    if (bar && bar.dataset.updating === 'true') {
+        pollMemoryUpdateStatus(bar.dataset.persona, bar.dataset.statusUrl, bar.dataset.memoryUrl);
+    }
 }
 
 /**
