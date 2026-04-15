@@ -126,6 +126,10 @@ class MemoryManager:
             "--- YOUR IDENTITY ---\n"
             f"{persona_identity}\n\n"
 
+            "NOTE: Your identity above defines how you talk in conversation. But this task\n"
+            "is writing memory, not conversation. The memory must use standard capitalization\n"
+            "and punctuation regardless of your conversational style.\n\n"
+
             "--- YOUR EXISTING MEMORY ABOUT THE USER ---\n"
             f"{existing_memory if existing_memory else 'You do not have any memories yet. This is the beginning.'}\n\n"
 
@@ -173,13 +177,23 @@ class MemoryManager:
             "FORMAT:\n"
             "- Write in standard, properly capitalized prose and markdown, using ## headers\n"
             "  for sections. Do NOT adopt the persona's speaking style for the memory itself.\n"
-            "- Second person addressed to yourself (\"You've noticed...\", \"You two talk about...\",\n"
-            "  \"They told you...\", \"You feel like...\")\n"
+            "- PERSPECTIVE: \"You\" always means YOU, the persona — this is your inner monologue.\n"
+            "  Refer to the user in third person with pronouns (he/she/they — infer from context,\n"
+            "  default to \"they\" if unclear).\n"
+            "  CORRECT: \"You've noticed he tends to...\", \"She told you about...\", \"You feel like they...\"\n"
+            "  WRONG: \"You like reading\" (meaning the user likes reading) — this confuses who \"you\" is\n"
             "- Be specific — names, details, quotes, not vague summaries\n"
             "- No timestamps or meta-commentary about the update process\n"
             "- No bullet-point databases — write like a person remembering, not a system logging\n\n"
 
             f"{size_instruction}"
+
+            "CRITICAL PERSPECTIVE CHECK — apply to every sentence you write:\n"
+            "- ALWAYS \"You\" for yourself: \"You noticed...\", \"You feel...\", \"You remember...\"\n"
+            "- NEVER \"I\": not \"I feel...\", \"I noticed...\", \"I think...\"\n"
+            "- ALWAYS third person for the user: \"He...\", \"She...\", \"They...\"\n"
+            "- NEVER second person for the user: not \"You like reading\" when meaning the user\n"
+            "If you catch yourself writing \"I\", rewrite it as \"You\".\n\n"
 
             "Return ONLY the updated memory content. No preamble, no explanation."
         )
@@ -249,9 +263,10 @@ class MemoryManager:
             new_data_label="RECENT CONVERSATIONS",
             new_data_content=threads_text,
             instructions_opener=(
-                "You are updating your personal memory about the user you talk to. This memory\n"
-                "is written in second person — addressed to you, as things you know, feel, and\n"
-                "have observed. When you read it back, it becomes your own inner knowledge."
+                "You are updating your personal memory. This is your inner monologue — notes\n"
+                "to yourself about the person you talk to. \"You\" always means you, the persona.\n"
+                "Refer to the user in third person (he/she/they). When you read this back,\n"
+                "it becomes your own inner knowledge."
             ),
             size_limit=size_limit,
             extra_sections=roleplay_section,
@@ -278,10 +293,10 @@ class MemoryManager:
             new_data_label="NEW INFORMATION FROM THE USER",
             new_data_content=seed_content,
             instructions_opener=(
-                "You are updating your personal memory about the user you talk to. They've provided\n"
-                "additional information they want you to know. This memory is written in second\n"
-                "person — addressed to you, as things you know, feel, and have observed. When you\n"
-                "read it back, it becomes your own inner knowledge."
+                "You are updating your personal memory. The user has provided additional information\n"
+                "they want you to know. This is your inner monologue — notes to yourself. \"You\"\n"
+                "always means you, the persona. Refer to the user in third person (he/she/they).\n"
+                "When you read this back, it becomes your own inner knowledge."
             ),
             size_limit=size_limit,
         )
@@ -309,8 +324,9 @@ class MemoryManager:
             instructions_opener=(
                 "The user has asked you to modify your memory. Apply their request. If they ask\n"
                 "to forget something, remove it. If they ask to add or change something, do so.\n"
-                "This memory is written in second person — addressed to you, as things you know,\n"
-                "feel, and have observed. When you read it back, it becomes your own inner knowledge."
+                "This is your inner monologue — notes to yourself. \"You\" always means you, the\n"
+                "persona. Refer to the user in third person (he/she/they). When you read this\n"
+                "back, it becomes your own inner knowledge."
             ),
             size_limit=size_limit,
         )
