@@ -123,8 +123,8 @@
         <p class="text-foreground-secondary text-sm mb-3">
             Upload files to provide additional context to all personas. These are included in every conversation.
         </p>
-        <button tabindex="0" onclick="openContextFilesModal()" class="w-full md:w-auto group context-files-btn px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
-            Manage Context Files<span class="badge bg-accent text-foreground-on-accent rounded-xl px-2 py-0.5 text-xs ml-2 group-hover:bg-foreground-on-accent group-hover:text-accent" {% if not context_badge_count %}style="display:none"{% endif %}>{{ context_badge_count|default:"0" }}</span>
+        <button tabindex="0" @click="window.dispatchEvent(new CustomEvent('open-context-files-modal'))" class="w-full md:w-auto group context-files-btn px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
+            Manage Context Files<span class="badge bg-accent text-foreground-on-accent rounded-xl px-2 py-0.5 text-xs ml-2 group-hover:bg-foreground-on-accent group-hover:text-accent {% if not context_badge_count %}hidden{% endif %}">{{ context_badge_count|default:"0" }}</span>
         </button>
     </div>
 
@@ -136,20 +136,9 @@
             Number of message pairs sent to the LLM as context. Higher values use more tokens but provide better conversation memory.
         </p>
         <div class="flex gap-2 items-center max-w-md"
-             x-data="{
-                 value: {{ context_history_limit }},
-                 saved: true,
-                 saving: false,
-                 async save() {
-                     this.saving = true;
-                     const form = new FormData();
-                     form.append('context_history_limit', this.value);
-                     form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-                     const resp = await fetch('{% url 'save_context_history_limit' %}', { method: 'POST', body: form });
-                     if (resp.ok) { this.saved = true; }
-                     this.saving = false;
-                 }
-             }">
+             x-data="contextHistoryLimit"
+             data-current-value="{{ context_history_limit }}"
+             data-save-url="{% url 'save_context_history_limit' %}">
             <input type="number"
                    x-model="value"
                    @input="saved = false"
@@ -170,15 +159,10 @@
     </div>
 </div>
 
-<!-- Pass context files data to Alpine.js -->
-<script>
-    window.contextFilesData = [
-        {% for file in context_files %}
-        { name: "{{ file.name }}", enabled: {{ file.enabled|yesno:"true,false" }} }{% if not forloop.last %},{% endif %}
-        {% endfor %}
-    ];
-    window.contextLocalDirsData = {{ context_local_dirs_json|safe|default:"[]" }};
-</script>
+<!-- Context files data for Alpine modal -->
+<div id="context-files-data" class="hidden"
+     data-files='[{% for file in context_files %}{"name":"{{ file.name|escapejs }}","enabled":{{ file.enabled|yesno:"true,false" }}}{% if not forloop.last %},{% endif %}{% endfor %}]'
+     data-local-dirs='{{ context_local_dirs_json|safe|default:"[]" }}'></div>
 
 <!-- Out-of-band swap: Update New Chat button in sidebar -->
 <div id="new-chat-button" hx-swap-oob="true">

@@ -32,6 +32,8 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('themePicker', themePicker);
     Alpine.data('setupThemePicker', setupThemePicker);
     Alpine.data('themeModeToggle', themeModeToggle);
+    Alpine.data('memorySettings', memorySettings);
+    Alpine.data('contextHistoryLimit', contextHistoryLimit);
 });
 
 // =============================================================================
@@ -106,8 +108,9 @@ function deleteModal() {
         sessionTitle: '',
 
         init() {
-            // Store reference so openDeleteModal can access this
-            window.deleteModalComponent = this;
+            window.addEventListener('open-delete-modal', (e) => {
+                this.open(e.detail.id, e.detail.title);
+            });
         },
 
         open(sessionId, sessionTitle) {
@@ -116,13 +119,6 @@ function deleteModal() {
             this.showModal = true;
         }
     };
-}
-
-// Global helper function
-function openDeleteModal(sessionId, sessionTitle) {
-    if (window.deleteModalComponent) {
-        window.deleteModalComponent.open(sessionId, sessionTitle);
-    }
 }
 
 // =============================================================================
@@ -136,7 +132,9 @@ function renameModal() {
         newTitle: '',
 
         init() {
-            window.renameModalComponent = this;
+            window.addEventListener('open-rename-modal', (e) => {
+                this.open(e.detail.id, e.detail.title);
+            });
         },
 
         open(sessionId, currentTitle) {
@@ -149,13 +147,6 @@ function renameModal() {
     };
 }
 
-// Global helper function
-function openRenameModal(sessionId, currentTitle) {
-    if (window.renameModalComponent) {
-        window.renameModalComponent.open(sessionId, currentTitle);
-    }
-}
-
 // =============================================================================
 // Wipe Memory Modal Component
 // =============================================================================
@@ -166,48 +157,43 @@ function wipeMemoryModal() {
         wipeUrl: '',
 
         init() {
-            window.wipeMemoryModalComponent = this;
-            // Get URL from data attribute
             this.wipeUrl = this.$el.dataset.wipeUrl || '/memory/wipe/';
+            window.addEventListener('open-wipe-memory-modal', () => {
+                this.open();
+            });
         },
 
         open() {
             this.showModal = true;
         },
 
-        confirmWipe() {
+        async confirmWipe() {
             this.showModal = false;
-            const csrfToken = getCsrfToken();
 
-            // Include current persona in the wipe request
             const personaInput = document.querySelector('input[name="persona"]');
             const persona = personaInput ? personaInput.value : '';
             const body = new URLSearchParams();
             body.append('persona', persona);
 
-            fetch(this.wipeUrl, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken,
-                    'HX-Request': 'true',
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: body.toString()
-            }).then(response => response.text())
-            .then(html => {
+            try {
+                const response = await fetch(this.wipeUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'HX-Request': 'true',
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: body.toString()
+                });
+                const html = await response.text();
                 const mainContent = document.getElementById('main-content');
                 mainContent.innerHTML = html;
                 htmx.process(mainContent);
-            });
+            } catch (e) {
+                console.error('Failed to wipe memory:', e);
+            }
         }
     };
-}
-
-// Global helper function
-function openWipeMemoryModal() {
-    if (window.wipeMemoryModalComponent) {
-        window.wipeMemoryModalComponent.open();
-    }
 }
 
 // =============================================================================
@@ -226,10 +212,18 @@ function editPersonaModal() {
         saveUrl: '',
 
         init() {
-            window.editPersonaModalComponent = this;
-            // Get URLs from data attributes
             this.createUrl = this.$el.dataset.createUrl || '/settings/create-persona/';
             this.saveUrl = this.$el.dataset.saveUrl || '/settings/save-persona/';
+
+            window.addEventListener('open-new-persona-modal', () => {
+                this.openNew();
+            });
+            window.addEventListener('open-edit-persona-modal', () => {
+                const persona = document.querySelector('[name="persona"]')?.value || '';
+                const contentTemplate = document.getElementById('persona-raw-content');
+                const content = contentTemplate ? contentTemplate.innerHTML : '';
+                this.openEdit(persona, content);
+            });
         },
 
         openNew() {
@@ -250,9 +244,7 @@ function editPersonaModal() {
             this.showModal = true;
         },
 
-        savePersona() {
-            const csrfToken = getCsrfToken();
-
+        async savePersona() {
             // Convert display name to folder name format
             const newFolderName = toFolderName(this.displayName);
 
@@ -264,43 +256,26 @@ function editPersonaModal() {
                     ? `persona=${encodeURIComponent(this.persona)}&content=${encodeURIComponent(this.content)}`
                     : `persona=${encodeURIComponent(this.persona)}&new_name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`;
 
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken,
-                    'HX-Request': 'true'
-                },
-                body: body
-            })
-            .then(response => response.text())
-            .then(html => {
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCsrfToken(),
+                        'HX-Request': 'true'
+                    },
+                    body: body
+                });
+                const html = await response.text();
                 const mainContent = document.getElementById('main-content');
                 mainContent.innerHTML = html;
-                htmx.process(mainContent);  // Re-initialize HTMX on new content
+                htmx.process(mainContent);
                 this.showModal = false;
-            });
+            } catch (e) {
+                console.error('Failed to save persona:', e);
+            }
         }
     };
-}
-
-// Global helper functions
-function openEditPersonaModal() {
-    if (window.editPersonaModalComponent) {
-        const persona = document.querySelector('[name="persona"]')?.value || '';
-
-        // Read content from template element (survives HTMX swaps, preserves formatting)
-        const contentTemplate = document.getElementById('persona-raw-content');
-        const content = contentTemplate ? contentTemplate.innerHTML : '';
-
-        window.editPersonaModalComponent.openEdit(persona, content);
-    }
-}
-
-function openNewPersonaModal() {
-    if (window.editPersonaModalComponent) {
-        window.editPersonaModalComponent.openNew();
-    }
 }
 
 // =============================================================================
@@ -315,8 +290,11 @@ function deletePersonaModal() {
         deleteUrl: '',
 
         init() {
-            window.deletePersonaModalComponent = this;
             this.deleteUrl = this.$el.dataset.deleteUrl || '/settings/delete-persona/';
+            window.addEventListener('open-delete-persona-modal', () => {
+                const persona = document.querySelector('[name="persona"]')?.value || '';
+                this.open(persona);
+            });
         },
 
         open(persona) {
@@ -325,35 +303,27 @@ function deletePersonaModal() {
             this.showModal = true;
         },
 
-        confirmDelete() {
-            const csrfToken = getCsrfToken();
-
-            fetch(this.deleteUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken,
-                    'HX-Request': 'true'
-                },
-                body: `persona=${encodeURIComponent(this.persona)}`
-            })
-            .then(response => response.text())
-            .then(html => {
+        async confirmDelete() {
+            try {
+                const response = await fetch(this.deleteUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCsrfToken(),
+                        'HX-Request': 'true'
+                    },
+                    body: `persona=${encodeURIComponent(this.persona)}`
+                });
+                const html = await response.text();
                 const mainContent = document.getElementById('main-content');
                 mainContent.innerHTML = html;
                 htmx.process(mainContent);
                 this.showModal = false;
-            });
+            } catch (e) {
+                console.error('Failed to delete persona:', e);
+            }
         }
     };
-}
-
-// Global helper function
-function openDeletePersonaModal() {
-    if (window.deletePersonaModalComponent) {
-        const persona = document.querySelector('[name="persona"]')?.value || '';
-        window.deletePersonaModalComponent.open(persona);
-    }
 }
 
 // =============================================================================
@@ -379,9 +349,16 @@ function editPersonaModelModal() {
         saveUrl: '',
 
         init() {
-            window.editPersonaModelModalComponent = this;
             this.modelsUrl = this.$el.dataset.modelsUrl || '/settings/available-models/';
             this.saveUrl = this.$el.dataset.saveUrl || '/settings/save-persona-model/';
+
+            window.addEventListener('open-edit-model-modal', () => {
+                const personaData = document.getElementById('persona-data');
+                const persona = personaData ? personaData.dataset.selectedId : '';
+                const personaModel = personaData ? personaData.dataset.personaModel : '';
+                const defaultModel = personaData ? personaData.dataset.defaultModel : '';
+                this.open(persona, personaModel, defaultModel);
+            });
         },
 
         async loadModels() {
@@ -463,7 +440,8 @@ function editPersonaModelModal() {
                     // Refresh persona page to show updated model
                     setTimeout(() => {
                         this.showModal = false;
-                        htmx.ajax('GET', '/persona/?preview=' + this.persona, {target: '#main-content', swap: 'innerHTML'});
+                        const personaUrl = this.$el.dataset.personaSettingsUrl || '/persona/';
+                        htmx.ajax('GET', personaUrl + '?preview=' + this.persona, {target: '#main-content', swap: 'innerHTML'});
                     }, 1000);
                 } else {
                     this.statusMessage = data.error || 'Failed to save model';
@@ -477,19 +455,6 @@ function editPersonaModelModal() {
             }
         }
     };
-}
-
-// Global helper function
-function openEditPersonaModelModal() {
-    if (window.editPersonaModelModalComponent) {
-        // Read from data attributes (survives HTMX swaps)
-        const personaData = document.getElementById('persona-data');
-        const persona = personaData ? personaData.dataset.selectedId : '';
-        const personaModel = personaData ? personaData.dataset.personaModel : '';
-        const defaultModel = personaData ? personaData.dataset.defaultModel : '';
-
-        window.editPersonaModelModalComponent.open(persona, personaModel, defaultModel);
-    }
 }
 
 // =============================================================================
@@ -535,8 +500,6 @@ function contextFilesModal() {
         deleteUrl: '',
         contentUrl: '',
         saveUrl: '',
-        dataKey: '',
-        localDirsDataKey: '',
         badgeSelector: '',
 
         init() {
@@ -545,24 +508,44 @@ function contextFilesModal() {
             this.deleteUrl = this.$el.dataset.deleteUrl;
             this.contentUrl = this.$el.dataset.contentUrl;
             this.saveUrl = this.$el.dataset.saveUrl;
-            this.dataKey = this.$el.dataset.dataKey;
-            this.localDirsDataKey = this.$el.dataset.localDirsDataKey || '';
             this.badgeSelector = this.$el.dataset.badgeSelector || '';
+            this._filesSourceId = this.$el.dataset.filesSource || '';
 
-            // Register on window for global open helpers
-            const componentKey = this.$el.dataset.componentKey;
-            if (componentKey) window[componentKey] = this;
+            // Listen for open events
+            const eventName = this.$el.dataset.openEvent;
+            if (eventName) {
+                window.addEventListener(eventName, () => {
+                    this.loadFiles();
+                    this.showModal = true;
+                });
+            }
 
             this.loadFiles();
         },
 
+        _getSourceEl() {
+            return this._filesSourceId ? document.getElementById(this._filesSourceId) : null;
+        },
+
+        _syncFilesToSource() {
+            const el = this._getSourceEl();
+            if (el) el.dataset.files = JSON.stringify(this.files);
+        },
+
+        _syncDirsToSource() {
+            const el = this._getSourceEl();
+            if (el) el.dataset.localDirs = JSON.stringify(this.localDirectories);
+        },
+
         loadFiles() {
-            this.files = window[this.dataKey] || [];
-            if (this.$el.dataset.personaKey) {
-                this.persona = window[this.$el.dataset.personaKey] || '';
-            }
-            if (this.localDirsDataKey) {
-                this.localDirectories = window[this.localDirsDataKey] || [];
+            const sourceEl = this._getSourceEl();
+            if (sourceEl) {
+                try { this.files = JSON.parse(sourceEl.dataset.files || '[]'); } catch (e) { this.files = []; }
+                this.persona = sourceEl.dataset.persona || '';
+                try { this.localDirectories = JSON.parse(sourceEl.dataset.localDirs || '[]'); } catch (e) { this.localDirectories = []; }
+            } else {
+                this.files = [];
+                this.localDirectories = [];
             }
         },
 
@@ -575,7 +558,7 @@ function contextFilesModal() {
         },
 
         _csrf() {
-            return document.querySelector('[name=csrfmiddlewaretoken]').value;
+            return getCsrfToken();
         },
 
         handleDrop(event) {
@@ -610,7 +593,7 @@ function contextFilesModal() {
                     if (response.ok) {
                         const data = await response.json();
                         this.files = data.files;
-                        window[this.dataKey] = data.files;
+                        this._syncFilesToSource();
                         this.showStatus(`Uploaded ${file.name}`, 'success');
                         this.updateBadge();
                     } else {
@@ -637,7 +620,7 @@ function contextFilesModal() {
             if (response.ok) {
                 const data = await response.json();
                 this.files = data.files;
-                window[this.dataKey] = data.files;
+                this._syncFilesToSource();
                 this.updateBadge();
             }
         },
@@ -659,7 +642,7 @@ function contextFilesModal() {
             if (response.ok) {
                 const data = await response.json();
                 this.files = data.files;
-                window[this.dataKey] = data.files;
+                this._syncFilesToSource();
                 this.showStatus(`Deleted ${filename}`, 'success');
                 this.updateBadge();
             }
@@ -790,7 +773,7 @@ function contextFilesModal() {
                 const data = await response.json();
                 if (response.ok) {
                     this.localDirectories = data.directories;
-                    if (this.localDirsDataKey) window[this.localDirsDataKey] = data.directories;
+                    this._syncDirsToSource();
                     this.newDirPath = '';
                     this.showStatus('Directory added', 'success');
                     this.updateBadge();
@@ -820,7 +803,7 @@ function contextFilesModal() {
                 if (response.ok) {
                     const data = await response.json();
                     this.localDirectories = data.directories;
-                    if (this.localDirsDataKey) window[this.localDirsDataKey] = data.directories;
+                    this._syncDirsToSource();
                     this.showStatus('Directory removed', 'success');
                     this.updateBadge();
                 }
@@ -846,7 +829,7 @@ function contextFilesModal() {
                 if (response.ok) {
                     const data = await response.json();
                     this.localDirectories = data.directories;
-                    if (this.localDirsDataKey) window[this.localDirsDataKey] = data.directories;
+                    this._syncDirsToSource();
                     this.updateBadge();
                 }
             } catch (err) {
@@ -892,7 +875,7 @@ function contextFilesModal() {
                 if (response.ok) {
                     const data = await response.json();
                     this.localDirectories = data.directories;
-                    if (this.localDirsDataKey) window[this.localDirsDataKey] = data.directories;
+                    this._syncDirsToSource();
                     this.showStatus('Directory refreshed', 'success');
                     this.updateBadge();
                 }
@@ -901,21 +884,6 @@ function contextFilesModal() {
             }
         }
     };
-}
-
-// Global helper functions
-function openContextFilesModal() {
-    if (window.contextFilesModalComponent) {
-        window.contextFilesModalComponent.loadFiles();
-        window.contextFilesModalComponent.showModal = true;
-    }
-}
-
-function openPersonaContextFilesModal() {
-    if (window.personaContextFilesModalComponent) {
-        window.personaContextFilesModalComponent.loadFiles();
-        window.personaContextFilesModalComponent.showModal = true;
-    }
 }
 
 // =============================================================================
@@ -1418,6 +1386,93 @@ function themeModeToggle() {
             window.addEventListener('theme-mode-changed', (e) => {
                 this.isDark = e.detail.mode === 'dark';
             });
+        }
+    };
+}
+
+// =============================================================================
+// Memory Settings Component (inline save via fetch)
+// =============================================================================
+
+function memorySettings() {
+    return {
+        userHistoryMaxThreads: 0,
+        userHistoryMessagesPerThread: 0,
+        memorySizeLimit: 8000,
+        autoMemoryInterval: 0,
+        saved: true,
+        saving: false,
+        _saveUrl: '',
+        _persona: '',
+
+        init() {
+            const el = this.$el;
+            this._saveUrl = el.dataset.saveUrl;
+            this._persona = el.dataset.persona;
+            this.userHistoryMaxThreads = parseInt(el.dataset.maxThreads) || 0;
+            this.userHistoryMessagesPerThread = parseInt(el.dataset.messagesPerThread) || 0;
+            this.memorySizeLimit = parseInt(el.dataset.sizeLimit) || 8000;
+            this.autoMemoryInterval = parseInt(el.dataset.autoInterval) || 0;
+        },
+
+        async save() {
+            this.saving = true;
+            const form = new FormData();
+            form.append('persona', this._persona);
+            form.append('user_history_max_threads', this.userHistoryMaxThreads);
+            form.append('user_history_messages_per_thread', this.userHistoryMessagesPerThread);
+            form.append('memory_size_limit', this.memorySizeLimit);
+            form.append('auto_memory_interval', this.autoMemoryInterval);
+
+            try {
+                const resp = await fetch(this._saveUrl, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrfToken() },
+                    body: form
+                });
+                if (resp.ok) this.saved = true;
+            } catch (e) {
+                console.error('Failed to save memory settings:', e);
+            } finally {
+                this.saving = false;
+            }
+        }
+    };
+}
+
+// =============================================================================
+// Context History Limit Component (inline save via fetch)
+// =============================================================================
+
+function contextHistoryLimit() {
+    return {
+        value: 50,
+        saved: true,
+        saving: false,
+        _saveUrl: '',
+
+        init() {
+            this._saveUrl = this.$el.dataset.saveUrl;
+            this.value = parseInt(this.$el.dataset.currentValue) || 50;
+        },
+
+        async save() {
+            this.saving = true;
+            const form = new FormData();
+            form.append('context_history_limit', this.value);
+
+            try {
+                const resp = await fetch(this._saveUrl, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrfToken() },
+                    body: form
+                });
+                if (resp.ok) this.saved = true;
+            } catch (e) {
+                console.error('Failed to save context history limit:', e);
+            } finally {
+                this.saving = false;
+            }
         }
     };
 }

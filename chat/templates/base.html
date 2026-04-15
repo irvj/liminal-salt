@@ -21,18 +21,6 @@
     <!-- Django CSRF token for HTMX requests -->
     <meta name="csrf-token" content="{{ csrf_token }}">
 
-    <!-- Configure HTMX to include Django CSRF token in all requests -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            document.body.addEventListener('htmx:configRequest', function(event) {
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-                if (csrfToken) {
-                    event.detail.headers['X-CSRFToken'] = csrfToken;
-                }
-            });
-        });
-    </script>
-
     <!-- Liminal Salt JavaScript -->
     <script src="{% static 'js/components.js' %}"></script>
 
@@ -44,6 +32,14 @@
     {% block extra_styles %}{% endblock %}
 </head>
 <body class="font-sans bg-surface text-foreground {% block body_class %}{% endblock %}">
+    <div id="app-urls" class="hidden"
+         data-themes-url="{% url 'get_themes' %}"
+         data-save-theme-url="{% url 'save_theme' %}"
+         data-themes-static-path="{% static 'themes' %}"
+         data-save-draft-url="{% url 'save_draft' %}"
+         data-retry-url="{% url 'retry_message' %}"
+         data-edit-message-url="{% url 'edit_message' %}"
+         data-chat-url="{% url 'chat' %}"></div>
     {% block body %}{% endblock %}
 
     {% block extra_scripts %}{% endblock %}

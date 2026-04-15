@@ -231,7 +231,7 @@
     </div>
 </div>
 
-<div x-data="editPersonaModelModal" x-cloak data-models-url="{% url 'get_available_models' %}" data-save-url="{% url 'save_persona_model' %}">
+<div x-data="editPersonaModelModal" x-cloak data-models-url="{% url 'get_available_models' %}" data-save-url="{% url 'save_persona_model' %}" data-persona-settings-url="{% url 'persona_settings' %}">
     <div x-show="showModal"
          x-transition:enter="transition ease-out duration-200"
          x-transition:leave="transition ease-in duration-150"
@@ -286,10 +286,9 @@
      data-delete-url="{% url 'delete_context_file' %}"
      data-content-url="{% url 'get_context_file_content' %}"
      data-save-url="{% url 'save_context_file_content' %}"
-     data-data-key="contextFilesData"
-     data-local-dirs-data-key="contextLocalDirsData"
+     data-files-source="context-files-data"
      data-badge-selector=".context-files-btn .badge"
-     data-component-key="contextFilesModalComponent">
+     data-open-event="open-context-files-modal">
     {% include "chat/context_files_modal.html" with empty_text="No context files uploaded." title="Context Files" description="Upload files to provide additional context to the assistant. These are included in every conversation but not used for memory generation." %}
 </div>
 
@@ -299,11 +298,9 @@
      data-delete-url="{% url 'delete_persona_context_file' %}"
      data-content-url="{% url 'get_persona_context_file_content' %}"
      data-save-url="{% url 'save_persona_context_file_content' %}"
-     data-data-key="personaContextFilesData"
-     data-local-dirs-data-key="personaContextLocalDirsData"
-     data-persona-key="currentPersonaId"
+     data-files-source="persona-context-files-data"
      data-badge-selector=".persona-context-files-btn .badge"
-     data-component-key="personaContextFilesModalComponent">
+     data-open-event="open-persona-context-files-modal">
     {% include "chat/context_files_modal.html" with empty_text="No context files uploaded for this persona." title="Persona Context Files" description="Upload files to provide additional context for this persona only. These are included in conversations using this persona." %}
 </div>
 {% endblock %}

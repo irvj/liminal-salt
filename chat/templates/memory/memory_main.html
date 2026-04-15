@@ -46,39 +46,25 @@
             {% csrf_token %}
             <input type="hidden" name="persona" value="{{ selected_persona }}">
             <input type="file" name="file" accept=".md,.txt" class="hidden" id="seed-file-input"
-                   onchange="this.closest('form').requestSubmit()">
+                   @change="$el.closest('form').requestSubmit()">
             <button type="button" tabindex="0"
-                    onclick="document.getElementById('seed-file-input').click()"
+                    @click="document.getElementById('seed-file-input').click()"
                     class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Seed Memory</button>
         </form>
 
-        <button tabindex="0" onclick="openWipeMemoryModal()" class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent">Wipe Memory</button>
+        <button tabindex="0" @click="window.dispatchEvent(new CustomEvent('open-wipe-memory-modal'))" class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent">Wipe Memory</button>
     </div>
 
     <!-- Memory Generation Settings -->
     <h2 class="text-foreground text-xl mb-4">Memory Generation Settings</h2>
     <div class="mb-5"
-         x-data="{
-             userHistoryMaxThreads: {{ user_history_max_threads }},
-             userHistoryMessagesPerThread: {{ user_history_messages_per_thread }},
-             memorySizeLimit: {{ memory_size_limit }},
-             autoMemoryInterval: {{ auto_memory_interval }},
-             saved: true,
-             saving: false,
-             async save() {
-                 this.saving = true;
-                 const form = new FormData();
-                 form.append('persona', '{{ selected_persona }}');
-                 form.append('user_history_max_threads', this.userHistoryMaxThreads);
-                 form.append('user_history_messages_per_thread', this.userHistoryMessagesPerThread);
-                 form.append('memory_size_limit', this.memorySizeLimit);
-                 form.append('auto_memory_interval', this.autoMemoryInterval);
-                 form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-                 const resp = await fetch('{% url "save_memory_settings" %}', { method: 'POST', body: form });
-                 if (resp.ok) { this.saved = true; }
-                 this.saving = false;
-             }
-         }">
+         x-data="memorySettings"
+         data-persona="{{ selected_persona }}"
+         data-save-url="{% url 'save_memory_settings' %}"
+         data-max-threads="{{ user_history_max_threads }}"
+         data-messages-per-thread="{{ user_history_messages_per_thread }}"
+         data-size-limit="{{ memory_size_limit }}"
+         data-auto-interval="{{ auto_memory_interval }}">
         <div class="flex flex-wrap gap-4 items-end">
             <div>
                 <label class="block text-xs text-foreground-secondary mb-1">Recent Threads</label>
@@ -117,29 +103,11 @@
          id="memory-status-bar"
          data-status-url="{% url 'memory_update_status' %}"
          data-memory-url="{% url 'memory' %}"
-         data-persona="{{ selected_persona }}">
+         data-persona="{{ selected_persona }}"
+         data-updating="{{ memory_updating|yesno:'true,false' }}">
         {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update|date:'U' }}"></span>{% else %}No memory yet for {{ selected_persona|display_name }}{% endif %}<span id="memory-status" class="{% if not just_updated and not memory_updating %}hidden{% endif %}"> · {% if just_updated %}{% include 'icons/check-circle.html' with class='w-4 h-4 inline' %} {{ success }}{% else %}Updating memory<span class="updating-dots"><span class="animate-blink">.</span><span class="animate-blink blink-2">.</span><span class="animate-blink blink-3">.</span></span>{% endif %}</span>
     </div>
-    <script>
-        (function() {
-            const el = document.getElementById('last-update-time');
-            if (el && el.dataset.timestamp) {
-                const date = new Date(parseInt(el.dataset.timestamp) * 1000);
-                el.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-            }
-            // If memory is currently updating, start polling
-            {% if memory_updating %}
-            const bar = document.getElementById('memory-status-bar');
-            if (bar) {
-                pollMemoryUpdateStatus(
-                    bar.dataset.persona,
-                    bar.dataset.statusUrl,
-                    bar.dataset.memoryUrl
-                );
-            }
-            {% endif %}
-        })();
-    </script>
+    <script>initMemoryView();</script>
 
     <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent">
         {% if memory_content %}

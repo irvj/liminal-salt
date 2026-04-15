@@ -30,6 +30,35 @@
 })();
 
 // =============================================================================
+// HTMX CSRF Configuration
+// =============================================================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.body.addEventListener('htmx:configRequest', function(event) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (csrfToken) {
+            event.detail.headers['X-CSRFToken'] = csrfToken;
+        }
+    });
+});
+
+// =============================================================================
+// URL Configuration (read from data attributes set by Django templates)
+// =============================================================================
+
+/**
+ * Get a URL from the #app-urls element's data attributes.
+ * Falls back to the provided default if the element or attribute is missing.
+ * @param {string} key - Data attribute name in camelCase (e.g., 'themesUrl')
+ * @param {string} fallback - Default URL if attribute not found
+ * @returns {string} The URL
+ */
+function getAppUrl(key, fallback) {
+    const el = document.getElementById('app-urls');
+    return (el && el.dataset[key]) || fallback;
+}
+
+// =============================================================================
 // Theme Management
 // =============================================================================
 
@@ -42,7 +71,7 @@ const _loadedThemes = {};
  */
 async function getAvailableThemes() {
     try {
-        const response = await fetch('/api/themes/');
+        const response = await fetch(getAppUrl('themesUrl', '/api/themes/'));
         if (!response.ok) {
             console.error('Failed to fetch themes');
             return [{ id: 'liminal-salt', name: 'Liminal Salt' }];
@@ -65,7 +94,7 @@ async function getAvailableThemes() {
 async function saveThemePreference(colorTheme, themeMode) {
     const csrfToken = getCsrfToken();
     try {
-        const response = await fetch('/api/save-theme/', {
+        const response = await fetch(getAppUrl('saveThemeUrl', '/api/save-theme/'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -118,7 +147,8 @@ async function loadTheme(themeId) {
     // Fetch theme if not cached
     if (!_loadedThemes[themeId]) {
         try {
-            const response = await fetch(`/static/themes/${themeId}.json`);
+            const themesPath = getAppUrl('themesStaticPath', '/static/themes');
+            const response = await fetch(`${themesPath}/${themeId}.json`);
             if (!response.ok) {
                 console.error(`Failed to load theme: ${themeId}`);
                 return;
@@ -634,6 +664,26 @@ function showMemoryUpdating() {
 }
 
 /**
+ * Initialize memory view: format the last-update timestamp and start polling if updating.
+ * Called after memory_main.html is loaded (initial or HTMX swap).
+ */
+function initMemoryView() {
+    // Format last-update timestamp
+    const el = document.getElementById('last-update-time');
+    if (el && el.dataset.timestamp) {
+        const date = new Date(parseInt(el.dataset.timestamp) * 1000);
+        el.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+
+    // Start polling if memory is currently updating
+    const bar = document.getElementById('memory-status-bar');
+    if (bar && bar.dataset.updating === 'true') {
+        pollMemoryUpdateStatus(bar.dataset.persona, bar.dataset.statusUrl, bar.dataset.memoryUrl);
+    }
+}
+
+/**
  * Poll the memory update status endpoint until complete or failed.
  * @param {string} persona - Persona name
  * @param {string} statusUrl - URL for the status endpoint
@@ -979,7 +1029,7 @@ function saveDraftNow() {
     // Don't save empty drafts if there was nothing before
     // (but do save empty to clear a previous draft)
 
-    fetch('/chat/save-draft/', {
+    fetch(getAppUrl('saveDraftUrl', '/chat/save-draft/'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -1119,7 +1169,7 @@ function retryLastMessage() {
         }
     }
 
-    htmx.ajax('POST', '/chat/retry/', {
+    htmx.ajax('POST', getAppUrl('retryUrl', '/chat/retry/'), {
         target: '.message-container.assistant:last-of-type',
         swap: 'outerHTML'
     });
@@ -1188,13 +1238,13 @@ function saveEditedMessage() {
     formData.append('content', newContent);
     formData.append('csrfmiddlewaretoken', getCsrfToken());
 
-    fetch('/chat/edit-message/', {
+    fetch(getAppUrl('editMessageUrl', '/chat/edit-message/'), {
         method: 'POST',
         body: formData
     }).then(response => {
         if (response.ok) {
             // Reload the chat to show updated message
-            htmx.ajax('GET', '/chat/', {
+            htmx.ajax('GET', getAppUrl('chatUrl', '/chat/'), {
                 target: '#main-content',
                 swap: 'innerHTML'
             });
