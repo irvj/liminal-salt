@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.1] - 2026-04-14
+
+### Changes
+- fix persona memory perspective
+- add fixes planning doc
+
 ## [0.9.0] - 2026-04-14
 
 ### Changes
