@@ -231,7 +231,7 @@
     </div>
 </div>
 
-<div x-data="editPersonaModelModal" x-cloak data-models-url="{% url 'get_available_models' %}" data-save-url="{% url 'save_persona_model' %}">
+<div x-data="editPersonaModelModal" x-cloak data-models-url="{% url 'get_available_models' %}" data-save-url="{% url 'save_persona_model' %}" data-persona-settings-url="{% url 'persona_settings' %}">
     <div x-show="showModal"
          x-transition:enter="transition ease-out duration-200"
          x-transition:leave="transition ease-in duration-150"

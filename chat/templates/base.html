@@ -44,6 +44,14 @@
     {% block extra_styles %}{% endblock %}
 </head>
 <body class="font-sans bg-surface text-foreground {% block body_class %}{% endblock %}">
+    <div id="app-urls" class="hidden"
+         data-themes-url="{% url 'get_available_themes' %}"
+         data-save-theme-url="{% url 'save_theme' %}"
+         data-themes-static-path="{% static 'themes' %}"
+         data-save-draft-url="{% url 'save_draft' %}"
+         data-retry-url="{% url 'retry_message' %}"
+         data-edit-message-url="{% url 'edit_message' %}"
+         data-chat-url="{% url 'chat' %}"></div>
     {% block body %}{% endblock %}
 
     {% block extra_scripts %}{% endblock %}

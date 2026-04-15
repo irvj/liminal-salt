@@ -30,6 +30,22 @@
 })();
 
 // =============================================================================
+// URL Configuration (read from data attributes set by Django templates)
+// =============================================================================
+
+/**
+ * Get a URL from the #app-urls element's data attributes.
+ * Falls back to the provided default if the element or attribute is missing.
+ * @param {string} key - Data attribute name in camelCase (e.g., 'themesUrl')
+ * @param {string} fallback - Default URL if attribute not found
+ * @returns {string} The URL
+ */
+function getAppUrl(key, fallback) {
+    const el = document.getElementById('app-urls');
+    return (el && el.dataset[key]) || fallback;
+}
+
+// =============================================================================
 // Theme Management
 // =============================================================================
 
@@ -42,7 +58,7 @@ const _loadedThemes = {};
  */
 async function getAvailableThemes() {
     try {
-        const response = await fetch('/api/themes/');
+        const response = await fetch(getAppUrl('themesUrl', '/api/themes/'));
         if (!response.ok) {
             console.error('Failed to fetch themes');
             return [{ id: 'liminal-salt', name: 'Liminal Salt' }];
@@ -65,7 +81,7 @@ async function getAvailableThemes() {
 async function saveThemePreference(colorTheme, themeMode) {
     const csrfToken = getCsrfToken();
     try {
-        const response = await fetch('/api/save-theme/', {
+        const response = await fetch(getAppUrl('saveThemeUrl', '/api/save-theme/'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -118,7 +134,8 @@ async function loadTheme(themeId) {
     // Fetch theme if not cached
     if (!_loadedThemes[themeId]) {
         try {
-            const response = await fetch(`/static/themes/${themeId}.json`);
+            const themesPath = getAppUrl('themesStaticPath', '/static/themes');
+            const response = await fetch(`${themesPath}/${themeId}.json`);
             if (!response.ok) {
                 console.error(`Failed to load theme: ${themeId}`);
                 return;
@@ -979,7 +996,7 @@ function saveDraftNow() {
     // Don't save empty drafts if there was nothing before
     // (but do save empty to clear a previous draft)
 
-    fetch('/chat/save-draft/', {
+    fetch(getAppUrl('saveDraftUrl', '/chat/save-draft/'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -1119,7 +1136,7 @@ function retryLastMessage() {
         }
     }
 
-    htmx.ajax('POST', '/chat/retry/', {
+    htmx.ajax('POST', getAppUrl('retryUrl', '/chat/retry/'), {
         target: '.message-container.assistant:last-of-type',
         swap: 'outerHTML'
     });
@@ -1188,13 +1205,13 @@ function saveEditedMessage() {
     formData.append('content', newContent);
     formData.append('csrfmiddlewaretoken', getCsrfToken());
 
-    fetch('/chat/edit-message/', {
+    fetch(getAppUrl('editMessageUrl', '/chat/edit-message/'), {
         method: 'POST',
         body: formData
     }).then(response => {
         if (response.ok) {
             // Reload the chat to show updated message
-            htmx.ajax('GET', '/chat/', {
+            htmx.ajax('GET', getAppUrl('chatUrl', '/chat/'), {
                 target: '#main-content',
                 swap: 'innerHTML'
             });

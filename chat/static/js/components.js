@@ -165,30 +165,31 @@ function wipeMemoryModal() {
             this.showModal = true;
         },
 
-        confirmWipe() {
+        async confirmWipe() {
             this.showModal = false;
-            const csrfToken = getCsrfToken();
 
-            // Include current persona in the wipe request
             const personaInput = document.querySelector('input[name="persona"]');
             const persona = personaInput ? personaInput.value : '';
             const body = new URLSearchParams();
             body.append('persona', persona);
 
-            fetch(this.wipeUrl, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken,
-                    'HX-Request': 'true',
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: body.toString()
-            }).then(response => response.text())
-            .then(html => {
+            try {
+                const response = await fetch(this.wipeUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'HX-Request': 'true',
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: body.toString()
+                });
+                const html = await response.text();
                 const mainContent = document.getElementById('main-content');
                 mainContent.innerHTML = html;
                 htmx.process(mainContent);
-            });
+            } catch (e) {
+                console.error('Failed to wipe memory:', e);
+            }
         }
     };
 }
@@ -241,9 +242,7 @@ function editPersonaModal() {
             this.showModal = true;
         },
 
-        savePersona() {
-            const csrfToken = getCsrfToken();
-
+        async savePersona() {
             // Convert display name to folder name format
             const newFolderName = toFolderName(this.displayName);
 
@@ -255,22 +254,24 @@ function editPersonaModal() {
                     ? `persona=${encodeURIComponent(this.persona)}&content=${encodeURIComponent(this.content)}`
                     : `persona=${encodeURIComponent(this.persona)}&new_name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`;
 
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken,
-                    'HX-Request': 'true'
-                },
-                body: body
-            })
-            .then(response => response.text())
-            .then(html => {
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCsrfToken(),
+                        'HX-Request': 'true'
+                    },
+                    body: body
+                });
+                const html = await response.text();
                 const mainContent = document.getElementById('main-content');
                 mainContent.innerHTML = html;
-                htmx.process(mainContent);  // Re-initialize HTMX on new content
+                htmx.process(mainContent);
                 this.showModal = false;
-            });
+            } catch (e) {
+                console.error('Failed to save persona:', e);
+            }
         }
     };
 }
@@ -300,25 +301,25 @@ function deletePersonaModal() {
             this.showModal = true;
         },
 
-        confirmDelete() {
-            const csrfToken = getCsrfToken();
-
-            fetch(this.deleteUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': csrfToken,
-                    'HX-Request': 'true'
-                },
-                body: `persona=${encodeURIComponent(this.persona)}`
-            })
-            .then(response => response.text())
-            .then(html => {
+        async confirmDelete() {
+            try {
+                const response = await fetch(this.deleteUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCsrfToken(),
+                        'HX-Request': 'true'
+                    },
+                    body: `persona=${encodeURIComponent(this.persona)}`
+                });
+                const html = await response.text();
                 const mainContent = document.getElementById('main-content');
                 mainContent.innerHTML = html;
                 htmx.process(mainContent);
                 this.showModal = false;
-            });
+            } catch (e) {
+                console.error('Failed to delete persona:', e);
+            }
         }
     };
 }
@@ -437,7 +438,8 @@ function editPersonaModelModal() {
                     // Refresh persona page to show updated model
                     setTimeout(() => {
                         this.showModal = false;
-                        htmx.ajax('GET', '/persona/?preview=' + this.persona, {target: '#main-content', swap: 'innerHTML'});
+                        const personaUrl = this.$el.dataset.personaSettingsUrl || '/persona/';
+                        htmx.ajax('GET', personaUrl + '?preview=' + this.persona, {target: '#main-content', swap: 'innerHTML'});
                     }, 1000);
                 } else {
                     this.statusMessage = data.error || 'Failed to save model';
@@ -541,7 +543,7 @@ function contextFilesModal() {
         },
 
         _csrf() {
-            return document.querySelector('[name=csrfmiddlewaretoken]').value;
+            return getCsrfToken();
         },
 
         handleDrop(event) {
