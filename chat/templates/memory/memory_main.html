@@ -46,13 +46,13 @@
             {% csrf_token %}
             <input type="hidden" name="persona" value="{{ selected_persona }}">
             <input type="file" name="file" accept=".md,.txt" class="hidden" id="seed-file-input"
-                   onchange="this.closest('form').requestSubmit()">
+                   @change="$el.closest('form').requestSubmit()">
             <button type="button" tabindex="0"
-                    onclick="document.getElementById('seed-file-input').click()"
+                    @click="document.getElementById('seed-file-input').click()"
                     class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Seed Memory</button>
         </form>
 
-        <button tabindex="0" onclick="openWipeMemoryModal()" class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent">Wipe Memory</button>
+        <button tabindex="0" @click="window.dispatchEvent(new CustomEvent('open-wipe-memory-modal'))" class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent">Wipe Memory</button>
     </div>
 
     <!-- Memory Generation Settings -->

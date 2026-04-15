@@ -6,7 +6,7 @@
 <header class="bg-surface-secondary px-5 py-4 border-b border-border">
     <div class="flex items-center gap-2">
         <h1 id="chat-title" class="text-2xl text-foreground">{{ title }}</h1>
-        <button onclick="openRenameModal('{{ session_id }}', '{{ title|escapejs }}')"
+        <button @click="window.dispatchEvent(new CustomEvent('open-rename-modal', { detail: { id: '{{ session_id }}', title: '{{ title|escapejs }}' } }))"
                 class="text-foreground-secondary hover:text-foreground cursor-pointer"
                 title="Rename chat">
             {% include 'icons/pencil.html' with class='w-4 h-4' %}
@@ -39,7 +39,7 @@
                 {% endif %}
                 <button type="button"
                         class="text-foreground-muted hover:text-foreground cursor-pointer"
-                        onclick="copyMessageToClipboard(this)"
+                        @click="copyMessageToClipboard($el)"
                         data-message="{{ message.content|escapejs }}"
                         title="Copy to clipboard">
                     {% include 'icons/copy.html' with class='w-4 h-4' %}
@@ -47,7 +47,7 @@
                 {% if forloop.last %}
                 <button type="button"
                         class="text-foreground-muted hover:text-foreground cursor-pointer"
-                        onclick="retryLastMessage()"
+                        @click="retryLastMessage()"
                         title="Retry">
                     {% include 'icons/retry.html' with class='w-4 h-4' %}
                 </button>
@@ -58,7 +58,7 @@
                 {% if forloop.revcounter <= 2 %}
                 <button type="button"
                         class="text-foreground-muted hover:text-foreground cursor-pointer"
-                        onclick="editLastMessage(this)"
+                        @click="editLastMessage($el)"
                         data-message="{{ message.content|escapejs }}"
                         title="Edit">
                     {% include 'icons/pencil.html' with class='w-4 h-4' %}
@@ -99,7 +99,7 @@
 
     <!-- Scroll to Bottom Button -->
     <button id="scroll-to-bottom-btn"
-            onclick="scrollToBottom()"
+            @click="scrollToBottom()"
             class="absolute bottom-4 right-4 p-3 bg-surface-elevated text-foreground border border-border rounded-full shadow-lg cursor-pointer hover:bg-surface-secondary transition-opacity opacity-0 pointer-events-none"
             title="Scroll to bottom">
         {% include 'icons/chevron-down.html' with class='w-5 h-5' %}
@@ -126,8 +126,8 @@
             autocomplete="off"
             autofocus
             rows="1"
-            onkeydown="handleTextareaKeydown(event)"
-            oninput="autoResizeTextarea(this); saveDraftDebounced()"
+            @keydown="handleTextareaKeydown($event)"
+            @input="autoResizeTextarea($el); saveDraftDebounced()"
             class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base font-sans resize-none min-h-[24px] max-h-[200px] overflow-y-auto focus:outline-none focus:border-accent-secondary"
         ></textarea>
         <button type="submit" tabindex="0" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Send</button>

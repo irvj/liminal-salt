@@ -106,8 +106,9 @@ function deleteModal() {
         sessionTitle: '',
 
         init() {
-            // Store reference so openDeleteModal can access this
-            window.deleteModalComponent = this;
+            window.addEventListener('open-delete-modal', (e) => {
+                this.open(e.detail.id, e.detail.title);
+            });
         },
 
         open(sessionId, sessionTitle) {
@@ -116,13 +117,6 @@ function deleteModal() {
             this.showModal = true;
         }
     };
-}
-
-// Global helper function
-function openDeleteModal(sessionId, sessionTitle) {
-    if (window.deleteModalComponent) {
-        window.deleteModalComponent.open(sessionId, sessionTitle);
-    }
 }
 
 // =============================================================================
@@ -136,7 +130,9 @@ function renameModal() {
         newTitle: '',
 
         init() {
-            window.renameModalComponent = this;
+            window.addEventListener('open-rename-modal', (e) => {
+                this.open(e.detail.id, e.detail.title);
+            });
         },
 
         open(sessionId, currentTitle) {
@@ -149,13 +145,6 @@ function renameModal() {
     };
 }
 
-// Global helper function
-function openRenameModal(sessionId, currentTitle) {
-    if (window.renameModalComponent) {
-        window.renameModalComponent.open(sessionId, currentTitle);
-    }
-}
-
 // =============================================================================
 // Wipe Memory Modal Component
 // =============================================================================
@@ -166,9 +155,10 @@ function wipeMemoryModal() {
         wipeUrl: '',
 
         init() {
-            window.wipeMemoryModalComponent = this;
-            // Get URL from data attribute
             this.wipeUrl = this.$el.dataset.wipeUrl || '/memory/wipe/';
+            window.addEventListener('open-wipe-memory-modal', () => {
+                this.open();
+            });
         },
 
         open() {
@@ -203,13 +193,6 @@ function wipeMemoryModal() {
     };
 }
 
-// Global helper function
-function openWipeMemoryModal() {
-    if (window.wipeMemoryModalComponent) {
-        window.wipeMemoryModalComponent.open();
-    }
-}
-
 // =============================================================================
 // Edit Persona Modal Component
 // =============================================================================
@@ -226,10 +209,18 @@ function editPersonaModal() {
         saveUrl: '',
 
         init() {
-            window.editPersonaModalComponent = this;
-            // Get URLs from data attributes
             this.createUrl = this.$el.dataset.createUrl || '/settings/create-persona/';
             this.saveUrl = this.$el.dataset.saveUrl || '/settings/save-persona/';
+
+            window.addEventListener('open-new-persona-modal', () => {
+                this.openNew();
+            });
+            window.addEventListener('open-edit-persona-modal', () => {
+                const persona = document.querySelector('[name="persona"]')?.value || '';
+                const contentTemplate = document.getElementById('persona-raw-content');
+                const content = contentTemplate ? contentTemplate.innerHTML : '';
+                this.openEdit(persona, content);
+            });
         },
 
         openNew() {
@@ -284,25 +275,6 @@ function editPersonaModal() {
     };
 }
 
-// Global helper functions
-function openEditPersonaModal() {
-    if (window.editPersonaModalComponent) {
-        const persona = document.querySelector('[name="persona"]')?.value || '';
-
-        // Read content from template element (survives HTMX swaps, preserves formatting)
-        const contentTemplate = document.getElementById('persona-raw-content');
-        const content = contentTemplate ? contentTemplate.innerHTML : '';
-
-        window.editPersonaModalComponent.openEdit(persona, content);
-    }
-}
-
-function openNewPersonaModal() {
-    if (window.editPersonaModalComponent) {
-        window.editPersonaModalComponent.openNew();
-    }
-}
-
 // =============================================================================
 // Delete Persona Modal Component
 // =============================================================================
@@ -315,8 +287,11 @@ function deletePersonaModal() {
         deleteUrl: '',
 
         init() {
-            window.deletePersonaModalComponent = this;
             this.deleteUrl = this.$el.dataset.deleteUrl || '/settings/delete-persona/';
+            window.addEventListener('open-delete-persona-modal', () => {
+                const persona = document.querySelector('[name="persona"]')?.value || '';
+                this.open(persona);
+            });
         },
 
         open(persona) {
@@ -348,14 +323,6 @@ function deletePersonaModal() {
     };
 }
 
-// Global helper function
-function openDeletePersonaModal() {
-    if (window.deletePersonaModalComponent) {
-        const persona = document.querySelector('[name="persona"]')?.value || '';
-        window.deletePersonaModalComponent.open(persona);
-    }
-}
-
 // =============================================================================
 // Edit Persona Model Modal Component
 // =============================================================================
@@ -379,9 +346,16 @@ function editPersonaModelModal() {
         saveUrl: '',
 
         init() {
-            window.editPersonaModelModalComponent = this;
             this.modelsUrl = this.$el.dataset.modelsUrl || '/settings/available-models/';
             this.saveUrl = this.$el.dataset.saveUrl || '/settings/save-persona-model/';
+
+            window.addEventListener('open-edit-model-modal', () => {
+                const personaData = document.getElementById('persona-data');
+                const persona = personaData ? personaData.dataset.selectedId : '';
+                const personaModel = personaData ? personaData.dataset.personaModel : '';
+                const defaultModel = personaData ? personaData.dataset.defaultModel : '';
+                this.open(persona, personaModel, defaultModel);
+            });
         },
 
         async loadModels() {
@@ -479,19 +453,6 @@ function editPersonaModelModal() {
     };
 }
 
-// Global helper function
-function openEditPersonaModelModal() {
-    if (window.editPersonaModelModalComponent) {
-        // Read from data attributes (survives HTMX swaps)
-        const personaData = document.getElementById('persona-data');
-        const persona = personaData ? personaData.dataset.selectedId : '';
-        const personaModel = personaData ? personaData.dataset.personaModel : '';
-        const defaultModel = personaData ? personaData.dataset.defaultModel : '';
-
-        window.editPersonaModelModalComponent.open(persona, personaModel, defaultModel);
-    }
-}
-
 // =============================================================================
 // Context Files Modal Component
 // =============================================================================
@@ -549,9 +510,14 @@ function contextFilesModal() {
             this.localDirsDataKey = this.$el.dataset.localDirsDataKey || '';
             this.badgeSelector = this.$el.dataset.badgeSelector || '';
 
-            // Register on window for global open helpers
-            const componentKey = this.$el.dataset.componentKey;
-            if (componentKey) window[componentKey] = this;
+            // Listen for open events
+            const eventName = this.$el.dataset.openEvent;
+            if (eventName) {
+                window.addEventListener(eventName, () => {
+                    this.loadFiles();
+                    this.showModal = true;
+                });
+            }
 
             this.loadFiles();
         },
@@ -901,21 +867,6 @@ function contextFilesModal() {
             }
         }
     };
-}
-
-// Global helper functions
-function openContextFilesModal() {
-    if (window.contextFilesModalComponent) {
-        window.contextFilesModalComponent.loadFiles();
-        window.contextFilesModalComponent.showModal = true;
-    }
-}
-
-function openPersonaContextFilesModal() {
-    if (window.personaContextFilesModalComponent) {
-        window.personaContextFilesModalComponent.loadFiles();
-        window.personaContextFilesModalComponent.showModal = true;
-    }
 }
 
 // =============================================================================
