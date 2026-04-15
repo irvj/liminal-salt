@@ -1,6 +1,6 @@
 # CLAUDE.md - Project Overview & Developer Guide
 
-**Last Updated:** March 25, 2026
+**Last Updated:** April 15, 2026
 **Project:** Liminal Salt - Multi-Session LLM Chatbot with Personas
 **Status:** Production-ready Django application
 
@@ -75,18 +75,19 @@
                      │ HTMX Requests
                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│                   Django Views                          │
-│  - chat() - Main chat view                              │
-│  - send_message() - HTMX message endpoint               │
-│  - switch_session() - Session switching                 │
-│  - memory() / update_memory() - Memory management       │
-│  - settings() / save_settings() - Settings management   │
+│                   Django Views (thin)                   │
+│  - @require_POST on all POST-only endpoints             │
+│  - No direct file I/O — delegates to services           │
+│  - Coordinates between templates and services           │
 └────────────────────┬────────────────────────────────────┘
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────┐
 │                 Business Logic (services/)              │
-│  - ChatCore: API calls, message history                 │
+│  - SessionManager: Session file CRUD & mutations        │
+│  - PersonaManager: Persona CRUD with side-effect mgmt   │
+│  - ContextFileManager: Unified context file service     │
+│  - ChatCore: LLM API calls, message history             │
 │  - LLMClient: Shared OpenRouter API utility             │
 │  - Summarizer: Title generation                         │
 │  - MemoryManager: Per-persona memory updates            │
@@ -131,9 +132,9 @@ liminal-salt/
 │   ├── __init__.py
 │   ├── apps.py                  # App configuration
 │   ├── urls.py                  # App URL routing
-│   ├── utils.py                 # Helper functions
+│   ├── utils.py                 # Shared helpers (config, model formatting, theme list)
 │   │
-│   ├── views/                   # View functions (split by domain)
+│   ├── views/                   # View functions (thin — no direct file I/O)
 │   │   ├── __init__.py          # Re-exports all views
 │   │   ├── core.py              # index, setup_wizard
 │   │   ├── chat.py              # Chat views (send, switch, retry, edit, drafts)
@@ -146,17 +147,18 @@ liminal-salt/
 │   │   ├── __init__.py
 │   │   └── markdown_extras.py   # |markdown and |display_name filters
 │   │
-│   ├── services/                # Business logic layer
-│   │   ├── __init__.py          # Exports all services
+│   ├── services/                # Business logic layer (all file I/O lives here)
+│   │   ├── __init__.py          # Exports all services + context file wrappers
+│   │   ├── session_manager.py   # Session file CRUD (load, create, delete, pin, rename, draft, retry/edit)
+│   │   ├── persona_manager.py   # Persona CRUD with side effects (rename/delete cascade)
+│   │   ├── context_files.py     # ContextFileManager class (unified uploaded + local context files)
 │   │   ├── chat_core.py         # LLM API & message handling
-│   │   ├── config_manager.py    # Configuration management
-│   │   ├── context_manager.py   # System prompt assembly
-│   │   ├── llm_client.py        # Shared OpenRouter API utility (call_llm, LLMError, OPENROUTER_API_URL)
+│   │   ├── config_manager.py    # Configuration management (fetch models, validate keys)
+│   │   ├── context_manager.py   # System prompt assembly (persona + context + memory)
+│   │   ├── llm_client.py        # Shared OpenRouter API utility (call_llm, LLMError)
 │   │   ├── local_context.py     # Local directory context file management (shared)
 │   │   ├── memory_manager.py    # Per-persona memory file I/O and update logic
 │   │   ├── memory_worker.py     # Background threading, per-persona locks, auto-update scheduler
-│   │   ├── persona_context.py   # Persona-specific context file management
-│   │   ├── user_context.py      # Global user context file management
 │   │   └── summarizer.py        # Title generation
 │   │
 │   ├── static/                  # Static assets
@@ -164,35 +166,13 @@ liminal-salt/
 │   │   │   ├── input.css        # Tailwind source & theme config
 │   │   │   └── output.css       # Compiled CSS (minified)
 │   │   ├── js/
-│   │   │   ├── utils.js         # Shared utility functions
-│   │   │   └── components.js    # Alpine.js component definitions
+│   │   │   ├── utils.js         # Shared utilities, HTMX CSRF config, URL helpers
+│   │   │   └── components.js    # All Alpine.js component definitions
 │   │   └── themes/              # Color theme JSON files (16 themes)
-│   │       ├── liminal-salt.json # Liminal Salt (default)
-│   │       ├── nord.json        # Nord
-│   │       ├── dracula.json     # Dracula
-│   │       ├── gruvbox.json     # Gruvbox
-│   │       ├── monokai.json     # Monokai
-│   │       ├── solarized.json   # Solarized
-│   │       ├── rose-pine.json   # Rose Pine
-│   │       ├── tokyo-night.json # Tokyo Night
-│   │       ├── one-dark.json    # One Dark
-│   │       ├── night-owl.json   # Night Owl
-│   │       ├── catppuccin.json  # Catppuccin
-│   │       ├── ayu.json         # Ayu
-│   │       ├── everforest.json  # Everforest
-│   │       ├── kanagawa.json    # Kanagawa
-│   │       ├── palenight.json   # Palenight
-│   │       └── synthwave.json   # Synthwave '84
 │   │
-│   └── templates/               # Django templates
-│       ├── base.html            # Base template with HTMX/Alpine
+│   └── templates/               # Django templates (no inline JS or CSS)
+│       ├── base.html            # Base template with HTMX/Alpine, #app-urls config
 │       ├── icons/               # SVG icon components (23 icons)
-│       │   ├── alert.html, brain-cog.html, check.html, check-circle.html
-│       │   ├── chevron-down.html, chevron-right.html, chevrons-left.html
-│       │   ├── circle-plus.html, copy.html, cpu.html, folder.html
-│       │   ├── menu.html, moon.html, pencil.html, plus.html
-│       │   ├── retry.html, settings.html, star-filled.html
-│       │   ├── star-outline.html, sun.html, trash.html, user-pen.html, x.html
 │       ├── components/
 │       │   └── select_dropdown.html # Reusable searchable dropdown component
 │       ├── chat/
@@ -240,7 +220,13 @@ liminal-salt/
 
 ### 1. Django Views (`chat/views/`)
 
-**Purpose:** Handle HTTP requests and coordinate between templates and services. Views are split into domain-specific modules.
+**Purpose:** Handle HTTP requests and coordinate between templates and services. Views are thin — they contain no direct file I/O, no business logic, and no bare `except` clauses.
+
+**Conventions:**
+- All POST-only views use `@require_POST` decorator (Django's built-in)
+- `setup_wizard` uses `@require_http_methods(["GET", "POST"])`
+- Views delegate all file operations to service modules
+- HTMX requests return partials; normal requests return full pages or redirects
 
 **Modules:**
 
@@ -248,22 +234,62 @@ liminal-salt/
 |--------|-------|
 | `core.py` | `index`, `setup_wizard` |
 | `chat.py` | `chat`, `switch_session`, `new_chat`, `start_chat`, `delete_chat`, `toggle_pin_chat`, `rename_chat`, `save_draft`, `send_message`, `retry_message`, `edit_message` |
-| `memory.py` | `memory`, `update_memory`, `memory_update_status`, `save_memory_settings`, `wipe_memory`, `modify_memory`, context file CRUD views |
+| `memory.py` | `memory`, `update_memory`, `memory_update_status`, `save_memory_settings`, `wipe_memory`, `modify_memory`, `seed_memory`, context file CRUD views |
 | `personas.py` | `persona_settings`, `save_persona_file`, `create_persona`, `delete_persona`, `save_persona_model` |
 | `settings.py` | `settings`, `save_settings`, `save_context_history_limit`, `validate_provider_api_key`, `save_provider_model` |
 | `api.py` | `get_available_themes`, `get_available_models`, `save_theme` |
 
-**Notable new views:**
-- `save_draft()` - Auto-save message drafts per session
-- `retry_message()` - Retry last assistant response
-- `edit_message()` - Edit last user message and re-send
+**Shared view helpers in `chat.py`:**
+- `get_model_for_persona()` - Resolve persona-specific or default model
+- `_build_chat_core()` - Create ChatCore instance for a session
+- `_build_persona_model_map()` - Build `{persona: model}` mapping
+- `_get_user_timezone()` - Extract and persist user timezone
+- `_resolve_session_persona()` - Get persona from session data with fallback
+- `_handle_title_generation()` - 3-tier title generation logic
 
-**HTMX Pattern:**
-Views check `request.headers.get('HX-Request')` to return either:
-- Full HTML page (normal request)
-- HTML partial fragment (HTMX request for swap)
+### 2. SessionManager (`chat/services/session_manager.py`)
 
-### 2. ChatCore (`chat/services/chat_core.py`)
+**Purpose:** All session file I/O. Views never read or write session JSON directly.
+
+**Key Functions:**
+- `load_session(session_id)` / `create_session(session_id, persona, ...)` / `delete_session(session_id)`
+- `toggle_pin(session_id)` / `rename_session(session_id, new_title)`
+- `save_draft(session_id, draft_text)` / `clear_draft(session_id)`
+- `remove_last_assistant_message(session_id)` - For retry
+- `update_last_user_message(session_id, new_content)` - For edit
+- `update_persona_across_sessions(old_name, new_name)` - Bulk update on persona rename
+- `generate_session_id()` / `make_user_timestamp(user_timezone)`
+- All writes use `flush() + fsync()` for durability
+- All reads use specific exception handling (`json.JSONDecodeError`, `IOError`)
+
+### 3. PersonaManager (`chat/services/persona_manager.py`)
+
+**Purpose:** Persona CRUD with side-effect management. Views never touch persona directories directly.
+
+**Key Functions:**
+- `get_persona_preview(persona_name)` - Read identity .md content
+- `save_persona_identity(persona_name, content)` - Write identity content
+- `create_persona(name, identity_content)` - Create directory + identity.md
+- `delete_persona(persona_name)` - Delete directory, memory file, and context files directory
+- `rename_persona(old_name, new_name, config, save_config_fn)` - Orchestrates all 5 side effects:
+  1. Rename persona directory
+  2. Rename memory file
+  3. Rename persona context files directory
+  4. Update all session files via SessionManager
+  5. Update default persona in config if needed
+- `persona_exists(persona_name)` - Check existence
+
+### 4. ContextFileManager (`chat/services/context_files.py`)
+
+**Purpose:** Unified context file management for both global and per-persona scopes. Replaces the former `user_context.py` and `persona_context.py` (deleted).
+
+**Class:** `ContextFileManager(base_dir, scope_label, header_description)`
+
+**Methods:** `get_config`, `save_config`, `list_files`, `upload_file`, `delete_file`, `toggle_file`, `get_file_content`, `save_file_content`, `load_enabled_context`, plus local directory wrappers.
+
+**Instantiation:** A global singleton instance is created in `services/__init__.py`. Per-persona instances are created via a factory function `_persona_ctx(persona_name)`. All exported function names are backward-compatible with the old module API.
+
+### 5. ChatCore (`chat/services/chat_core.py`)
 
 **Purpose:** Handles all LLM API interactions and message history management.
 
@@ -277,131 +303,107 @@ Views check `request.headers.get('HX-Request')` to return either:
 
 **Features:**
 - **Retry Logic:** Up to 2 attempts for empty responses with 2-second delay
-- **Token Cleanup:** Removes `<s>` and `</s>` artifacts
 - **Sliding Window:** Configurable context history limit (default 50 message pairs)
 - **Timezone Context:** Injects current date/time into system prompt using user's timezone
 - **Message Timestamps:** Records ISO 8601 timestamps on all messages (stored in JSON, stripped from API payload)
 - **Error Handling:** Returns "ERROR: ..." string on failures
 
-### 3. Context Manager (`chat/services/context_manager.py`)
+### 6. Context Manager (`chat/services/context_manager.py`)
 
-**Purpose:** Assembles the complete system prompt from persona and memory.
+**Purpose:** Assembles the complete system prompt from persona identity, context files, and memory.
 
 **Key Functions:**
-- `load_context(persona_dir, persona_name=None)` - Loads and concatenates context including per-persona memory
+- `load_context(persona_dir, persona_name=None)` - Loads and concatenates all context
 - `get_available_personas(personas_dir)` - Returns list of valid personas
-- `get_persona_config(persona_name, personas_dir)` - Loads persona config.json
-- `save_persona_config(persona_name, config_data, personas_dir)` - Saves persona config.json
-- `get_persona_model(persona_name, personas_dir)` - Gets model override for persona
-- `get_persona_identity(persona_dir)` - Returns raw persona .md content (all .md files concatenated, no headers)
+- `get_persona_config` / `save_persona_config` / `get_persona_model` / `get_persona_identity`
 
 **Assembly Order:**
 1. All `.md` files from persona directory (alphabetically)
-2. Persona-specific context files (uploaded + local directory, from `data/user_context/personas/[name]/`)
-3. Global user context files (uploaded + local directory, from `data/user_context/`)
-4. Per-persona memory file (`data/memory/{persona}.md`) with "YOUR MEMORY ABOUT THIS USER" preamble
+2. Persona-specific context files (uploaded + local directory)
+3. Global user context files (uploaded + local directory)
+4. Per-persona memory file with "YOUR MEMORY ABOUT THIS USER" preamble
 
-### 4. Summarizer (`chat/services/summarizer.py`)
+### 7. MemoryManager / MemoryWorker
 
-**Purpose:** Generates session titles (title-only; memory logic moved to MemoryManager).
+**MemoryManager (`memory_manager.py`):** Per-persona memory file I/O and LLM-driven updates.
+- File I/O: `get_memory_content`, `save_memory_content`, `delete_memory`, `rename_memory`
+- LLM: `update_persona_memory()` (incremental merge), `modify_memory_with_command()` (natural-language edits)
 
-**Key Methods:**
-- `generate_title(first_user_msg, first_assistant_msg)` - Creates 2-4 word title
-
-### 5. MemoryManager (`chat/services/memory_manager.py`)
-
-**Purpose:** Per-persona memory file I/O and LLM-driven memory updates.
-
-**File I/O Functions:**
-- `get_memory_file(persona_name)` - Returns path to `data/memory/{persona}.md`
-- `get_memory_content(persona_name)` / `save_memory_content(persona_name, content)` - Read/write memory
-- `delete_memory(persona_name)` / `rename_memory(old_name, new_name)` - Lifecycle management
-- `_safe_persona_name(name)` - Path traversal protection
-
-**MemoryManager Class:**
-- `update_persona_memory(persona_name, ...)` - Incremental merge of new conversation data into existing memory, written in second-person from the persona's perspective
-- `modify_memory_with_command(persona_name, command)` - Apply natural-language edits to memory
-
-### 6. MemoryWorker (`chat/services/memory_worker.py`)
-
-**Purpose:** Background threading for non-blocking memory updates.
-
-**Key Features:**
-- Per-persona threading locks prevent concurrent updates to the same persona
+**MemoryWorker (`memory_worker.py`):** Background threading for non-blocking memory updates.
+- Per-persona threading locks prevent concurrent updates
 - Status tracking per persona (idle/updating/complete/error)
-- `start_manual_update(persona_name, ...)` - Spawns background thread for manual "Update Memory" button
-- Auto-update scheduler: daemon thread started via `AppConfig.ready()`, checks for new conversations per persona on a configurable interval (0 = disabled)
-- `get_update_status(persona_name)` - Returns current status for JS polling
+- Auto-update scheduler daemon thread
 
-### 7. LLM Client (`chat/services/llm_client.py`)
-
-**Purpose:** Shared utility for all OpenRouter API calls, used by ChatCore, Summarizer, and MemoryManager.
+### 8. LLM Client (`chat/services/llm_client.py`)
 
 - `OPENROUTER_API_URL` - Single constant for the API endpoint
 - `call_llm(api_key, model, messages, ...)` - Makes API call with configurable timeout and max_tokens
 - `LLMError` - Custom exception for API failures
 
-### 8. Templates
+### 9. Shared Utilities (`chat/utils.py`)
+
+- `load_config()` / `save_config()` - Config file access
+- `get_sessions_with_titles()` / `group_sessions_by_persona()` - Session listing
+- `get_formatted_model_list(api_key)` - Fetch + group + flatten models in one call
+- `get_theme_list()` - Scan themes directory for available themes
+- `group_models_by_provider()` / `flatten_models_with_provider_prefix()` - Model formatting helpers
+- `title_has_artifacts()` - Detect malformed titles needing regeneration
+
+### 10. Templates
 
 **Base Template (`base.html`):**
 - Loads HTMX and Alpine.js from CDN
-- Loads `utils.js` and `components.js` before Alpine (for component registration)
-- Loads compiled Tailwind CSS from `static/css/output.css`
-- Configures CSRF token for HTMX requests
+- Loads `utils.js` (first, for theme initialization) and `components.js` before Alpine
+- Provides `<meta name="csrf-token">` for HTMX CSRF (configured in `utils.js`)
+- Provides `<div id="app-urls">` with Django `{% url %}` tags for JS URL resolution
 - Uses semantic Tailwind classes (bg-surface, text-foreground, etc.)
 
-**Main Chat (`chat/chat.html`):**
-- Full page with sidebar + main content area
-- Uses registered Alpine.js components (modals, sidebar, dropdowns)
-- HTMX attributes for reactive session switching
-- Minimal inline JS - components defined in `components.js`
-
 **Partials (`*_main.html`):**
-- Content fragments returned by HTMX requests
-- Swapped into `#main-content` div
+- Content fragments returned by HTMX requests, swapped into `#main-content`
+- Pass data to Alpine components and modals via `data-*` attributes on hidden `<div>` elements
+- No inline `<script>` with business logic, no `window.*` globals, no inline `style` attributes
 
-### 9. JavaScript Architecture (`chat/static/js/`)
-
-**Purpose:** Centralized Alpine.js components and utility functions, extracted from inline scripts for better maintainability and reusability.
+### 11. JavaScript Architecture (`chat/static/js/`)
 
 **`utils.js` - Shared Utility Functions:**
 
+*Initialization (runs immediately):*
+- Theme initialization from localStorage/data attributes (prevents flash)
+- HTMX CSRF token configuration via `htmx:configRequest` event
+
+*URL Configuration:*
+- `getAppUrl(key, fallback)` - Read URLs from `#app-urls` data attributes (set by Django templates)
+
 *Theme System:*
-- `getAvailableThemes()` / `getColorTheme()` / `initTheme()` - Theme loading and initialization
-- `loadTheme()` / `setTheme()` / `getTheme()` - Color theme and mode management
-- `saveThemePreference()` - Persists theme to backend config.json
-- `applyThemeColors()` / `cacheThemeColors()` - CSS custom property management
+- `getAvailableThemes()` / `getColorTheme()` / `loadTheme()` / `setTheme()` / `getTheme()`
+- `saveThemePreference()` / `applyThemeColors()` / `cacheThemeColors()`
 
 *Core Utilities:*
-- `getCsrfToken()` - Centralized CSRF token retrieval
+- `getCsrfToken()` - Centralized CSRF token retrieval (all JS must use this, never querySelector)
 - `handleTextareaKeydown()` / `autoResizeTextarea()` - Textarea helpers
 - `scrollToBottom()` / `updateScrollButtonVisibility()` / `setupScrollButtonListener()` - Scroll management
 - `toDisplayName()` / `toFolderName()` - Persona name conversion
 - `setTimezoneInput()` - Sets user timezone for server-side time context
-- `selectDropdown()` - Reusable searchable dropdown component with keyboard navigation
 
 *Message UI:*
 - `addUserMessage()` / `removeThinkingIndicator()` - Message UI helpers
 - `animateAssistantResponse()` / `typewriterReveal()` - Response animation
 - `convertTimestamps()` / `insertDateSeparators()` / `formatDateSeparator()` - Date formatting
-- `copyMessageToClipboard()` - Copy assistant message content
-- `retryLastMessage()` / `editLastMessage()` / `saveEditedMessage()` / `cancelEdit()` - Message editing and retry
-- `cleanupMessageButtons()` - Remove action buttons from non-latest messages
-- `handleMessageError()` - Error state handling
+- `copyMessageToClipboard()` / `retryLastMessage()` / `editLastMessage()` / `saveEditedMessage()` / `cancelEdit()`
+- `cleanupMessageButtons()` / `handleMessageError()`
 
 *Draft Management:*
-- `saveDraftDebounced()` / `saveDraftNow()` / `clearDraft()` / `restoreDraft()` - Per-session draft persistence
-- `saveNewChatDraftDebounced()` / `restoreNewChatDraft()` / `clearNewChatDraft()` - Home page draft persistence
+- `saveDraftDebounced()` / `saveDraftNow()` / `clearDraft()` / `restoreDraft()`
+- `saveNewChatDraftDebounced()` / `restoreNewChatDraft()` / `clearNewChatDraft()`
 
-*Sidebar:*
-- `updateSidebarHighlight()` / `clearSidebarHighlight()` - Active session highlighting
-- `updateHeaderTitle()` - Update chat header on session switch
+*Memory:*
 - `showMemoryUpdating()` / `showMemoryModifying()` - Memory status indicators
-- `pollMemoryUpdateStatus()` - Polls `/memory/update-status/` for background memory update progress
+- `initMemoryView()` - Format timestamps and start polling after partial load
+- `pollMemoryUpdateStatus()` - Polls `/memory/update-status/` for progress
 
 **`components.js` - Alpine.js Component Definitions:**
 
-Components are registered via `Alpine.data()` in the `alpine:init` event, making them available across all templates.
+Components are registered via `Alpine.data()` in the `alpine:init` event.
 
 | Component | Purpose |
 |-----------|---------|
@@ -411,11 +413,10 @@ Components are registered via `Alpine.data()` in the `alpine:init` event, making
 | `deleteModal` | Chat deletion confirmation modal |
 | `renameModal` | Chat rename form modal |
 | `wipeMemoryModal` | Memory wipe confirmation modal |
-| `editPersonaModal` | Persona content editor modal |
+| `editPersonaModal` | Persona create/edit modal |
 | `deletePersonaModal` | Persona deletion confirmation modal |
 | `editPersonaModelModal` | Persona model override modal with lazy loading |
-| `contextFilesModal` | Global context file upload/management modal |
-| `personaContextFilesModal` | Persona-specific context file modal |
+| `contextFilesModal` | Context file upload/management (used for both global and persona-scoped) |
 | `memoryPersonaPicker` | Persona selector dropdown on Memory view |
 | `providerModelSettings` | Provider and model configuration (settings page) |
 | `homePersonaPicker` | Persona picker on home page |
@@ -425,27 +426,31 @@ Components are registered via `Alpine.data()` in the `alpine:init` event, making
 | `themePicker` | Color theme dropdown (settings page) |
 | `setupThemePicker` | Theme picker for setup wizard step 2 |
 | `themeModeToggle` | Dark/light mode toggle buttons (settings page) |
+| `memorySettings` | Memory generation settings form with inline save |
+| `contextHistoryLimit` | Context history limit setting with inline save |
 
-**Global Helper Functions:**
-Modal components expose global functions for cross-component communication:
-- `openDeleteModal(sessionId, title)` - Open delete confirmation
-- `openRenameModal(sessionId, title)` - Open rename form
-- `openNewPersonaModal()` / `openEditPersonaModal()` - Persona modals
-- `openDeletePersonaModal()` / `openEditPersonaModelModal()` - Persona modals
-- `openContextFilesModal()` / `openWipeMemoryModal()` - Memory modals
-- `openPersonaContextFilesModal()` - Persona context files modal
+**Cross-Component Communication Pattern:**
+Modal components listen for dispatched events on `window` instead of using global function helpers:
 
-**Data Attribute Pattern:**
-Components receive Django template data via `data-*` attributes:
-```html
-<div x-data="deleteModal"
-     data-delete-url="{% url 'delete_chat' %}">
+```javascript
+// In component init():
+window.addEventListener('open-delete-modal', (e) => {
+    this.open(e.detail.id, e.detail.title);
+});
+
+// From template (Alpine directive):
+@click="window.dispatchEvent(new CustomEvent('open-delete-modal', { detail: { id: '...', title: '...' } }))"
 ```
 
-Components read these in their `init()` method:
+**Data Attribute Pattern:**
+Components read configuration from `data-*` attributes in `init()` and store values as instance properties. Never read `this.$el.dataset` in methods called from event handlers — Alpine's `this.$el` may not point to the component root in that context.
+
 ```javascript
 init() {
-    this.deleteUrl = this.$el.dataset.deleteUrl;
+    this._saveUrl = this.$el.dataset.saveUrl;  // Store in init
+},
+async save() {
+    await fetch(this._saveUrl, ...);  // Use stored value
 }
 ```
 
@@ -653,45 +658,71 @@ Key customizations:
 
 ### Code Standards
 
-**No Inline JavaScript:**
-- All JavaScript must be placed in dedicated files (`utils.js` or `components.js`)
-- Alpine.js components should be defined in `components.js` and registered via `Alpine.data()`
-- Use data attributes (`data-*`) to pass Django template values to components
-- Exception: Simple Alpine.js state objects like `x-data="{ open: false }"` are acceptable for one-off toggles
+These standards are enforced — all new code must follow them.
+
+#### Python / Django
+
+**Separation of Concerns:**
+- Views are thin coordinators. All file I/O belongs in `services/`.
+- Never use `open()`, `json.load()`, `json.dump()`, `os.path.exists()`, `os.remove()`, `shutil.*` in view files.
+- Session file operations → `SessionManager`
+- Persona file operations → `PersonaManager`
+- Context file operations → `ContextFileManager`
+- Use `load_config()` and `save_config()` for all config.json access.
+
+**Django Best Practices:**
+- All POST-only views must use `@require_POST` decorator from `django.views.decorators.http`.
+- Views that handle both GET and POST use `@require_http_methods(["GET", "POST"])`.
+- Never use bare `except:` — always catch specific exceptions (`json.JSONDecodeError`, `IOError`, `ValueError`, etc.).
+- Use `get_formatted_model_list(api_key)` for the fetch → group → flatten chain. Never repeat the 3-step pattern.
+- Use `get_theme_list()` from `utils.py` for theme enumeration. Never read theme JSON files in views.
+
+**Service Layer Rules:**
+- All file writes use `flush() + fsync()` for durability.
+- Services raise typed exceptions; views handle them.
+- `PersonaManager.rename_persona()` handles all 5 side effects (directory, memory, context dir, sessions, config).
+- `PersonaManager.delete_persona()` handles all cleanup (directory, memory, context dir).
+
+#### JavaScript
+
+**No Inline JavaScript in Templates:**
+- All JS must be in `utils.js` or `components.js`.
+- Alpine.js components must be defined in `components.js` and registered via `Alpine.data()`.
+- Exception: Minimal one-line initialization calls like `<script>initMemoryView();</script>` are acceptable for HTMX-swapped partials.
+
+**No `window.*` Globals for Component Communication:**
+- Use `window.dispatchEvent(new CustomEvent('event-name', { detail: {...} }))` from templates.
+- Modal components listen via `window.addEventListener('event-name', ...)` in `init()`.
+- Never store component references on `window`.
+
+**No Hardcoded URLs in JavaScript:**
+- Use `getAppUrl(key, fallback)` to read URLs from `#app-urls` data attributes (set in `base.html` using Django `{% url %}` tags).
+- Components read URLs from their own `data-*` attributes, set by the template that instantiates them.
+
+**Alpine Component `init()` Rules:**
+- Read all `data-*` attributes in `init()` and store as instance properties (e.g., `this._saveUrl = this.$el.dataset.saveUrl`).
+- Never read `this.$el.dataset` in methods called from `@click` or other event handlers — `this.$el` may not point to the component root in that context.
+
+**Async and Error Handling:**
+- All async operations must use `async/await` with `try/catch`. No `.then()` chains.
+- Always use `getCsrfToken()` for CSRF tokens. Never use `document.querySelector('[name=csrfmiddlewaretoken]')`.
+
+#### HTML / Templates
+
+**No Inline Event Handlers:**
+- Never use `onclick`, `onchange`, `oninput`, `onkeydown`, etc.
+- Use Alpine directives: `@click`, `@change`, `@input`, `@keydown`.
+- For function calls that need `this`/element reference, use `$el` (e.g., `@click="copyMessageToClipboard($el)"`).
+- For function calls that need the event, use `$event` (e.g., `@keydown="handleTextareaKeydown($event)"`).
 
 **No Inline CSS:**
-- All styles must be defined in Tailwind classes or `input.css`
-- Use Tailwind's utility classes for styling
-- Custom CSS goes in `chat/static/css/input.css`
-- Never use `style` attributes in HTML
+- All styles via Tailwind classes or `input.css`.
+- Never use `style` attributes. Use `hidden` class or `x-show` for visibility.
 
-**Architectural Best Practices:**
-
-*Python/Django:*
-- Keep views thin; business logic belongs in `services/`
-- Use `load_config()` and `save_config()` for all config.json access
-- Validate user input at view boundaries
-- Use Django's CSRF protection for all POST requests
-- Return appropriate HTTP status codes
-
-*HTML/Templates:*
-- Use Django template inheritance (`{% extends %}`, `{% block %}`)
-- Create reusable partials for HTMX responses (`*_main.html` pattern)
-- Use `{% include %}` for reusable components (icons, buttons)
-- Pass data to Alpine components via `data-*` attributes, not inline JS
-
-*JavaScript:*
-- Define Alpine components as functions in `components.js`
-- Register components in the `alpine:init` event
-- Use `utils.js` for shared utility functions
-- Dispatch custom events for cross-component communication
-- Handle async operations properly with try/catch
-
-*Security:*
-- Never expose API keys in frontend code
-- Validate and sanitize all user inputs
-- Use Django's built-in CSRF protection
-- Escape user content in templates (Django does this by default)
+**Data Passing:**
+- Pass data to Alpine components via `data-*` attributes, not inline JS or `window.*` globals.
+- For lists/objects, serialize as JSON in `data-*` attributes (e.g., `data-files='{{ files_json|safe }}'`).
+- Use hidden `<div>` elements with `id` and `data-*` attributes as data sources for modals that need to read from HTMX-swapped partials.
 
 ### SVG Icon System
 
@@ -784,20 +815,24 @@ Icons are stored as reusable Django template includes in `chat/templates/icons/`
 - [ ] Per-persona memory settings save correctly in persona config.json
 - [ ] Wipe memory per-persona with confirmation
 - [ ] Modify memory with natural-language commands
-- [ ] Upload global context files in Memory view
+- [ ] Upload global context files in Settings view
 - [ ] Change default persona in Persona Settings
 - [ ] Set model override for persona
 - [ ] Create new persona
 - [ ] Edit persona content
+- [ ] Rename persona (verify all side effects: sessions, memory, context dir, config)
+- [ ] Delete persona (verify cleanup: directory, memory, context dir)
 - [ ] Verify "assistant" persona cannot be deleted
+- [ ] Context history limit saves correctly
 
-**Persona Context Files:**
-- [ ] Upload context file to a persona via drag-drop or click
+**Context Files:**
+- [ ] Upload context file (global and persona-scoped)
 - [ ] Toggle file enabled/disabled status
 - [ ] Edit file content inline
 - [ ] Delete context file
 - [ ] Badge count updates correctly
-- [ ] Context appears in LLM prompt only for that persona's chats
+- [ ] Context appears in LLM prompt for correct scope
+- [ ] Modal re-open shows updated file list after upload
 
 **Local Directory Context Files:**
 - [ ] Add local directory via path input or browser
@@ -826,16 +861,21 @@ Icons are stored as reusable Django template includes in `chat/templates/icons/`
 
 | File | Purpose |
 |------|---------|
-| `chat/views/` | View functions (split by domain) |
+| `chat/views/` | View functions (thin, no file I/O) |
+| `chat/services/session_manager.py` | Session file CRUD |
+| `chat/services/persona_manager.py` | Persona CRUD with side effects |
+| `chat/services/context_files.py` | Unified context file management |
 | `chat/services/chat_core.py` | LLM API calls |
 | `chat/services/llm_client.py` | Shared OpenRouter API utility |
+| `chat/services/context_manager.py` | System prompt assembly |
 | `chat/services/memory_manager.py` | Per-persona memory file I/O and update logic |
 | `chat/services/memory_worker.py` | Background threading and auto-update scheduler |
-| `chat/services/persona_context.py` | Persona-specific context file management |
 | `chat/services/local_context.py` | Shared local directory context management |
+| `chat/utils.py` | Config, model formatting, theme list |
 | `chat/templates/chat/chat.html` | Main UI template |
+| `chat/templates/base.html` | Base template with URL config |
 | `chat/static/js/components.js` | Alpine.js component definitions |
-| `chat/static/js/utils.js` | Shared utility functions |
+| `chat/static/js/utils.js` | Shared utility functions + HTMX CSRF config |
 | `chat/static/css/input.css` | Tailwind source & CSS variables |
 | `chat/static/themes/*.json` | Color theme definitions |
 | `liminal_salt/settings.py` | Django config |
@@ -873,128 +913,57 @@ https://openrouter.ai/api/v1/chat/completions
 
 ---
 
-## Cleanup Backlog
+## Remaining Backlog
 
-Prioritized list of improvements for code quality, separation of concerns, and best practices.
+Items not addressed by the Milestone 1 SoC refactor.
 
-### Priority 1: Separation of Concerns
+### Code Quality
 
-**1.1 Extract a `SessionManager` service**
-The pattern of loading session JSON, resolving persona, getting model, loading context, and creating ChatCore is repeated 4+ times across `chat/views/chat.py` (lines ~115, ~378, ~622, ~787). Session file I/O (pin toggle, rename, draft save, message editing) is also done directly in views. Extract to a service with methods like `load_session_data()`, `create_chat_core_for_session()`, `toggle_pinned()`, `rename()`, `save_draft()`.
+**Standardize error responses**
+Error responses are inconsistent: some return `HttpResponse(status=405)` with no body, some return `JsonResponse({'error': ...})`, some return plain text. Create helper functions like `json_error(message, status)`.
 
-**1.2 ~~Split `Summarizer` into focused services~~ DONE**
-Summarizer is now title-only. Memory logic extracted to `MemoryManager` (`memory_manager.py`) and `MemoryWorker` (`memory_worker.py`).
-
-**1.3 Deduplicate `persona_context.py` and `user_context.py`**
-These two files are near-identical duplicates — 7 functions (`get_config`, `save_config`, `list_files`, `upload_file`, `delete_file`, `toggle_file`, `load_enabled_context`) share the same logic with different storage paths. Extract a base `ContextFileManager` class parameterized by scope, eliminating ~250 lines of duplication.
-
-**1.4 Move business logic out of views**
-- `chat/views/personas.py`: session update logic on persona rename/delete
-- `chat/views/chat.py`: title generation 3-tier logic, new session creation
-
-### Priority 2: Code Duplication in Views
-
-**2.1 Persona model map building**
-The pattern of iterating personas and fetching models is repeated 7+ times across `chat.py`, `settings.py`, and `personas.py`. Extract to a shared utility.
-
-**2.2 Model fetching & grouping**
-`fetch_available_models()` → `group_models_by_provider()` → `flatten_models_with_provider_prefix()` chain is repeated in `core.py`, `settings.py`, and `personas.py`. Extract to a single helper.
-
-**2.3 ~~Memory context dict building~~ DONE**
-Consolidated into `_build_memory_view_context()` helper.
-
-**2.4 Config loaded multiple times per request**
-`load_config()` reads and parses `config.json` from disk on every call. Several views call it 2+ times. Load once per view and pass through.
-
-### Priority 3: Django Best Practices
-
-**3.1 Use `@require_POST` / `@require_http_methods` decorators**
-Most POST-only views manually check `if request.method != 'POST'` with inconsistent handling. Use Django's built-in decorators instead — already used correctly in `api.py` but not elsewhere.
-
-**3.2 Standardize error responses**
-Error responses are inconsistent: some return `HttpResponse(status=405)` with no body, some return `JsonResponse({'error': ...})`, some return plain text. Create helper functions like `json_error(message, status)` and `method_not_allowed()`.
-
-**3.3 Replace bare `except` clauses**
-`chat/views/chat.py` has 5 instances of `except: pass` (lines ~125, ~387, ~630, ~840 and more). These mask real errors. Use specific exceptions like `(json.JSONDecodeError, IOError, ValueError)`.
-
-**3.4 Add logging to important operations**
+**Add logging to important operations**
 Most views don't log operations. Only `core.py` and `personas.py` use logging. Add logging for session creation/deletion, persona changes, API failures.
 
-**3.5 ~~Fix import placement~~ DONE**
-Resolved during memory refactor.
+### JavaScript
 
-### Priority 4: JavaScript Cleanup
+**Clean up `selectDropdown` MutationObserver**
+`utils.js`: The MutationObserver is never cleaned up (memory leak) and re-parses JSON on every attribute change. Use Alpine's native reactivity instead.
 
-**4.1 Add `.catch()` to all promise chains**
-`components.js` has 3 modal components using `.then()` chains without `.catch()`: `wipeMemoryModal` (line ~182), `editPersonaModal` (line ~259), `deletePersonaModal` (line ~324). Failed requests silently corrupt UI state.
+**Break down `providerModelSettings` component**
+At ~190 lines, this component handles API validation, model fetching, provider selection, model selection, and form submission. Consider splitting into smaller focused components.
 
-**4.2 Standardize on `async/await`**
-Mixed patterns throughout `components.js` — some methods use `async/await`, others use `.then()` chains. Standardize on `async/await` for consistency and better error handling.
-
-**4.3 Standardize CSRF token retrieval**
-`components.js` inconsistently uses `getCsrfToken()` (safe) in some places and `document.querySelector('[name=csrfmiddlewaretoken]').value` (throws if missing) in others (~4 instances in file upload components).
-
-**4.4 Replace `window` global state with Alpine events**
-7 modal components store refs on `window` (e.g., `window.deleteModalComponent`). Use Alpine's `$dispatch()` and `@custom-event` for cross-component communication instead.
-
-**4.5 Remove hardcoded URL fallbacks**
-`components.js` has ~6 hardcoded URL strings as fallback defaults. All URLs should come exclusively from `data-*` attributes passed by Django templates.
-
-**4.6 Clean up `selectDropdown` MutationObserver**
-`utils.js` lines ~742-758: The MutationObserver is never cleaned up (memory leak) and re-parses JSON on every attribute change. Use Alpine's native reactivity instead.
-
-**4.7 Break down `providerModelSettings` component**
-At 192 lines (components.js ~710-902), this component handles API validation, model fetching, provider selection, model selection, and form submission. Split into smaller focused components.
-
-**4.8 Extract magic numbers to constants**
+**Extract magic numbers to constants**
 Timeout delays scattered throughout: `3000ms`, `1000ms`, `25ms` animation speed, retry delay of `2s`. Define as named constants.
 
-### Priority 5: Template Cleanup
+### Templates
 
-**5.1 Convert `onclick`/`oninput` handlers to Alpine directives**
-13 inline handlers across 6 templates (`chat_main.html`, `chat_home.html`, `assistant_fragment.html`, `sidebar_sessions.html`, `memory_main.html`, `persona_main.html`). These violate the project's "no inline JS" rule. Convert to `@click` / `@input` Alpine directives.
+**Extract modals from `chat.html`**
+`chat.html` has 8 modal definitions inline. Consider extracting to partial files (e.g., `templates/modals/`) and `{% include %}` them.
 
-**5.2 Extract inline fetch logic to `components.js`**
-`memory_main.html` (lines ~34-48) and `settings_main.html` (lines ~128-140) have inline Alpine components with `fetch()` calls. Extract to registered components.
-
-**5.3 Replace `window` global variables with `data-*` attributes**
-`persona_main.html` and `memory_main.html` use `<script>` tags to set `window.personaContextFilesData` and `window.contextFilesData`. Pass via `data-*` attributes instead, consistent with other components.
-
-**5.4 Extract modals from `base.html`**
-`base.html` is 342 lines with 8 modal definitions inline. Extract to partial files (e.g., `templates/modals/`) and `{% include %}` them.
-
-**5.5 Consolidate message rendering**
+**Consolidate message rendering**
 Message rendering differs slightly between `chat_main.html`, `assistant_fragment.html`, and `message_fragment.html`. Clarify which partial is used where, and consolidate where possible.
 
-### Priority 6: Accessibility
+### Accessibility
 
-**6.1 Add ARIA attributes to modals**
-All 8 modals in `base.html` lack `role="dialog"`, `aria-modal="true"`, and `aria-labelledby`. Add focus trapping on modal open.
+**Add ARIA attributes to modals**
+All modals lack `role="dialog"`, `aria-modal="true"`, and `aria-labelledby`. Add focus trapping on modal open.
 
-**6.2 Add `<label>` elements to form inputs**
+**Add `<label>` elements to form inputs**
 Textarea in `chat_main.html` and input in `chat_home.html` lack associated `<label>` elements.
 
-**6.3 Add `role="alert"` to error messages**
-`utils.js` `handleMessageError()` creates error DOM without `role="alert"` or `aria-live` for screen readers.
+**Add `role="alert"` to error messages**
+`handleMessageError()` creates error DOM without `role="alert"` or `aria-live`.
 
-**6.4 Use semantic list elements**
+**Use semantic list elements**
 Sidebar session groups in `sidebar_sessions.html` use `<div>` instead of `<ul>`/`<li>`.
 
-### Priority 7: Service Hardening
+### Service Hardening
 
-**7.1 ~~Extract hardcoded API values~~ DONE (partial)**
-OpenRouter API URL extracted to `OPENROUTER_API_URL` constant in `llm_client.py`. Timeout values still scattered.
-
-**7.2 Use atomic file writes**
-Session saves, config saves, and memory updates use `json.dump()` without atomic writes. If the process crashes mid-write, files corrupt. Use the atomic write pattern already in `utils.py` (flush + fsync).
-
-**7.3 Add timeout-specific error handling**
+**Add timeout-specific error handling**
 `ChatCore` and `Summarizer` set timeouts but don't distinguish `requests.exceptions.Timeout` from other errors. `ConfigManager` already does this correctly — follow the same pattern.
 
-**7.4 ~~Validate API response structure~~ DONE**
-`call_llm()` in `llm_client.py` validates `choices` key existence and content before returning.
-
-**7.5 Add path traversal validation**
+**Add path traversal validation**
 Persona context file operations should validate that `persona_name` doesn't contain `../` or other traversal characters, even though `os.path.basename()` is used on filenames.
 
 ---
@@ -1006,7 +975,6 @@ Persona context file operations should validate that `persona_name` doesn't cont
 - **Tailwind CSS:** https://tailwindcss.com/docs
 - **HTMX Docs:** https://htmx.org/docs/
 - **Alpine.js Docs:** https://alpinejs.dev/
-- **Nord Theme:** https://www.nordtheme.com
 
 ---
 
