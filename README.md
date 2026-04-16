@@ -72,8 +72,8 @@ Open source and easy to extend. Personas are just Markdown files. Themes are JSO
 ## Quick Start
 
 ```bash
-git clone https://github.com/irvj/liminal-salt.git
-cd liminal-salt
+git clone https://github.com/irvj/liminal-salt-app.git
+cd liminal-salt-app
 python run.py
 ```
 
