@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.2] - 2026-04-15
+
+### Changes
+- update repo address
+
 ## [0.9.1] - 2026-04-14
 
 ### Changes
