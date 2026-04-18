@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.2] - 2026-04-18
+
+### Changes
+- replace native confirm() and bespoke confirmation modals with a generic confirmDialog component
+- snap modal and dropdown open/close: drop more non-animating x-transitions
+- snap modal open and close: drop non-animating x-transitions and close edit persona modal before save fetch
+- stop fetching openrouter models on save paths that never render the list
+- fix edit persona modal double-escaping html entities on each save cycle
+- convert remaining inline info displays to toast notifications
+- move settings page and context-files modal info displays to toast notifications
+- add reusable toast notification component
+- fix selectDropdown label not resolving when items load late, clear search on open
+- move config.json into data/ so all user state lives in one place
+
 ## [0.10.1] - 2026-04-18
 
 ### Changes
