@@ -195,12 +195,6 @@
                 </p>
             </div>
 
-            <div x-show="settingsStatusMessage" x-transition
-                 :class="settingsStatusType === 'success' ? 'bg-success text-surface' : 'bg-danger text-white'"
-                 class="p-2 px-3 rounded mb-3 text-xs">
-                <span x-text="settingsStatusMessage"></span>
-            </div>
-
             <div x-show="statusMessage" x-transition
                  :class="statusType === 'success' ? 'bg-success text-surface' : (statusType === 'info' ? 'bg-surface text-foreground-secondary border border-border' : 'bg-danger text-white')"
                  class="p-2 px-3 rounded mb-3 text-sm">
@@ -241,12 +235,6 @@
                 Setup text that is always included in the prompt for this thread — world, situation, characters,
                 or rules the LLM should treat as authoritative. Leave empty for a normal chat.
             </p>
-
-            <div x-show="statusMessage" x-transition
-                 :class="statusType === 'success' ? 'bg-success text-surface' : 'bg-danger text-white'"
-                 class="p-2 px-3 rounded mb-4 text-sm">
-                <span x-text="statusMessage"></span>
-            </div>
 
             <textarea x-model="content"
                       placeholder="Describe the scenario for this thread..."
@@ -365,12 +353,6 @@
         <div class="bg-surface-secondary rounded-lg p-6 max-w-[500px] w-[90%] border border-border">
             <h3 class="text-foreground mb-2">Edit Model for <span class="text-accent-secondary" x-text="displayName"></span></h3>
             <p class="text-foreground-secondary text-sm mb-4">Select a model for this persona, or clear to use the default.</p>
-
-            <div x-show="statusMessage" x-transition
-                 :class="statusType === 'success' ? 'bg-success text-surface' : 'bg-danger text-white'"
-                 class="p-2 px-3 rounded mb-4 text-sm">
-                <span x-text="statusMessage"></span>
-            </div>
 
             <div x-show="loading" class="text-center py-4 text-foreground-secondary">
                 Loading models...

@@ -10,9 +10,7 @@
 
 <!-- Persona Settings Content -->
 <div class="flex-1 overflow-y-auto p-5">
-    {% if success %}
-    <div class="p-3 px-4 rounded mb-4 bg-success text-surface flex items-center gap-2">{% include 'icons/check-circle.html' with class='w-5 h-5' %} {{ success }}</div>
-    {% endif %}
+    {% if success %}<script>showToast("{{ success|escapejs }}", 'success');</script>{% endif %}
 
     {% if not personas %}
     <div class="p-3 px-4 rounded mb-4 bg-danger text-white">
@@ -91,12 +89,6 @@
         <p class="text-xs text-foreground-muted mb-4">
             Applied when a new thread is created with <span class="text-accent-secondary">{{ selected_persona|display_name }}</span>. Individual threads can override these from the thread memory modal. Chatbot is the baseline; switch to Roleplay only if you want this persona to open as roleplay by default.
         </p>
-
-        <div x-show="statusMessage" x-transition
-             :class="statusType === 'success' ? 'bg-success text-surface' : 'bg-danger text-white'"
-             class="p-2 px-3 rounded mb-3 text-xs">
-            <span x-text="statusMessage"></span>
-        </div>
 
         <div class="flex flex-wrap items-end gap-4 mb-2"
              @dropdown-select="onModeSelect($event.detail)">

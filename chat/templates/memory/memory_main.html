@@ -7,9 +7,7 @@
 
 <!-- Memory Content -->
 <div class="flex-1 overflow-y-auto p-5">
-    {% if error %}
-    <div class="p-3 px-4 rounded mb-4 bg-danger text-white flex items-center gap-2">{% include 'icons/alert.html' with class='w-5 h-5' %} {{ error }}</div>
-    {% endif %}
+    {% if error %}<script>showToast("{{ error|escapejs }}", 'error');</script>{% endif %}
 
     <!-- Persona Selector -->
     <div class="mb-5"

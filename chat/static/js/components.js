@@ -205,8 +205,6 @@ function threadMemoryModal() {
         hasOverride: false,
         settingsDirty: false,
         settingsSaving: false,
-        settingsStatusMessage: '',
-        settingsStatusType: '',
         _updateUrl: '',
         _statusUrl: '',
         _settingsSaveUrl: '',
@@ -251,7 +249,6 @@ function threadMemoryModal() {
             this.sizeLimit = source ? parseInt(source.dataset.sizeLimit) || 4000 : 4000;
             this.hasOverride = source ? source.dataset.hasOverride === 'true' : false;
             this.settingsDirty = false;
-            this.settingsStatusMessage = '';
         },
 
         // Match server-side clamping (chat.views.chat.save_thread_memory_settings)
@@ -460,12 +457,10 @@ function threadMemoryModal() {
 
         async saveSettings() {
             if (!this.sessionId) {
-                this.settingsStatusMessage = 'No active session.';
-                this.settingsStatusType = 'error';
+                showToast('No active session.', 'error');
                 return;
             }
             this.settingsSaving = true;
-            this.settingsStatusMessage = '';
 
             // Coerce first so empty/NaN inputs don't reach the server as "NaN".
             // Assign back so the visible field matches what we send.
@@ -491,16 +486,13 @@ function threadMemoryModal() {
                 if (response.ok) {
                     const data = await response.json();
                     this._applySettingsResponse(data);
-                    this.settingsStatusMessage = 'Settings saved.';
-                    this.settingsStatusType = 'success';
+                    showToast('Settings saved.', 'success');
                 } else {
                     const data = await response.json().catch(() => ({}));
-                    this.settingsStatusMessage = data.error || `Save failed (${response.status}).`;
-                    this.settingsStatusType = 'error';
+                    showToast(data.error || `Save failed (${response.status}).`, 'error');
                 }
             } catch (e) {
-                this.settingsStatusMessage = `Save failed: ${e.message}`;
-                this.settingsStatusType = 'error';
+                showToast(`Save failed: ${e.message}`, 'error');
             } finally {
                 this.settingsSaving = false;
             }
@@ -509,7 +501,6 @@ function threadMemoryModal() {
         async resetSettings() {
             if (!this.sessionId) return;
             this.settingsSaving = true;
-            this.settingsStatusMessage = '';
 
             const body = new URLSearchParams();
             body.append('session_id', this.sessionId);
@@ -526,16 +517,13 @@ function threadMemoryModal() {
                 if (response.ok) {
                     const data = await response.json();
                     this._applySettingsResponse(data);
-                    this.settingsStatusMessage = 'Reset to persona defaults.';
-                    this.settingsStatusType = 'success';
+                    showToast('Reset to persona defaults.', 'success');
                 } else {
                     const data = await response.json().catch(() => ({}));
-                    this.settingsStatusMessage = data.error || `Reset failed (${response.status}).`;
-                    this.settingsStatusType = 'error';
+                    showToast(data.error || `Reset failed (${response.status}).`, 'error');
                 }
             } catch (e) {
-                this.settingsStatusMessage = `Reset failed: ${e.message}`;
-                this.settingsStatusType = 'error';
+                showToast(`Reset failed: ${e.message}`, 'error');
             } finally {
                 this.settingsSaving = false;
             }
@@ -553,8 +541,6 @@ function scenarioModal() {
         sessionId: '',
         content: '',
         saving: false,
-        statusMessage: '',
-        statusType: '',
         _saveUrl: '',
 
         init() {
@@ -567,7 +553,6 @@ function scenarioModal() {
             const source = document.getElementById('scenario-data');
             this.sessionId = source ? source.dataset.sessionId : '';
             this.content = source ? source.dataset.scenario : '';
-            this.statusMessage = '';
             this.showModal = true;
         },
 
@@ -584,7 +569,6 @@ function scenarioModal() {
             }
 
             this.saving = true;
-            this.statusMessage = '';
 
             const body = new URLSearchParams();
             body.append('session_id', this.sessionId);
@@ -605,13 +589,12 @@ function scenarioModal() {
                     const source = document.getElementById('scenario-data');
                     if (source) source.dataset.scenario = this.content;
                     this.showModal = false;
+                    showToast('Scenario saved.', 'success');
                 } else {
-                    this.statusMessage = `Save failed (${response.status}).`;
-                    this.statusType = 'error';
+                    showToast(`Save failed (${response.status}).`, 'error');
                 }
             } catch (e) {
-                this.statusMessage = `Save failed: ${e.message}`;
-                this.statusType = 'error';
+                showToast(`Save failed: ${e.message}`, 'error');
             } finally {
                 this.saving = false;
             }
@@ -814,8 +797,6 @@ function editPersonaModelModal() {
         loadError: '',
         defaultModel: '',
         _modelItems: [],
-        statusMessage: '',
-        statusType: '',
         saving: false,
         modelsUrl: '',
         saveUrl: '',
@@ -876,7 +857,6 @@ function editPersonaModelModal() {
             this.currentModel = personaModel;
             this.selectedModel = personaModel;
             this.defaultModel = defaultModel;
-            this.statusMessage = '';
             this.loadError = '';
             this.showModal = true;
             this._modelItems = [];
@@ -888,7 +868,6 @@ function editPersonaModelModal() {
 
         async saveModel() {
             this.saving = true;
-            this.statusMessage = '';
 
             const csrfToken = getCsrfToken();
 
@@ -905,9 +884,8 @@ function editPersonaModelModal() {
                 const data = await response.json();
 
                 if (data.success) {
-                    this.statusMessage = 'Model updated successfully!';
-                    this.statusType = 'success';
                     this.currentModel = data.model || '';
+                    showToast('Model updated.', 'success');
 
                     // Refresh persona page to show updated model
                     setTimeout(() => {
@@ -916,12 +894,10 @@ function editPersonaModelModal() {
                         htmx.ajax('GET', personaUrl + '?preview=' + this.persona, {target: '#main-content', swap: 'innerHTML'});
                     }, 1000);
                 } else {
-                    this.statusMessage = data.error || 'Failed to save model';
-                    this.statusType = 'error';
+                    showToast(data.error || 'Failed to save model.', 'error');
                 }
             } catch (e) {
-                this.statusMessage = 'Failed to save model. Please try again.';
-                this.statusType = 'error';
+                showToast('Failed to save model. Please try again.', 'error');
             } finally {
                 this.saving = false;
             }
@@ -1932,9 +1908,15 @@ function memorySettings() {
                     headers: { 'X-CSRFToken': getCsrfToken() },
                     body: form
                 });
-                if (resp.ok) this.saved = true;
+                if (resp.ok) {
+                    this.saved = true;
+                    showToast('Memory settings saved.', 'success');
+                } else {
+                    showToast('Failed to save memory settings.', 'error');
+                }
             } catch (e) {
                 console.error('Failed to save memory settings:', e);
+                showToast('Failed to save memory settings.', 'error');
             } finally {
                 this.saving = false;
             }
@@ -1956,8 +1938,6 @@ function personaThreadDefaults() {
         hasDefaults: false,
         dirty: false,
         saving: false,
-        statusMessage: '',
-        statusType: '',
         modeItems: [
             { id: 'chatbot', label: 'Chatbot' },
             { id: 'roleplay', label: 'Roleplay' },
@@ -2018,7 +1998,6 @@ function personaThreadDefaults() {
         async save() {
             if (!this.persona) return;
             this.saving = true;
-            this.statusMessage = '';
 
             // Coerce first so empty/NaN inputs don't reach the server as "NaN".
             this.intervalMinutes = this.clampInterval(this.intervalMinutes);
@@ -2043,16 +2022,13 @@ function personaThreadDefaults() {
                 if (resp.ok) {
                     const data = await resp.json();
                     this._applyResponse(data);
-                    this.statusMessage = 'Defaults saved.';
-                    this.statusType = 'success';
+                    showToast('Defaults saved.', 'success');
                 } else {
                     const data = await resp.json().catch(() => ({}));
-                    this.statusMessage = data.error || `Save failed (${resp.status}).`;
-                    this.statusType = 'error';
+                    showToast(data.error || `Save failed (${resp.status}).`, 'error');
                 }
             } catch (e) {
-                this.statusMessage = `Save failed: ${e.message}`;
-                this.statusType = 'error';
+                showToast(`Save failed: ${e.message}`, 'error');
             } finally {
                 this.saving = false;
             }
@@ -2061,7 +2037,6 @@ function personaThreadDefaults() {
         async clear() {
             if (!this.persona) return;
             this.saving = true;
-            this.statusMessage = '';
             const body = new URLSearchParams();
             body.append('persona', this.persona);
             try {
@@ -2076,16 +2051,13 @@ function personaThreadDefaults() {
                 if (resp.ok) {
                     const data = await resp.json();
                     this._applyResponse(data);
-                    this.statusMessage = 'Persona defaults cleared.';
-                    this.statusType = 'success';
+                    showToast('Persona defaults cleared.', 'success');
                 } else {
                     const data = await resp.json().catch(() => ({}));
-                    this.statusMessage = data.error || `Clear failed (${resp.status}).`;
-                    this.statusType = 'error';
+                    showToast(data.error || `Clear failed (${resp.status}).`, 'error');
                 }
             } catch (e) {
-                this.statusMessage = `Clear failed: ${e.message}`;
-                this.statusType = 'error';
+                showToast(`Clear failed: ${e.message}`, 'error');
             } finally {
                 this.saving = false;
             }
