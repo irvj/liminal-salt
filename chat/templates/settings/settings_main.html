@@ -6,9 +6,7 @@
 
 <!-- Settings Content -->
 <div class="flex-1 overflow-y-auto p-5">
-    {% if success %}
-    <div class="p-3 px-4 rounded mb-4 bg-success text-surface flex items-center gap-2">{% include 'icons/check-circle.html' with class='w-5 h-5' %} {{ success }}</div>
-    {% endif %}
+    {% if success %}<script>showToast("{{ success|escapejs }}", 'success');</script>{% endif %}
 
     <!-- Theme Section -->
     <h2 class="text-foreground text-xl mb-4">Theme</h2>
@@ -50,13 +48,6 @@
          data-validate-url="{% url 'validate_provider_api_key' %}"
          data-save-url="{% url 'save_provider_model' %}"
          data-csrf-token="{{ csrf_token }}">
-        <!-- Status Messages -->
-        <div x-show="statusMessage" x-transition
-             :class="statusType === 'success' ? 'bg-success text-surface' : 'bg-danger text-white'"
-             class="p-3 px-4 rounded mb-4">
-            <span x-text="statusMessage"></span>
-        </div>
-
         <!-- Provider Picker -->
         <div class="mb-4">
             <label class="block mb-2 font-medium">Provider:</label>

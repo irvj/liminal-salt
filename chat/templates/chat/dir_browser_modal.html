@@ -8,11 +8,6 @@
         <!-- Current path -->
         <p class="text-accent-secondary font-mono text-sm mb-4 truncate" :title="dirBrowser.current" x-text="dirBrowser.current || 'Loading...'"></p>
 
-        <!-- Error -->
-        <div x-show="dirBrowser.error" class="p-2 px-3 rounded mb-4 text-sm bg-danger/20 text-danger">
-            <span x-text="dirBrowser.error"></span>
-        </div>
-
         <!-- Loading -->
         <div x-show="dirBrowser.loading" class="text-center py-8 text-foreground-secondary">Loading...</div>
 

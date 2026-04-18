@@ -940,15 +940,11 @@ function contextFilesModal() {
         isDragging: false,
         files: [],
         persona: '',
-        uploadStatus: '',
-        uploadStatusType: '',
         editModal: {
             show: false,
             filename: '',
             content: '',
-            readOnly: false,
-            status: '',
-            statusType: ''
+            readOnly: false
         },
         // Local directory state
         localDirectories: [],
@@ -962,8 +958,7 @@ function contextFilesModal() {
             hasContextFiles: false,
             contextFiles: [],
             showHidden: false,
-            loading: false,
-            error: ''
+            loading: false
         },
 
         // Config read from data attributes
@@ -1121,9 +1116,7 @@ function contextFilesModal() {
         },
 
         showStatus(message, type) {
-            this.uploadStatus = message;
-            this.uploadStatusType = type;
-            setTimeout(() => { this.uploadStatus = ''; }, 3000);
+            showToast(message, type);
         },
 
         updateBadge() {
@@ -1142,7 +1135,6 @@ function contextFilesModal() {
         async openEditFile(filename, readOnly) {
             this.editModal.filename = filename;
             this.editModal.readOnly = readOnly || false;
-            this.editModal.status = '';
 
             let url = `${this.contentUrl}?${this._personaQuery()}filename=${encodeURIComponent(filename)}`;
 
@@ -1175,25 +1167,21 @@ function contextFilesModal() {
             });
 
             if (response.ok) {
-                this.editModal.status = 'Saved successfully';
-                this.editModal.statusType = 'success';
+                showToast('File saved.', 'success');
                 setTimeout(() => { this.editModal.show = false; }, 1000);
             } else {
-                this.editModal.status = 'Failed to save';
-                this.editModal.statusType = 'error';
+                showToast('Failed to save file.', 'error');
             }
         },
 
         // Directory browser methods
         async openBrowser() {
             this.dirBrowser.show = true;
-            this.dirBrowser.error = '';
             await this.browseTo('');
         },
 
         async browseTo(path) {
             this.dirBrowser.loading = true;
-            this.dirBrowser.error = '';
             try {
                 const params = new URLSearchParams({ path: path || '' });
                 if (this.dirBrowser.showHidden) params.append('show_hidden', '1');
@@ -1207,10 +1195,10 @@ function contextFilesModal() {
                     this.dirBrowser.dirs = data.dirs;
                     this.dirBrowser.hasContextFiles = data.has_context_files;
                     this.dirBrowser.contextFiles = data.context_files || [];
-                    if (data.error) this.dirBrowser.error = data.error;
+                    if (data.error) showToast(data.error, 'error');
                 }
             } catch (err) {
-                this.dirBrowser.error = 'Failed to browse directory';
+                showToast('Failed to browse directory.', 'error');
             }
             this.dirBrowser.loading = false;
         },
@@ -1312,7 +1300,6 @@ function contextFilesModal() {
         async viewLocalFile(dirPath, filename) {
             this.editModal.filename = filename;
             this.editModal.readOnly = true;
-            this.editModal.status = '';
 
             try {
                 const response = await fetch(`/context/local/content/?${this._personaQuery()}dir_path=${encodeURIComponent(dirPath)}&filename=${encodeURIComponent(filename)}`, {
@@ -1377,8 +1364,6 @@ function providerModelSettings() {
         apiKeyError: '',
         validating: false,
         selectedModel: '',
-        statusMessage: '',
-        statusType: '',
         saving: false,
 
         // Items for nested selectDropdown components
@@ -1477,8 +1462,7 @@ function providerModelSettings() {
                 }
             } catch (e) {
                 console.error('Failed to load models:', e);
-                this.statusMessage = 'Failed to load models. Please try again.';
-                this.statusType = 'error';
+                showToast('Failed to load models. Please try again.', 'error');
             }
         },
 
@@ -1514,7 +1498,6 @@ function providerModelSettings() {
 
         async saveProviderModel() {
             this.saving = true;
-            this.statusMessage = '';
 
             try {
                 const formData = new FormData();
@@ -1535,20 +1518,16 @@ function providerModelSettings() {
                 const data = await response.json();
 
                 if (data.success) {
-                    this.statusMessage = 'Provider and model updated successfully!';
-                    this.statusType = 'success';
                     this.currentProvider = data.provider;
                     this.currentModel = data.model;
                     this.hasExistingKey = true;
                     this.apiKeyModified = false;
-                    setTimeout(() => { this.statusMessage = ''; }, 3000);
+                    showToast('Provider and model updated.', 'success');
                 } else {
-                    this.statusMessage = data.error || 'Failed to save settings';
-                    this.statusType = 'error';
+                    showToast(data.error || 'Failed to save settings.', 'error');
                 }
             } catch (e) {
-                this.statusMessage = 'Failed to save settings. Please try again.';
-                this.statusType = 'error';
+                showToast('Failed to save settings. Please try again.', 'error');
             } finally {
                 this.saving = false;
             }
@@ -2141,9 +2120,15 @@ function contextHistoryLimit() {
                     headers: { 'X-CSRFToken': getCsrfToken() },
                     body: form
                 });
-                if (resp.ok) this.saved = true;
+                if (resp.ok) {
+                    this.saved = true;
+                    showToast('Context history limit saved.', 'success');
+                } else {
+                    showToast('Failed to save context history limit.', 'error');
+                }
             } catch (e) {
                 console.error('Failed to save context history limit:', e);
+                showToast('Failed to save context history limit.', 'error');
             } finally {
                 this.saving = false;
             }
