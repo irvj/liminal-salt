@@ -675,8 +675,12 @@ function editPersonaModal() {
             });
             window.addEventListener('open-edit-persona-modal', () => {
                 const persona = document.querySelector('[name="persona"]')?.value || '';
+                // Read `.content.textContent` (decoded text), not `.innerHTML` (serialized
+                // HTML). Django already entity-escaped the raw text when rendering the
+                // template; innerHTML would return the escaped form, which then re-enters
+                // the save loop and gains another layer of escaping on every round-trip.
                 const contentTemplate = document.getElementById('persona-raw-content');
-                const content = contentTemplate ? contentTemplate.innerHTML : '';
+                const content = contentTemplate ? contentTemplate.content.textContent : '';
                 this.openEdit(persona, content);
             });
         },
