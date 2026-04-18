@@ -36,6 +36,7 @@
   --max-width-modal: 400px;
   --max-width-modal-lg: 600px;
   --max-width-modal-xl: 700px;
+  --max-width-modal-2xl: 900px;
 
   /* Custom z-index */
   --z-index-sidebar-backdrop: 40;

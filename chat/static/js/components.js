@@ -162,13 +162,26 @@ function threadMemoryModal() {
         running: false,
         statusMessage: '',
         statusType: '',
+        // Settings state
+        intervalMinutes: 0,
+        messageFloor: 4,
+        sizeLimit: 4000,
+        hasOverride: false,
+        settingsDirty: false,
+        settingsSaving: false,
+        settingsStatusMessage: '',
+        settingsStatusType: '',
         _updateUrl: '',
         _statusUrl: '',
+        _settingsSaveUrl: '',
+        _settingsResetUrl: '',
         _pollHandle: null,
 
         init() {
             this._updateUrl = this.$el.dataset.updateUrl;
             this._statusUrl = this.$el.dataset.statusUrl;
+            this._settingsSaveUrl = this.$el.dataset.settingsSaveUrl;
+            this._settingsResetUrl = this.$el.dataset.settingsResetUrl;
             window.addEventListener('open-thread-memory-modal', () => this.open());
         },
 
@@ -188,6 +201,12 @@ function threadMemoryModal() {
             this.sessionId = source ? source.dataset.sessionId : '';
             this.content = source ? source.dataset.memory : '';
             this.updatedAt = source ? source.dataset.updatedAt : '';
+            this.intervalMinutes = source ? parseInt(source.dataset.intervalMinutes) || 0 : 0;
+            this.messageFloor = source ? parseInt(source.dataset.messageFloor) || 4 : 4;
+            this.sizeLimit = source ? parseInt(source.dataset.sizeLimit) || 4000 : 4000;
+            this.hasOverride = source ? source.dataset.hasOverride === 'true' : false;
+            this.settingsDirty = false;
+            this.settingsStatusMessage = '';
         },
 
         open() {
@@ -211,6 +230,21 @@ function threadMemoryModal() {
                     return;
                 }
                 const data = await response.json();
+
+                // Refresh content from the server: a background auto-update
+                // may have written new memory while the modal was closed or
+                // on a different page. Also syncs the DOM data source so a
+                // subsequent reopen reflects the latest without refetching.
+                if (typeof data.memory === 'string') {
+                    this.content = data.memory;
+                    this.updatedAt = data.updated_at || '';
+                    const source = document.getElementById('thread-memory-data');
+                    if (source) {
+                        source.dataset.memory = this.content;
+                        source.dataset.updatedAt = this.updatedAt;
+                    }
+                }
+
                 if (data.state === 'running') {
                     this.running = true;
                     this.statusMessage = 'Summarizing thread...';
@@ -322,6 +356,101 @@ function threadMemoryModal() {
             if (this._pollHandle) {
                 clearInterval(this._pollHandle);
                 this._pollHandle = null;
+            }
+        },
+
+        _applySettingsResponse(data) {
+            const eff = (data && data.effective) || {};
+            if (typeof eff.interval_minutes === 'number') this.intervalMinutes = eff.interval_minutes;
+            if (typeof eff.message_floor === 'number') this.messageFloor = eff.message_floor;
+            if (typeof eff.size_limit === 'number') this.sizeLimit = eff.size_limit;
+            this.hasOverride = !!(data && data.has_override);
+            this.settingsDirty = false;
+
+            // Keep the DOM data source in sync so a reopen reflects new state
+            const source = document.getElementById('thread-memory-data');
+            if (source) {
+                source.dataset.intervalMinutes = String(this.intervalMinutes);
+                source.dataset.messageFloor = String(this.messageFloor);
+                source.dataset.sizeLimit = String(this.sizeLimit);
+                source.dataset.hasOverride = this.hasOverride ? 'true' : 'false';
+            }
+        },
+
+        async saveSettings() {
+            if (!this.sessionId) {
+                this.settingsStatusMessage = 'No active session.';
+                this.settingsStatusType = 'error';
+                return;
+            }
+            this.settingsSaving = true;
+            this.settingsStatusMessage = '';
+
+            const body = new URLSearchParams();
+            body.append('session_id', this.sessionId);
+            body.append('interval_minutes', String(this.intervalMinutes));
+            body.append('message_floor', String(this.messageFloor));
+            body.append('size_limit', String(this.sizeLimit));
+
+            try {
+                const response = await fetch(this._settingsSaveUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: body.toString(),
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this._applySettingsResponse(data);
+                    this.settingsStatusMessage = 'Settings saved.';
+                    this.settingsStatusType = 'success';
+                } else {
+                    const data = await response.json().catch(() => ({}));
+                    this.settingsStatusMessage = data.error || `Save failed (${response.status}).`;
+                    this.settingsStatusType = 'error';
+                }
+            } catch (e) {
+                this.settingsStatusMessage = `Save failed: ${e.message}`;
+                this.settingsStatusType = 'error';
+            } finally {
+                this.settingsSaving = false;
+            }
+        },
+
+        async resetSettings() {
+            if (!this.sessionId) return;
+            this.settingsSaving = true;
+            this.settingsStatusMessage = '';
+
+            const body = new URLSearchParams();
+            body.append('session_id', this.sessionId);
+
+            try {
+                const response = await fetch(this._settingsResetUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: body.toString(),
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    this._applySettingsResponse(data);
+                    this.settingsStatusMessage = 'Reset to persona defaults.';
+                    this.settingsStatusType = 'success';
+                } else {
+                    const data = await response.json().catch(() => ({}));
+                    this.settingsStatusMessage = data.error || `Reset failed (${response.status}).`;
+                    this.settingsStatusType = 'error';
+                }
+            } catch (e) {
+                this.settingsStatusMessage = `Reset failed: ${e.message}`;
+                this.settingsStatusType = 'error';
+            } finally {
+                this.settingsSaving = false;
             }
         }
     };

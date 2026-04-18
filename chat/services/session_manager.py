@@ -197,6 +197,41 @@ def save_thread_memory(session_id, content):
     return True
 
 
+def save_thread_memory_settings_override(session_id, settings):
+    """
+    Save a per-thread override for thread-memory settings. Only the keys
+    present in `settings` are written — other thread_memory_settings keys
+    are preserved. Returns True on success, False if session doesn't exist.
+    """
+    session_path = get_session_path(session_id)
+    data = _read_session(session_path)
+    if data is None:
+        return False
+
+    existing = data.get('thread_memory_settings') or {}
+    existing.update(settings)
+    data['thread_memory_settings'] = existing
+    _write_session(session_path, data)
+    return True
+
+
+def reset_thread_memory_settings_override(session_id):
+    """
+    Remove the per-thread thread_memory_settings override, reverting the
+    session to persona/global defaults. Returns True on success, False if
+    the session doesn't exist.
+    """
+    session_path = get_session_path(session_id)
+    data = _read_session(session_path)
+    if data is None:
+        return False
+
+    if 'thread_memory_settings' in data:
+        del data['thread_memory_settings']
+        _write_session(session_path, data)
+    return True
+
+
 def remove_last_assistant_message(session_id):
     """
     Remove the last assistant message from a session.

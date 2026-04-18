@@ -10,7 +10,11 @@
      class="hidden"
      data-session-id="{{ session_id }}"
      data-memory="{{ thread_memory|default:''|escape }}"
-     data-updated-at="{{ thread_memory_updated_at|default:'' }}"></div>
+     data-updated-at="{{ thread_memory_updated_at|default:'' }}"
+     data-interval-minutes="{{ thread_memory_interval_minutes|default:0 }}"
+     data-message-floor="{{ thread_memory_message_floor|default:4 }}"
+     data-size-limit="{{ thread_memory_size_limit|default:4000 }}"
+     data-has-override="{{ thread_memory_has_override|yesno:'true,false' }}"></div>
 
 <!-- Header -->
 <header class="bg-surface-secondary px-5 py-4 border-b border-border">

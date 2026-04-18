@@ -15,14 +15,17 @@ from ..services import (
 from ..services.context_manager import get_persona_default_mode
 from ..services.memory_worker import (
     start_thread_memory_update, get_thread_update_status,
+    reschedule_thread_next_fire,
 )
 from ..services.session_manager import (
     load_session, create_session, delete_session as delete_session_file,
     toggle_pin, rename_session, save_draft as save_session_draft,
     save_scenario as save_session_scenario, fork_session_to_roleplay,
+    save_thread_memory_settings_override, reset_thread_memory_settings_override,
     clear_draft, remove_last_assistant_message, update_last_user_message,
     get_session_path, generate_session_id, make_user_timestamp,
 )
+from ..services.thread_memory_manager import resolve_thread_memory_settings
 from ..utils import (
     load_config, get_sessions_with_titles,
     group_sessions_by_persona, get_current_session, set_current_session,
@@ -77,6 +80,23 @@ def _build_persona_model_map(available_personas, default_model):
         pm = get_persona_model(p, str(django_settings.PERSONAS_DIR))
         persona_models[p] = pm or default_model
     return persona_models
+
+
+def _thread_memory_settings_context(session_data, session_persona):
+    """
+    Build template-context keys for the resolved thread-memory settings
+    (effective values) plus whether the session has a per-thread override.
+    """
+    personas_dir = str(django_settings.PERSONAS_DIR)
+    persona_cfg = get_persona_config(session_persona, personas_dir) if session_persona else {}
+    effective = resolve_thread_memory_settings(session_data or {}, persona_cfg)
+    has_override = bool((session_data or {}).get('thread_memory_settings'))
+    return {
+        'thread_memory_interval_minutes': effective['interval_minutes'],
+        'thread_memory_message_floor': effective['message_floor'],
+        'thread_memory_size_limit': effective['size_limit'],
+        'thread_memory_has_override': has_override,
+    }
 
 
 def _build_persona_mode_map(available_personas):
@@ -251,6 +271,7 @@ def chat(request):
         'available_personas': available_personas,
         'default_persona': default_persona,
         'is_htmx': request.headers.get('HX-Request') == 'true',
+        **_thread_memory_settings_context(session_data, session_persona),
         **_get_theme_context(config),
     }
 
@@ -359,6 +380,7 @@ def start_chat(request):
         'default_persona': default_persona,
         'is_htmx': True,
         'pending_message': user_message,
+        **_thread_memory_settings_context(None, selected_persona),
     }
 
     return render(request, 'chat/chat_main.html', context)
@@ -411,6 +433,7 @@ def delete_chat(request):
                 'available_personas': available_personas,
                 'default_persona': default_persona,
                 'is_htmx': True,
+                **_thread_memory_settings_context(session_data, session_persona),
             }
 
             return render(request, 'chat/chat_main.html', context)
@@ -584,6 +607,7 @@ def send_message(request):
             'available_personas': available_personas,
             'default_persona': default_persona,
             'is_htmx': True,
+            **_thread_memory_settings_context(session_data, session_persona),
         }
         return render(request, 'chat/chat_main.html', context)
 
@@ -692,6 +716,7 @@ def fork_to_roleplay(request):
         'available_personas': available_personas,
         'default_persona': default_persona,
         'is_htmx': True,
+        **_thread_memory_settings_context(session_data, session_persona),
     }
 
     return render(request, 'chat/chat_main.html', context)
@@ -731,3 +756,66 @@ def thread_memory_status(request):
         status['updated_at'] = ''
 
     return JsonResponse(status)
+
+
+def _resolved_settings_response(session_id):
+    """Build a JSON response dict with the currently resolved settings."""
+    session_data = load_session(session_id)
+    session_persona = session_data.get('persona', 'assistant') if session_data else 'assistant'
+    personas_dir = str(django_settings.PERSONAS_DIR)
+    persona_cfg = get_persona_config(session_persona, personas_dir)
+    effective = resolve_thread_memory_settings(session_data or {}, persona_cfg)
+    has_override = bool((session_data or {}).get('thread_memory_settings'))
+    return {
+        'effective': effective,
+        'has_override': has_override,
+    }
+
+
+@require_POST
+def save_thread_memory_settings(request):
+    """Save a per-thread override for thread-memory settings."""
+    session_id = request.POST.get('session_id') or get_current_session(request)
+    if not session_id:
+        return JsonResponse({'error': 'No active session.'}, status=400)
+
+    settings = {}
+    try:
+        if 'interval_minutes' in request.POST:
+            val = int(request.POST['interval_minutes'])
+            if val > 0:
+                val = max(5, min(1440, val))
+            else:
+                val = 0
+            settings['interval_minutes'] = val
+        if 'message_floor' in request.POST:
+            settings['message_floor'] = max(1, min(1000, int(request.POST['message_floor'])))
+        if 'size_limit' in request.POST:
+            settings['size_limit'] = max(0, min(100000, int(request.POST['size_limit'])))
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'Invalid setting value.'}, status=400)
+
+    if not settings:
+        return JsonResponse({'error': 'No settings provided.'}, status=400)
+
+    if not save_thread_memory_settings_override(session_id, settings):
+        return JsonResponse({'error': 'Session not found.'}, status=404)
+
+    resolved = _resolved_settings_response(session_id)
+    reschedule_thread_next_fire(session_id, resolved['effective']['interval_minutes'])
+    return JsonResponse(resolved)
+
+
+@require_POST
+def reset_thread_memory_settings(request):
+    """Remove the per-thread override so the session uses persona/global defaults."""
+    session_id = request.POST.get('session_id') or get_current_session(request)
+    if not session_id:
+        return JsonResponse({'error': 'No active session.'}, status=400)
+
+    if not reset_thread_memory_settings_override(session_id):
+        return JsonResponse({'error': 'Session not found.'}, status=404)
+
+    resolved = _resolved_settings_response(session_id)
+    reschedule_thread_next_fire(session_id, resolved['effective']['interval_minutes'])
+    return JsonResponse(resolved)

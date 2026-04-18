@@ -647,6 +647,23 @@ def run_thread_memory_update(session_id, config, source="manual"):
         lock.release()
 
 
+def reschedule_thread_next_fire(session_id, interval_minutes):
+    """
+    Re-anchor the scheduler's next-fire time for a session based on a new
+    interval. Call this after settings are saved so the new interval kicks
+    in cleanly — the next fire is `now + interval` with the new value,
+    rather than either (a) waiting out the previously-scheduled interval
+    or (b) firing immediately.
+
+    If `interval_minutes <= 0`, the entry is removed entirely (auto disabled).
+    """
+    if interval_minutes and interval_minutes > 0:
+        interval_sec = max(5, min(1440, int(interval_minutes))) * 60
+        _thread_next_fire_time[session_id] = time.time() + interval_sec
+    else:
+        _thread_next_fire_time.pop(session_id, None)
+
+
 def start_thread_memory_update(session_id, config, source="manual"):
     """
     Start a background thread-memory update. Returns False if an update is
