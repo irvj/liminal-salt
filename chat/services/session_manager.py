@@ -478,6 +478,11 @@ def fork_session_to_roleplay(source_session_id):
     Resets:  title ("New Chat"), pinned/draft (absent), scenario (absent)
     Sets:    mode = "roleplay"
 
+    Intentionally NOT copied: thread_memory_settings. Chatbot-mode
+    tuning (cadence, size) rarely maps onto scene pacing in a roleplay
+    thread; the new session starts from persona/global defaults, and
+    the user can re-tune from the thread-memory modal.
+
     Returns the new session id on success, None if the source id is
     invalid, the source doesn't exist, or no non-colliding id could be
     generated.
