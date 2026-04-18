@@ -25,12 +25,12 @@ chat/
     chat/, persona/, memory/, settings/, setup/, components/, icons/
   urls.py                  App routes
   utils.py                 load_config, session listing, model list, theme list
-data/                      Gitignored user state
+data/                      Gitignored user state (entire folder)
+  config.json              App config — API key, default model, default persona, theme
   sessions/session_*.json  Chat sessions
   personas/{name}/         identity.md + config.json (model override, memory settings, thread defaults)
   memory/{name}.md         Per-persona memory
   user_context/            Global + per-persona context files; local_directories config
-config.json                API key, default model, default persona, theme
 ```
 
 ## Services (`chat/services/`)
@@ -123,7 +123,7 @@ Drift here breaks every other invariant (locks bypassed, ids unvalidated, fields
 | `data/personas/{name}/config.json` | `context_manager.save_persona_config` |
 | `data/memory/{name}.md` | `memory_manager.py` |
 | `data/user_context/**` (uploaded) | `context_files.py` |
-| `config.json` | `utils.save_config` |
+| `data/config.json` | `utils.save_config` |
 
 If you find yourself wanting to write one of these from somewhere else, stop. Add a function to the owner instead.
 

@@ -93,12 +93,13 @@ SESSION_COOKIE_AGE = 1209600  # 2 weeks
 
 
 # Liminal Salt Custom Settings
-# Paths to data directories
+# Paths to data directories. All user state lives under DATA_DIR.
 DATA_DIR = BASE_DIR / 'data'
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 SESSIONS_DIR = DATA_DIR / 'sessions'
 PERSONAS_DIR = DATA_DIR / 'personas'
 MEMORY_DIR = DATA_DIR / 'memory'
-CONFIG_FILE = BASE_DIR / 'config.json'  # Config stays at root
+CONFIG_FILE = DATA_DIR / 'config.json'
 
 
 # Default primary key field type

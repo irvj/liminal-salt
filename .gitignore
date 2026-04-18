@@ -4,11 +4,8 @@
 # User Data (never commit personal data)
 # =============================================================================
 
-# User data (sessions, personas, memory, context files)
+# User data (sessions, personas, memory, context files, config)
 data/
-
-# API keys and secrets
-config.json
 
 # =============================================================================
 # Python
