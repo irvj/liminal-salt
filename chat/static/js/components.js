@@ -715,6 +715,11 @@ function editPersonaModal() {
                     ? `persona=${encodeURIComponent(this.persona)}&content=${encodeURIComponent(this.content)}`
                     : `persona=${encodeURIComponent(this.persona)}&new_name=${encodeURIComponent(newFolderName)}&content=${encodeURIComponent(this.content)}`;
 
+            // Close immediately. The fetch + page refresh happen in the background
+            // so the click feels instant; the server-rendered success toast fires
+            // when the refreshed partial swaps in.
+            this.showModal = false;
+
             try {
                 const response = await fetch(url, {
                     method: 'POST',
@@ -726,12 +731,16 @@ function editPersonaModal() {
                     body: body
                 });
                 const html = await response.text();
-                const mainContent = document.getElementById('main-content');
-                mainContent.innerHTML = html;
-                htmx.process(mainContent);
-                this.showModal = false;
+                if (response.ok) {
+                    const mainContent = document.getElementById('main-content');
+                    mainContent.innerHTML = html;
+                    htmx.process(mainContent);
+                } else {
+                    showToast('Failed to save persona.', 'error');
+                }
             } catch (e) {
                 console.error('Failed to save persona:', e);
+                showToast('Failed to save persona.', 'error');
             }
         }
     };

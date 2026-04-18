@@ -12,7 +12,7 @@
          x-transition:enter="transition ease-out duration-200"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
-         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave="transition ease-in duration-75"
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
          @click="collapsed = true"
@@ -116,8 +116,6 @@
 <!-- Modals (positioned fixed, kept outside document flow) -->
 <div x-data="deleteModal" x-cloak>
     <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
          class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
         <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
@@ -144,8 +142,6 @@
      data-settings-save-url="{% url 'save_thread_memory_settings' %}"
      data-settings-reset-url="{% url 'reset_thread_memory_settings' %}">
     <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
          class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
         <div class="bg-surface-secondary rounded-lg p-6 max-w-modal-2xl w-[90%] border border-border">
@@ -225,8 +221,6 @@
 
 <div x-data="scenarioModal" x-cloak data-save-url="{% url 'save_scenario' %}">
     <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
          class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
         <div class="bg-surface-secondary rounded-lg p-6 max-w-modal-xl w-[90%] border border-border">
@@ -253,8 +247,6 @@
 
 <div x-data="renameModal" x-cloak>
     <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
          class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
         <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
@@ -285,8 +277,6 @@
 
 <div x-data="wipeMemoryModal" x-cloak data-wipe-url="{% url 'wipe_memory' %}">
     <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
          class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
         <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
@@ -302,8 +292,6 @@
 
 <div x-data="editPersonaModal" x-cloak data-create-url="{% url 'create_persona' %}" data-save-url="{% url 'save_persona_file' %}">
     <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
          class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
         <div class="bg-surface-secondary rounded-lg p-6 max-w-modal-xl w-[90%] border border-border">
@@ -329,8 +317,6 @@
 
 <div x-data="deletePersonaModal" x-cloak data-delete-url="{% url 'delete_persona' %}">
     <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
          class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
         <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
@@ -346,8 +332,6 @@
 
 <div x-data="editPersonaModelModal" x-cloak data-models-url="{% url 'get_available_models' %}" data-save-url="{% url 'save_persona_model' %}" data-persona-settings-url="{% url 'persona_settings' %}">
     <div x-show="showModal"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:leave="transition ease-in duration-150"
          class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
         <div class="bg-surface-secondary rounded-lg p-6 max-w-[500px] w-[90%] border border-border">
