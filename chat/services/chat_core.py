@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from .llm_client import call_llm, LLMError
+from .session_manager import now_timestamp
 
 class ChatCore:
     def __init__(self, api_key, model, site_url=None, site_name=None, system_prompt="", context_history_limit=50, history_file=None, persona="assistant", user_timezone="UTC", assistant_timezone=None):
@@ -140,8 +141,7 @@ class ChatCore:
     def send_message(self, user_input, skip_user_save=False):
         # Only add user message if not already saved (e.g., by start_chat)
         if not skip_user_save:
-            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-            self.messages.append({"role": "user", "content": user_input, "timestamp": timestamp})
+            self.messages.append({"role": "user", "content": user_input, "timestamp": now_timestamp()})
 
         # Retry logic: Try up to 2 times if we get empty responses
         max_retries = 2
@@ -174,7 +174,6 @@ class ChatCore:
                 error_msg += f" (tried {max_retries} times)"
             return error_msg
 
-        assistant_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        self.messages.append({"role": "assistant", "content": assistant_message, "timestamp": assistant_timestamp})
+        self.messages.append({"role": "assistant", "content": assistant_message, "timestamp": now_timestamp()})
         self._save_history()
         return assistant_message

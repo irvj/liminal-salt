@@ -364,7 +364,7 @@ def _count_new_messages_for_persona(persona_name, since_mtime):
 
     since_iso = ""
     if since_mtime > 0:
-        since_iso = datetime.fromtimestamp(since_mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        since_iso = datetime.fromtimestamp(since_mtime, tz=timezone.utc).isoformat(timespec='microseconds')
 
     count = 0
     for filename in os.listdir(sessions_dir):

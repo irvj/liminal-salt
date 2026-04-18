@@ -8,11 +8,19 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
 
 from django.conf import settings as django_settings
 
 logger = logging.getLogger(__name__)
+
+
+def now_timestamp():
+    """
+    Canonical UTC timestamp for session data: microsecond-precision ISO 8601
+    with `+00:00` offset. Uniform width so lexicographic comparison matches
+    chronological order, and `datetime.fromisoformat` round-trips it natively.
+    """
+    return datetime.now(timezone.utc).isoformat(timespec='microseconds')
 
 
 def get_session_path(session_id):
@@ -192,7 +200,7 @@ def save_thread_memory(session_id, content):
         return False
 
     data['thread_memory'] = content
-    data['thread_memory_updated_at'] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    data['thread_memory_updated_at'] = now_timestamp()
     _write_session(session_path, data)
     return True
 
@@ -378,9 +386,9 @@ def fork_session_to_roleplay(source_session_id):
 
 
 def make_user_timestamp(user_timezone='UTC'):
-    """Create an ISO 8601 timestamp in the user's timezone."""
-    try:
-        tz = ZoneInfo(user_timezone)
-    except (KeyError, ValueError):
-        tz = ZoneInfo('UTC')
-    return datetime.now(tz).isoformat()
+    """
+    Timestamp for a user message. Always UTC so it compares correctly
+    against other session timestamps. `user_timezone` is accepted but
+    ignored; display code re-applies the zone at render time.
+    """
+    return now_timestamp()
