@@ -17,6 +17,36 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_THREAD_MEMORY_SIZE = 4000
+# 0 = auto-update disabled by default. Matches persona memory's
+# `auto_memory_interval` default — users opt in explicitly via the UI.
+DEFAULT_THREAD_MEMORY_INTERVAL_MINUTES = 0
+DEFAULT_THREAD_MEMORY_MESSAGE_FLOOR = 4
+
+
+def resolve_thread_memory_settings(session_data, persona_config):
+    """
+    Merge effective thread-memory settings: per-thread override (in session
+    JSON under `thread_memory_settings`) → persona default (in persona
+    config under `default_thread_memory_settings`) → global fallback.
+
+    Returns a dict with `interval_minutes`, `message_floor`, `size_limit`.
+    """
+    result = {
+        'interval_minutes': DEFAULT_THREAD_MEMORY_INTERVAL_MINUTES,
+        'message_floor': DEFAULT_THREAD_MEMORY_MESSAGE_FLOOR,
+        'size_limit': DEFAULT_THREAD_MEMORY_SIZE,
+    }
+
+    persona_default = (persona_config or {}).get('default_thread_memory_settings') or {}
+    thread_override = (session_data or {}).get('thread_memory_settings') or {}
+
+    for key in list(result.keys()):
+        if key in persona_default:
+            result[key] = persona_default[key]
+        if key in thread_override:
+            result[key] = thread_override[key]
+
+    return result
 
 
 def filter_new_messages(messages, updated_at):

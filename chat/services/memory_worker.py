@@ -16,7 +16,8 @@ from .memory_manager import (
 )
 from .session_manager import load_session, save_thread_memory
 from .thread_memory_manager import (
-    ThreadMemoryManager, filter_new_messages, DEFAULT_THREAD_MEMORY_SIZE,
+    ThreadMemoryManager, filter_new_messages,
+    DEFAULT_THREAD_MEMORY_SIZE, resolve_thread_memory_settings,
 )
 
 
@@ -31,6 +32,7 @@ _status_lock = threading.Lock()
 _update_status = {}
 
 _scheduler_thread = None
+_thread_memory_scheduler_thread = None
 _scheduler_stop = threading.Event()
 _scheduler_started = False
 _scheduler_guard = threading.Lock()
@@ -57,6 +59,10 @@ _session_locks = {}
 
 _thread_status_lock = threading.Lock()
 _thread_status = {}
+
+# Next-due epoch time per session for thread-memory auto-update scheduling.
+# Only read/written by the thread-memory scheduler, so no lock needed.
+_thread_next_fire_time = {}
 
 
 def _get_session_lock(session_id):
@@ -516,8 +522,8 @@ def _sleep_interruptible(total_seconds, stop_event):
 
 
 def start_scheduler():
-    """Start the auto-update scheduler daemon thread. Idempotent."""
-    global _scheduler_thread, _scheduler_started
+    """Start the persona-memory and thread-memory scheduler daemons. Idempotent."""
+    global _scheduler_thread, _thread_memory_scheduler_thread, _scheduler_started
 
     with _scheduler_guard:
         if _scheduler_started:
@@ -525,6 +531,7 @@ def start_scheduler():
         _scheduler_started = True
 
     _scheduler_stop.clear()
+
     _scheduler_thread = threading.Thread(
         target=_auto_update_loop,
         args=(_scheduler_stop,),
@@ -532,16 +539,27 @@ def start_scheduler():
     )
     _scheduler_thread.start()
 
+    _thread_memory_scheduler_thread = threading.Thread(
+        target=_thread_memory_auto_update_loop,
+        args=(_scheduler_stop,),
+        daemon=True,
+    )
+    _thread_memory_scheduler_thread.start()
+
 
 def stop_scheduler():
-    """Stop the auto-update scheduler."""
-    global _scheduler_thread, _scheduler_started
+    """Stop both auto-update schedulers."""
+    global _scheduler_thread, _thread_memory_scheduler_thread, _scheduler_started
 
     _scheduler_stop.set()
     if _scheduler_thread and _scheduler_thread.is_alive():
         _scheduler_thread.join(timeout=15)
+    if _thread_memory_scheduler_thread and _thread_memory_scheduler_thread.is_alive():
+        _thread_memory_scheduler_thread.join(timeout=15)
     _scheduler_thread = None
+    _thread_memory_scheduler_thread = None
     _next_fire_time.clear()
+    _thread_next_fire_time.clear()
 
     with _scheduler_guard:
         _scheduler_started = False
@@ -551,7 +569,7 @@ def stop_scheduler():
 # Thread memory update worker (per-session, manual-only in phase 2)
 # =============================================================================
 
-def run_thread_memory_update(session_id, config):
+def run_thread_memory_update(session_id, config, source="manual"):
     """
     Run a thread-memory update for a single session. Acquires per-session lock.
 
@@ -564,9 +582,9 @@ def run_thread_memory_update(session_id, config):
 
     try:
         now = datetime.now(timezone.utc).isoformat()
-        _set_thread_status(session_id, state="running", source="manual",
+        _set_thread_status(session_id, state="running", source=source,
                            started_at=now, error=None)
-        logger.info(f"Thread memory update started for session '{session_id}'")
+        logger.info(f"Thread memory update started for session '{session_id}' ({source})")
 
         session_data = load_session(session_id)
         if session_data is None:
@@ -591,16 +609,19 @@ def run_thread_memory_update(session_id, config):
         persona_display = persona_name.replace('_', ' ').title()
         mode = session_data.get('mode', 'chatbot')
 
+        personas_dir = str(django_settings.PERSONAS_DIR)
+        persona_cfg = get_persona_config(persona_name, personas_dir)
+        effective = resolve_thread_memory_settings(session_data, persona_cfg)
+
         api_key = config.get("OPENROUTER_API_KEY")
         site_url = config.get("SITE_URL")
         site_name = config.get("SITE_NAME")
-        personas_dir = str(django_settings.PERSONAS_DIR)
         model = get_memory_model(config, persona_name, personas_dir)
 
         manager = ThreadMemoryManager(api_key, model, site_url, site_name)
         updated_memory = manager.merge(
             persona_display, existing_memory, new_messages,
-            size_limit=DEFAULT_THREAD_MEMORY_SIZE,
+            size_limit=effective.get('size_limit', DEFAULT_THREAD_MEMORY_SIZE),
             mode=mode,
         )
 
@@ -626,7 +647,7 @@ def run_thread_memory_update(session_id, config):
         lock.release()
 
 
-def start_thread_memory_update(session_id, config):
+def start_thread_memory_update(session_id, config, source="manual"):
     """
     Start a background thread-memory update. Returns False if an update is
     already running for this session.
@@ -637,8 +658,108 @@ def start_thread_memory_update(session_id, config):
 
     thread = threading.Thread(
         target=run_thread_memory_update,
-        args=(session_id, config),
+        args=(session_id, config, source),
         daemon=True,
     )
     thread.start()
     return True
+
+
+# =============================================================================
+# Thread memory auto-update scheduler
+# =============================================================================
+
+def _thread_memory_auto_update_loop(stop_event):
+    """Main loop for the per-session thread-memory scheduler daemon thread.
+
+    Each session respects its own effective settings (per-thread override →
+    persona default → global fallback). A session fires only when:
+    (a) its own interval has elapsed since its last fire, and
+    (b) the unsummarized message count ≥ effective `message_floor`.
+    The loop sleeps until the soonest next-due session.
+
+    Updates are dispatched asynchronously via start_thread_memory_update so
+    a slow LLM call doesn't block checks for other sessions.
+    """
+    while not stop_event.is_set():
+        try:
+            config = load_config()
+        except Exception:
+            _sleep_interruptible(60, stop_event)
+            continue
+
+        if not config:
+            _sleep_interruptible(60, stop_event)
+            continue
+
+        personas_dir = str(django_settings.PERSONAS_DIR)
+        sessions_dir = django_settings.SESSIONS_DIR
+
+        if not os.path.exists(sessions_dir):
+            _sleep_interruptible(60, stop_event)
+            continue
+
+        now = time.time()
+        next_due_times = []
+        live_sessions = set()
+
+        for filename in os.listdir(sessions_dir):
+            if stop_event.is_set():
+                return
+            if not filename.endswith('.json'):
+                continue
+
+            filepath = os.path.join(sessions_dir, filename)
+            try:
+                with open(filepath, 'r') as f:
+                    session_data = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                continue
+            if not isinstance(session_data, dict):
+                continue
+
+            live_sessions.add(filename)
+
+            persona_name = session_data.get('persona', 'assistant')
+            persona_cfg = get_persona_config(persona_name, personas_dir)
+            effective = resolve_thread_memory_settings(session_data, persona_cfg)
+
+            interval_min = effective.get('interval_minutes', 0)
+            if interval_min <= 0:
+                continue  # auto disabled for this thread
+
+            interval_sec = max(5, min(1440, interval_min)) * 60
+            message_floor = effective.get('message_floor', 0)
+
+            due_at = _thread_next_fire_time.get(filename, 0)
+            if now < due_at:
+                next_due_times.append(due_at)
+                continue
+
+            messages = session_data.get('messages', [])
+            updated_at = session_data.get('thread_memory_updated_at', '')
+            new_messages = filter_new_messages(messages, updated_at)
+            if len(new_messages) < message_floor:
+                _thread_next_fire_time[filename] = now + interval_sec
+                next_due_times.append(_thread_next_fire_time[filename])
+                continue
+
+            fired = start_thread_memory_update(filename, config, source="auto")
+            if fired:
+                _thread_next_fire_time[filename] = time.time() + interval_sec
+            else:
+                # Lock held (manual/auto already running) — retry soon
+                _thread_next_fire_time[filename] = time.time() + 60
+            next_due_times.append(_thread_next_fire_time[filename])
+
+        # Prune stale entries for deleted sessions
+        stale = set(_thread_next_fire_time.keys()) - live_sessions
+        for key in stale:
+            del _thread_next_fire_time[key]
+
+        if next_due_times:
+            sleep_seconds = max(10, min(next_due_times) - time.time())
+        else:
+            sleep_seconds = 60
+
+        _sleep_interruptible(sleep_seconds, stop_event)

@@ -201,6 +201,10 @@ Each phase is independently shippable.
 
 - **On-rollover trigger mode.** Originally scoped for phase 5 as an alternative to the hybrid trigger — fire exactly when the oldest message in the sliding window is about to drop out. Deferred because the value is marginal in practice: most users will pick a large window (100+ messages) and a moderate refresh interval (10–15 min), making the hybrid trigger's redundancy negligible and its gaps tiny. The summarizer reads all messages regardless of the sliding window, so neither mode actually loses information. Revisit if users report stale-memory symptoms.
 
+## Fix-it notes (audit later)
+
+- **Chatbot thread memory perspective.** Current `ThreadMemoryManager._build_chatbot_prompt` produces third-person summaries ("the user discussed X with {persona}"). Persona memory, by contrast, is written from the persona's point of view ("you've noticed he tends to…"). Inconsistent. Proposed: rewrite the chatbot thread-memory prompt to match persona memory's voice — second person for the persona, third person for the user, written as inner-monologue continuity. The roleplay variant stays as third-person narrative prose (intentional — it's scene description, not inner monologue). Requires prompt rewrite plus a pass over any existing chatbot thread memories to optionally regenerate. Scope: out-of-plan audit; track separately when the main phases are done.
+
 ## Related fix (addressed separately)
 
 **Auto-update scheduler: per-persona intervals were not respected.**
