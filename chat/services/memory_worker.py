@@ -390,7 +390,14 @@ def _count_new_messages_for_persona(persona_name, since_mtime):
             continue
         for msg in data.get('messages', []):
             ts = msg.get('timestamp', '')
-            if not since_iso or ts > since_iso:
+            if not since_iso:
+                count += 1
+                continue
+            if not ts:
+                logger.warning("_count_new_messages_for_persona: message without timestamp in %s, counting as new", filename)
+                count += 1
+                continue
+            if ts > since_iso:
                 count += 1
     return count
 

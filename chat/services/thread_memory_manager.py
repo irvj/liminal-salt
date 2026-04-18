@@ -73,12 +73,21 @@ def filter_new_messages(messages, updated_at):
 
     If `updated_at` is empty, all messages are considered new (first run).
     Otherwise, only messages with a timestamp strictly greater than
-    `updated_at` are returned. Messages missing a timestamp are skipped
-    on non-first runs (conservative — avoid re-summarizing old content).
+    `updated_at` are returned. A message missing a timestamp is anomalous
+    (every write path sets one) — include it and log, rather than dropping
+    content silently.
     """
     if not updated_at:
         return list(messages)
-    return [m for m in messages if m.get('timestamp', '') > updated_at]
+    result = []
+    for m in messages:
+        ts = m.get('timestamp', '')
+        if not ts:
+            logger.warning("filter_new_messages: message without timestamp, including as new")
+            result.append(m)
+        elif ts > updated_at:
+            result.append(m)
+    return result
 
 
 def _format_messages_for_prompt(messages, persona_display_name):
