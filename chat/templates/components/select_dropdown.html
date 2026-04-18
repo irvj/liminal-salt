@@ -54,8 +54,6 @@
     {# Dropdown panel #}
     <div x-cloak x-ref="dropdown"
          x-show="open && filteredItems.length > 0"
-         x-transition:enter="transition ease-out duration-100"
-         x-transition:leave="transition ease-in duration-75"
          class="absolute {% if position == 'above' %}bottom-full mb-1{% else %}mt-1{% endif %} min-w-full w-max max-h-64 overflow-y-auto bg-surface-secondary border border-border rounded-lg shadow-lg {{ dropdown_class|default:'z-10' }}">
         <template x-for="(item, index) in filteredItems" :key="item.id">
             <button type="button" data-dropdown-item
