@@ -892,6 +892,7 @@ function selectDropdown() {
 
         _syncFromAttributes() {
             const el = this.$el;
+            let itemsChanged = false;
             if (el.dataset.items) {
                 try {
                     const newItems = JSON.parse(el.dataset.items);
@@ -899,17 +900,33 @@ function selectDropdown() {
                     if (JSON.stringify(newItems) !== JSON.stringify(this.items)) {
                         this.items = newItems;
                         this.highlightedIndex = 0;
+                        itemsChanged = true;
                     }
                 } catch (e) { /* ignore parse errors */ }
             }
             const attrSelected = el.dataset.selected ?? '';
             if (attrSelected !== this.selected) {
                 this.setSelected(attrSelected);
+            } else if (itemsChanged && this.selected) {
+                // Items arrived after the selection was set (async load). Re-resolve
+                // the label from the new list so the trigger shows the model name
+                // instead of the placeholder.
+                this.setSelected(this.selected);
             }
         },
 
         init() {
             this._initSelect();
+            // Searchable mode: clear the input on open so the user can type
+            // without having to delete the current selection's label first.
+            // If they close without picking something new, restore the label.
+            this.$watch('open', (isOpen) => {
+                if (isOpen) {
+                    this.search = '';
+                } else if (this.search !== this.selectedLabel) {
+                    this.search = this.selectedLabel;
+                }
+            });
         }
     };
 }
