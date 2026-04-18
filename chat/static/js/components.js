@@ -1704,6 +1704,7 @@ function memorySettings() {
         userHistoryMessagesPerThread: 0,
         memorySizeLimit: 8000,
         autoMemoryInterval: 0,
+        autoMemoryMessageFloor: 10,
         saved: true,
         saving: false,
         _saveUrl: '',
@@ -1717,6 +1718,7 @@ function memorySettings() {
             this.userHistoryMessagesPerThread = parseInt(el.dataset.messagesPerThread) || 0;
             this.memorySizeLimit = parseInt(el.dataset.sizeLimit) || 8000;
             this.autoMemoryInterval = parseInt(el.dataset.autoInterval) || 0;
+            this.autoMemoryMessageFloor = parseInt(el.dataset.messageFloor) || 10;
         },
 
         async save() {
@@ -1727,6 +1729,7 @@ function memorySettings() {
             form.append('user_history_messages_per_thread', this.userHistoryMessagesPerThread);
             form.append('memory_size_limit', this.memorySizeLimit);
             form.append('auto_memory_interval', this.autoMemoryInterval);
+            form.append('auto_memory_message_floor', this.autoMemoryMessageFloor);
 
             try {
                 const resp = await fetch(this._saveUrl, {

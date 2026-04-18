@@ -35,6 +35,11 @@ _scheduler_stop = threading.Event()
 _scheduler_started = False
 _scheduler_guard = threading.Lock()
 
+# Default minimum number of new messages across a persona's non-roleplay
+# sessions before an auto-update fires. Paired with `auto_memory_interval`
+# to form the unified trigger shape (interval AND floor).
+DEFAULT_AUTO_MEMORY_MESSAGE_FLOOR = 10
+
 # Next-due epoch time per persona for auto-update scheduling.
 # Only read/written by the scheduler thread, so no lock needed.
 _next_fire_time = {}
@@ -338,6 +343,46 @@ def _run_seed_update(persona_name, config, seed_content):
 # Auto-update scheduler
 # =============================================================================
 
+def _count_new_messages_for_persona(persona_name, since_mtime):
+    """
+    Count messages across this persona's non-roleplay sessions whose ISO
+    timestamps are newer than `since_mtime` (epoch seconds). Used by the
+    scheduler to gate auto-update firings on the message-floor threshold.
+
+    If `since_mtime` is 0 (no existing memory file), every message counts
+    as new.
+    """
+    sessions_dir = django_settings.SESSIONS_DIR
+    if not os.path.exists(sessions_dir):
+        return 0
+
+    since_iso = ""
+    if since_mtime > 0:
+        since_iso = datetime.fromtimestamp(since_mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    count = 0
+    for filename in os.listdir(sessions_dir):
+        if not filename.endswith('.json'):
+            continue
+        filepath = os.path.join(sessions_dir, filename)
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        if data.get('persona', 'assistant') != persona_name:
+            continue
+        if data.get('mode', 'chatbot') == 'roleplay':
+            continue
+        for msg in data.get('messages', []):
+            ts = msg.get('timestamp', '')
+            if not since_iso or ts > since_iso:
+                count += 1
+    return count
+
+
 def _get_newest_session_mtime_for_persona(persona_name):
     """
     Find the newest session file mtime that belongs to a given persona.
@@ -423,6 +468,10 @@ def _auto_update_loop(stop_event):
                 continue  # Auto-update disabled for this persona
 
             interval_sec = max(5, min(1440, interval_min)) * 60
+            message_floor = persona_cfg.get(
+                'auto_memory_message_floor',
+                DEFAULT_AUTO_MEMORY_MESSAGE_FLOOR,
+            )
 
             # Respect per-persona interval: skip if not yet due
             due_at = _next_fire_time.get(persona_name, 0)
@@ -430,23 +479,17 @@ def _auto_update_loop(stop_event):
                 next_due_times.append(due_at)
                 continue
 
-            # Interval has elapsed — check for new activity
-            newest_session_mtime = _get_newest_session_mtime_for_persona(persona_name)
-            if newest_session_mtime is None:
+            # Interval has elapsed — check for sufficient new activity
+            memory_file = get_memory_file(persona_name)
+            memory_mtime = os.path.getmtime(memory_file) if memory_file.exists() else 0
+            new_message_count = _count_new_messages_for_persona(persona_name, memory_mtime)
+            if new_message_count < message_floor:
+                # Not enough new activity yet — defer by this persona's interval
                 _next_fire_time[persona_name] = now + interval_sec
                 next_due_times.append(_next_fire_time[persona_name])
                 continue
 
-            memory_file = get_memory_file(persona_name)
-            if memory_file.exists():
-                memory_mtime = os.path.getmtime(memory_file)
-                if newest_session_mtime < memory_mtime:
-                    # No new activity — defer by this persona's interval
-                    _next_fire_time[persona_name] = now + interval_sec
-                    next_due_times.append(_next_fire_time[persona_name])
-                    continue
-
-            # Due and new activity — fire
+            # Due and enough new activity — fire
             fired = run_memory_update(persona_name, config, source="auto")
             if fired:
                 _next_fire_time[persona_name] = time.time() + interval_sec

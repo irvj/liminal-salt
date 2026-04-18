@@ -58,6 +58,7 @@ def _build_memory_view_context(config, selected_persona, success=None, error=Non
         'user_history_max_threads': persona_config.get('user_history_max_threads', 10),
         'user_history_messages_per_thread': persona_config.get('user_history_messages_per_thread', 100),
         'auto_memory_interval': persona_config.get('auto_memory_interval', 0),
+        'auto_memory_message_floor': persona_config.get('auto_memory_message_floor', 10),
     }
 
 
@@ -127,12 +128,14 @@ def save_memory_settings(request):
     user_history_messages_per_thread = request.POST.get('user_history_messages_per_thread', 0)
     memory_size_limit = request.POST.get('memory_size_limit', 8000)
     auto_memory_interval = request.POST.get('auto_memory_interval', 0)
+    auto_memory_message_floor = request.POST.get('auto_memory_message_floor', 10)
 
     try:
         user_history_max_threads = int(user_history_max_threads)
         user_history_messages_per_thread = int(user_history_messages_per_thread)
         memory_size_limit = int(memory_size_limit)
         auto_memory_interval = int(auto_memory_interval)
+        auto_memory_message_floor = int(auto_memory_message_floor)
         # Clamp to reasonable values (0 = unlimited/disabled)
         user_history_max_threads = max(0, min(100, user_history_max_threads))
         user_history_messages_per_thread = max(0, min(10000, user_history_messages_per_thread))
@@ -140,11 +143,13 @@ def save_memory_settings(request):
         # 0 = disabled, otherwise min 5 minutes
         if auto_memory_interval > 0:
             auto_memory_interval = max(5, min(1440, auto_memory_interval))
+        auto_memory_message_floor = max(1, min(1000, auto_memory_message_floor))
     except ValueError:
         user_history_max_threads = 0
         user_history_messages_per_thread = 0
         memory_size_limit = 8000
         auto_memory_interval = 0
+        auto_memory_message_floor = 10
 
     # Load existing persona config (preserves model override etc.) and merge
     persona_config = get_persona_config(persona, personas_dir)
@@ -152,6 +157,7 @@ def save_memory_settings(request):
     persona_config['user_history_messages_per_thread'] = user_history_messages_per_thread
     persona_config['memory_size_limit'] = memory_size_limit
     persona_config['auto_memory_interval'] = auto_memory_interval
+    persona_config['auto_memory_message_floor'] = auto_memory_message_floor
     save_persona_config(persona, persona_config, personas_dir)
 
     return JsonResponse({'success': True})

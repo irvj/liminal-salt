@@ -1,6 +1,6 @@
 # Thread Memory & Roleplay Mode — Implementation Plan
 
-**Status:** phases 1–3 shipped; phase 4 in progress
+**Status:** phases 1–4 shipped; phase 5 in progress
 **Last updated:** 2026-04-18
 
 ## Goals
@@ -65,7 +65,6 @@ Behavior:
 - **Thread memory (`thread_memory` and `thread_memory_updated_at`) is copied over intact.** Users can regenerate it under the roleplay prompt from the thread memory modal if they want a scene-shaped summary.
 - Draft cleared. Pinned state reset. Title reset (summarizer will regenerate).
 - Scenario starts empty (chatbot-mode sources have no scenario to copy); user fills it in from the control panel.
-- `excluded_from_persona_memory` starts false (the fork is a new thread, its own flag).
 - Original thread is untouched and continues contributing to persona memory normally.
 - **Persona memory is not touched** by the fork action.
 
@@ -79,13 +78,15 @@ No dedicated "purge this thread from persona memory" action. See the rejected-fe
 - **`modify_memory_with_command`** (existing) — the user can issue a natural-language correction ("forget what I said about X"). Surgical, user-described, scoped to what the user actually wants removed.
 - **Wipe memory** (existing) — the nuclear option when the user wants a clean slate.
 
-### Thread memory triggering
+### Unified auto-memory trigger shape
 
-Hybrid by default: run when **T minutes have passed AND M new messages exist** since the last summary. Both knobs live in per-thread settings, with persona-level defaults.
+Both persona memory and thread memory auto-updates use the same trigger logic: run when **(time since last update ≥ `interval_minutes`) AND (new message count since last update ≥ `message_floor`)**. Either condition alone is insufficient. Setting `interval_minutes = 0` disables the auto-trigger at that level (user can still invoke updates manually).
 
-Optional precise mode: **"on rollover"** — fire exactly when the oldest message in the sliding window is about to drop out. The summary then covers exactly what was lost, and payload size stays predictable.
+This unification happens as part of phase 5: persona memory currently uses interval-only with "any new activity" as the message threshold. Phase 5 backports the explicit message floor to persona memory so both pipelines have identical shape and predictable behavior.
 
-Runs in a background thread via the existing `MemoryWorker` pattern (per-session lock, status polling). Never blocks the send path.
+**Why message floor:** prevents wasteful LLM calls on trivial updates (a single new message triggering a full memory regeneration). The floor says "accumulate at least N messages of activity before it's worth burning a summarization call."
+
+Both run in background daemon threads via the existing `MemoryWorker` pattern (per-target locks, status polling). Neither blocks the send path.
 
 ## Data model changes
 
@@ -96,13 +97,19 @@ New fields:
 - `scenario`: `{ "type": "inline" | "file", "content": "..." }`
 - `thread_memory`: string (LLM-maintained summary)
 - `thread_memory_updated_at`: ISO timestamp of the last thread memory update
-- `thread_memory_settings`: object — overrides for interval, message floor, size limit, trigger mode. Inherits from persona defaults when absent.
+- `thread_memory_settings`: object — overrides for `interval_minutes`, `message_floor`, `size_limit`. Inherits from persona defaults when absent.
 
 ### Per-persona config (`data/personas/{name}/config.json`)
 
 New keys:
-- `default_mode`
-- `default_thread_memory_settings`
+- `default_mode`: `"chatbot"` | `"roleplay"` — writeable via UI in phase 5d; honored by the home-page mode picker.
+- `default_thread_memory_settings`: object with `interval_minutes`, `message_floor`, `size_limit`. Used when a session has no per-thread override.
+- `auto_memory_message_floor`: int (flat key, matching the existing `auto_memory_interval` convention). Backport from phase 5a. Minimum number of new messages across the persona's non-roleplay sessions before an auto-update fires.
+
+### Naming conventions
+
+- **Persona config keys stay flat** (`auto_memory_interval`, `auto_memory_message_floor`, `memory_size_limit`) — no migration of existing files.
+- **Session thread-memory keys nested** under `thread_memory_settings: { interval_minutes, message_floor, size_limit }` — keeps session JSON tidy and avoids polluting the top-level namespace.
 
 ### Scenario storage
 
@@ -115,6 +122,8 @@ Recommend starting with **inline content** in the session JSON. Add file upload 
 - Extend `MemoryWorker` with per-session locks, a separate scheduler path for thread-memory auto-updates, and a status channel.
 - New helpers in `session_manager`: save scenario, save thread memory, fork-to-roleplay (duplicate session with `mode=roleplay`; thread memory copied; draft/title/pinned reset).
 - `aggregate_all_sessions_messages` (in `utils.py`) filters out sessions whose mode is `roleplay` when building cross-persona memory.
+- **Phase 5a backport:** extend persona-memory auto-update (`memory_worker._auto_update_loop`) with a message-floor gate. Fire only when interval elapsed AND new message count across the persona's non-roleplay sessions ≥ `auto_memory_message_floor`. Reference point for "new" = persona memory file mtime.
+- **Phase 5b additions:** new `thread_memory_worker` module (or new section of `memory_worker.py`) with a parallel daemon loop iterating sessions instead of personas. Settings resolver that merges per-thread override → persona default → global fallback.
 
 ## New URL routes (draft)
 
@@ -143,7 +152,7 @@ New button in the chat header (next to title). Opens a modal or side panel. Cont
 **Always visible:**
 - Mode indicator (read-only).
 - Thread memory view (read-only) with **Update now** and **Regenerate** buttons and a status indicator.
-- Thread memory settings — interval, message floor, size limit, trigger mode; inherits from persona defaults.
+- Thread memory settings — interval, message floor, size limit; inherits from persona defaults.
 
 **Roleplay threads also show:**
 - Scenario editor (textarea, with file upload in a later phase).
@@ -153,8 +162,9 @@ New button in the chat header (next to title). Opens a modal or side panel. Cont
 
 ### Persona settings
 
-- Default mode for new threads with this persona.
-- Default thread memory settings.
+- Default mode picker for new threads with this persona (writes `default_mode`).
+- Default thread memory settings (`default_thread_memory_settings`: interval, message floor, size limit).
+- The existing persona memory settings section gains a new field for `auto_memory_message_floor` (phase 5a backport).
 
 ## Implementation phases
 
@@ -164,7 +174,11 @@ Each phase is independently shippable.
 2. **Thread memory, chatbot mode only** — summarizer, background worker, inject into system prompt, manual **Update now** button.
 3. **Mode at creation + mode-aware behavior** — new-chat flow picks mode, mode-aware summarizer prompts, persona-memory aggregator filters out roleplay sessions, scenario editor becomes visible for roleplay threads.
 4. **Fork to roleplay** — fork button on chatbot threads. Creates a new roleplay session with messages and thread memory copied; no memory is edited anywhere else.
-5. **Automatic triggering + advanced settings** — hybrid trigger, on-rollover mode, per-persona defaults.
+5. **Automatic triggering + advanced settings** — unified trigger shape (time + message floor) for both persona and thread memory. Split into four sub-phases for reviewability:
+   - **5a.** Backport message floor to persona memory auto-update. Add `auto_memory_message_floor` to persona config. Scheduler now requires interval AND floor. Expose the new field in the existing persona memory settings UI.
+   - **5b.** Thread memory settings data model + resolver + daemon scheduler. `thread_memory_settings` on session JSON, `default_thread_memory_settings` on persona config, global fallback constants. New daemon loop iterating sessions. No UI yet — verify via direct JSON edit.
+   - **5c.** Thread memory modal settings UI. Form for interval/message floor/size limit with save-inline and "reset to persona defaults."
+   - **5d.** Persona settings page additions — writeable `default_mode` picker and `default_thread_memory_settings` section.
 6. **Control panel consolidation** — unify scattered UI into a single thread control panel.
 
 ## Open questions
@@ -182,6 +196,10 @@ Each phase is independently shippable.
   - Roleplay-mode filter (phase 3) prevents future contamination automatically.
   - `modify_memory_with_command` lets users make precise, user-described corrections.
   - Wipe memory is available for a clean slate.
+
+## Deferred features
+
+- **On-rollover trigger mode.** Originally scoped for phase 5 as an alternative to the hybrid trigger — fire exactly when the oldest message in the sliding window is about to drop out. Deferred because the value is marginal in practice: most users will pick a large window (100+ messages) and a moderate refresh interval (10–15 min), making the hybrid trigger's redundancy negligible and its gaps tiny. The summarizer reads all messages regardless of the sliding window, so neither mode actually loses information. Revisit if users report stale-memory symptoms.
 
 ## Related fix (addressed separately)
 

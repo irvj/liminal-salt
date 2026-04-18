@@ -64,7 +64,8 @@
          data-max-threads="{{ user_history_max_threads }}"
          data-messages-per-thread="{{ user_history_messages_per_thread }}"
          data-size-limit="{{ memory_size_limit }}"
-         data-auto-interval="{{ auto_memory_interval }}">
+         data-auto-interval="{{ auto_memory_interval }}"
+         data-message-floor="{{ auto_memory_message_floor }}">
         <div class="flex flex-wrap gap-4 items-end">
             <div>
                 <label class="block text-xs text-foreground-secondary mb-1">Recent Threads</label>
@@ -90,13 +91,19 @@
                        min="0" max="1440" placeholder="0"
                        class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
             </div>
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Message Floor</label>
+                <input type="number" x-model="autoMemoryMessageFloor" @input="saved = false"
+                       min="1" max="1000" placeholder="10"
+                       class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
             <button type="button" tabindex="0" @click="save()" x-show="!saved" :disabled="saving"
                     class="px-3 py-2 bg-accent text-foreground-on-accent rounded text-sm font-medium cursor-pointer hover:bg-accent-hover">
                 <span x-show="!saving">Save</span>
                 <span x-show="saving">...</span>
             </button>
         </div>
-        <p class="text-xs text-foreground-muted mt-2">Set to 0 for unlimited/disabled. Auto-update checks for new conversations at the given interval (0 = off, minimum 5 minutes).</p>
+        <p class="text-xs text-foreground-muted mt-2">Auto-update fires only when both conditions are met: <strong>interval elapsed</strong> AND <strong>at least Message Floor new messages</strong> since last update. Set Auto-Update to 0 to disable. Minimum 5 minutes when enabled.</p>
     </div>
 
     <div class="text-xs text-foreground-secondary mb-4"
