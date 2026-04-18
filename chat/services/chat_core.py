@@ -1,11 +1,10 @@
-import json
 import os
 import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from .llm_client import call_llm, LLMError
-from .session_manager import now_timestamp
+from .session_manager import now_timestamp, load_session, save_chat_history
 
 class ChatCore:
     def __init__(self, api_key, model, site_url=None, site_name=None, system_prompt="", context_history_limit=50, history_file=None, persona="assistant", user_timezone="UTC", assistant_timezone=None):
@@ -22,46 +21,26 @@ class ChatCore:
         self.title = "New Chat"
         self.messages = self._load_history()
 
+    def _session_id(self):
+        """Derive the session id (filename) from the history_file path."""
+        return os.path.basename(self.history_file) if self.history_file else None
+
     def _load_history(self):
-        if self.history_file and os.path.exists(self.history_file):
-            try:
-                with open(self.history_file, 'r') as f:
-                    data = json.load(f)
-                    if isinstance(data, dict):
-                        self.title = data.get("title", "New Chat")
-                        self.persona = data.get("persona", self.persona)
-                        return data.get("messages", [])
-                    return data
-            except Exception:
-                return []
-        return []
+        session_id = self._session_id()
+        if not session_id:
+            return []
+        data = load_session(session_id)
+        if not data:
+            return []
+        self.title = data.get("title", "New Chat")
+        self.persona = data.get("persona", self.persona)
+        return data.get("messages", [])
 
     def _save_history(self):
-        if not self.history_file:
+        session_id = self._session_id()
+        if not session_id:
             return
-        try:
-            # Read-modify-write so we preserve fields ChatCore doesn't own
-            # (mode, scenario, thread_memory, thread_memory_updated_at, pinned, draft, etc.)
-            existing = {}
-            if os.path.exists(self.history_file):
-                try:
-                    with open(self.history_file, 'r') as f:
-                        loaded = json.load(f)
-                    if isinstance(loaded, dict):
-                        existing = loaded
-                except (json.JSONDecodeError, IOError):
-                    existing = {}
-
-            existing["title"] = self.title
-            existing["persona"] = self.persona
-            existing["messages"] = self.messages
-
-            with open(self.history_file, 'w') as f:
-                json.dump(existing, f, indent=4)
-                f.flush()
-                os.fsync(f.fileno())
-        except Exception as e:
-            print(f"Error saving history: {e}")
+        save_chat_history(session_id, self.title, self.persona, self.messages)
 
     def clear_history(self):
         self.messages = []

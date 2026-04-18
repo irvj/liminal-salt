@@ -14,7 +14,7 @@ from .context_manager import get_persona_identity, get_available_personas, get_p
 from .memory_manager import (
     MemoryManager, get_memory_file, get_memory_model,
 )
-from .session_manager import load_session, save_thread_memory
+from .session_manager import load_session, save_thread_memory, now_timestamp
 from .thread_memory_manager import (
     ThreadMemoryManager, filter_new_messages,
     DEFAULT_THREAD_MEMORY_SIZE, resolve_thread_memory_settings,
@@ -605,6 +605,11 @@ def run_thread_memory_update(session_id, config, source="manual"):
             logger.info(f"Thread memory update skipped for session '{session_id}': no new messages")
             return True
 
+        # Record which message the summary covers up to. Using "now" here
+        # would drop any messages written while the LLM was running, since
+        # next-run filtering gates on timestamp > thread_memory_updated_at.
+        summarized_through = new_messages[-1].get('timestamp') or updated_at or now_timestamp()
+
         persona_name = session_data.get('persona', 'assistant')
         persona_display = persona_name.replace('_', ' ').title()
         mode = session_data.get('mode', 'chatbot')
@@ -632,7 +637,7 @@ def run_thread_memory_update(session_id, config, source="manual"):
             logger.warning(f"Thread memory update failed for '{session_id}': unusable response")
             return True
 
-        save_thread_memory(session_id, updated_memory)
+        save_thread_memory(session_id, updated_memory, summarized_through)
         _set_thread_status(session_id, state="completed", finished_at=finished)
         logger.info(f"Thread memory update completed for session '{session_id}'")
         return True
