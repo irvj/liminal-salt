@@ -12,6 +12,7 @@ are process-local; the app is single-process.
 import json
 import logging
 import os
+import re
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -19,6 +20,18 @@ from datetime import datetime, timezone
 from django.conf import settings as django_settings
 
 logger = logging.getLogger(__name__)
+
+
+# Matches filenames produced by generate_session_id() and fork collision
+# fallbacks (session_YYYYMMDD_HHMMSS[_N].json). Anything else — including
+# path separators, traversal segments, or arbitrary filenames — is rejected
+# so unvalidated POST input can't write outside SESSIONS_DIR.
+_VALID_SESSION_ID_RE = re.compile(r'^session_\d{8}_\d{6}(?:_\d+)?\.json$')
+
+
+def _valid_session_id(session_id):
+    """Return True if session_id is a well-formed filename, False otherwise."""
+    return bool(session_id) and isinstance(session_id, str) and bool(_VALID_SESSION_ID_RE.match(session_id))
 
 
 # =============================================================================
@@ -110,8 +123,10 @@ def load_session(session_id):
     Load a session file and return its data.
 
     Returns dict with keys: title, persona, messages, draft, pinned.
-    Returns None if the session doesn't exist or can't be read.
+    Returns None if the session id is invalid, doesn't exist, or can't be read.
     """
+    if not _valid_session_id(session_id):
+        return None
     with _session_lock(session_id):
         return _read_session(get_session_path(session_id))
 
@@ -155,8 +170,11 @@ def create_session(session_id, persona, messages=None, title="New Chat", mode="c
         title: Session title (default "New Chat")
         mode: Thread mode, "chatbot" (default) or "roleplay". Immutable once set.
 
-    Returns the session data dict that was written.
+    Returns the session data dict that was written, or None if the
+    session_id is malformed.
     """
+    if not _valid_session_id(session_id):
+        return None
     data = {
         "title": title,
         "persona": persona,
@@ -169,7 +187,9 @@ def create_session(session_id, persona, messages=None, title="New Chat", mode="c
 
 
 def delete_session(session_id):
-    """Delete a session file. Returns True if deleted, False if not found."""
+    """Delete a session file. Returns True if deleted, False if not found or invalid."""
+    if not _valid_session_id(session_id):
+        return False
     with _session_lock(session_id):
         session_path = get_session_path(session_id)
         if os.path.exists(session_path):
@@ -190,6 +210,8 @@ def save_chat_history(session_id, title, persona, messages):
     place of its own file I/O so writes serialize against other session
     writers via the per-session lock.
     """
+    if not _valid_session_id(session_id):
+        return
     with _session_lock(session_id):
         session_path = get_session_path(session_id)
         data = _read_session(session_path) or {}
@@ -203,8 +225,11 @@ def toggle_pin(session_id):
     """
     Toggle the pinned status of a session.
 
-    Returns the new pinned state, or None if the session doesn't exist.
+    Returns the new pinned state, or None if the session id is invalid
+    or the session doesn't exist.
     """
+    if not _valid_session_id(session_id):
+        return None
     with _session_lock(session_id):
         session_path = get_session_path(session_id)
         data = _read_session(session_path)
@@ -219,8 +244,11 @@ def rename_session(session_id, new_title):
     """
     Update the title of a session.
 
-    Returns True on success, False if the session doesn't exist.
+    Returns True on success, False if the session id is invalid or the
+    session doesn't exist.
     """
+    if not _valid_session_id(session_id):
+        return False
     with _session_lock(session_id):
         session_path = get_session_path(session_id)
         data = _read_session(session_path)
@@ -235,8 +263,11 @@ def save_draft(session_id, draft_text):
     """
     Save draft text to a session file.
 
-    Returns True on success, False if the session doesn't exist.
+    Returns True on success, False if the session id is invalid or the
+    session doesn't exist.
     """
+    if not _valid_session_id(session_id):
+        return False
     with _session_lock(session_id):
         session_path = get_session_path(session_id)
         data = _read_session(session_path)
@@ -256,8 +287,11 @@ def save_scenario(session_id, content):
     """
     Save scenario text to a session file.
 
-    Returns True on success, False if the session doesn't exist.
+    Returns True on success, False if the session id is invalid or the
+    session doesn't exist.
     """
+    if not _valid_session_id(session_id):
+        return False
     with _session_lock(session_id):
         session_path = get_session_path(session_id)
         data = _read_session(session_path)
@@ -278,8 +312,11 @@ def save_thread_memory(session_id, content, summarized_through):
     messages written during the LLM call, because `filter_new_messages`
     gates on `timestamp > thread_memory_updated_at`.
 
-    Returns True on success, False if the session doesn't exist.
+    Returns True on success, False if the session id is invalid or the
+    session doesn't exist.
     """
+    if not _valid_session_id(session_id):
+        return False
     with _session_lock(session_id):
         session_path = get_session_path(session_id)
         data = _read_session(session_path)
@@ -295,8 +332,11 @@ def save_thread_memory_settings_override(session_id, settings):
     """
     Save a per-thread override for thread-memory settings. Only the keys
     present in `settings` are written — other thread_memory_settings keys
-    are preserved. Returns True on success, False if session doesn't exist.
+    are preserved. Returns True on success, False if the session id is
+    invalid or the session doesn't exist.
     """
+    if not _valid_session_id(session_id):
+        return False
     with _session_lock(session_id):
         session_path = get_session_path(session_id)
         data = _read_session(session_path)
@@ -313,8 +353,10 @@ def reset_thread_memory_settings_override(session_id):
     """
     Remove the per-thread thread_memory_settings override, reverting the
     session to persona/global defaults. Returns True on success, False if
-    the session doesn't exist.
+    the session id is invalid or the session doesn't exist.
     """
+    if not _valid_session_id(session_id):
+        return False
     with _session_lock(session_id):
         session_path = get_session_path(session_id)
         data = _read_session(session_path)
@@ -335,6 +377,8 @@ def remove_last_assistant_message(session_id):
     - last_user_message: The content of the last user message (now the final message)
     - session_data: The full session data dict after modification
     """
+    if not _valid_session_id(session_id):
+        return False, None, None
     with _session_lock(session_id):
         session_path = get_session_path(session_id)
         data = _read_session(session_path)
@@ -363,8 +407,11 @@ def update_last_user_message(session_id, new_content):
     """
     Update the content of the last user message in a session.
 
-    Returns True on success, False if session doesn't exist or has no user messages.
+    Returns True on success, False if the session id is invalid, the
+    session doesn't exist, or it has no user messages.
     """
+    if not _valid_session_id(session_id):
+        return False
     with _session_lock(session_id):
         session_path = get_session_path(session_id)
         data = _read_session(session_path)
@@ -431,9 +478,12 @@ def fork_session_to_roleplay(source_session_id):
     Resets:  title ("New Chat"), pinned/draft (absent), scenario (absent)
     Sets:    mode = "roleplay"
 
-    Returns the new session id on success, None if the source doesn't
-    exist or no non-colliding id could be generated.
+    Returns the new session id on success, None if the source id is
+    invalid, the source doesn't exist, or no non-colliding id could be
+    generated.
     """
+    if not _valid_session_id(source_session_id):
+        return None
     with _session_lock(source_session_id):
         source = _read_session(get_session_path(source_session_id))
     if source is None:
