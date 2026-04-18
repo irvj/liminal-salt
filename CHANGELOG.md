@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.10.0] - 2026-04-18
+
+### Changes
+- tighten README, drop filler and opinionated phrasing, surface roleplay features
+- rewrite CLAUDE.md as claude-facing navigation doc and add hard-rule SoC section
+- cache persona memory floor-count scan by session mtime
+- clamp thread memory settings at save time so empty inputs don't post NaN
+- document intentional non-copy of thread_memory_settings on fork to roleplay
+- restore interval/size-limit zero-value hint inside thread memory modal settings row
+- clamp thread-memory settings on blur so the frontend matches server-side limits
+- refresh thread memory modal in background so auto-updates surface without reopen
+- stop persisting thread-memory overrides that match their upstream defaults
+- rewrite chatbot thread memory prompt in persona voice and suppress persona memory in roleplay threads
+- stop silently dropping untimestamped messages from thread and persona memory updates
+- cache thread-memory scheduler inputs by mtime
+- reject malformed session ids at session_manager entry points to block path traversal
+- serialize session writes with per-session locks, fix thread-memory snapshot cutoff
+- fix session timestamp format drift and restore assistant timestamp rendering after htmx insert
+- add persona thread defaults UI
+- add per-thread memory settings UI
+- add thread memory auto-update scheduler with settings resolver
+- add message floor gate to persona memory auto-update
+- add fork-to-roleplay action with sidebar mode indicator
+- add thread mode with roleplay-aware behavior
+- add per-thread memory summarizer with manual update
+- add per-thread scenario field and editor, planning doc
+
 ## [0.9.3] - 2026-04-18
 
 ### Changes
