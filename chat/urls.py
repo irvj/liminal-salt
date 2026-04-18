@@ -15,6 +15,7 @@ urlpatterns = [
     path('chat/pin/', views.toggle_pin_chat, name='toggle_pin_chat'),
     path('chat/rename/', views.rename_chat, name='rename_chat'),
     path('chat/save-draft/', views.save_draft, name='save_draft'),
+    path('session/scenario/save/', views.save_scenario, name='save_scenario'),
     path('chat/send/', views.send_message, name='send_message'),
     path('chat/retry/', views.retry_message, name='retry_message'),
     path('chat/edit-message/', views.edit_message, name='edit_message'),

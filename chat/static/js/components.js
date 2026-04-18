@@ -15,6 +15,7 @@ document.addEventListener('alpine:init', () => {
     // Modal Components
     Alpine.data('deleteModal', deleteModal);
     Alpine.data('renameModal', renameModal);
+    Alpine.data('scenarioModal', scenarioModal);
     Alpine.data('wipeMemoryModal', wipeMemoryModal);
     Alpine.data('editPersonaModal', editPersonaModal);
     Alpine.data('deletePersonaModal', deletePersonaModal);
@@ -143,6 +144,77 @@ function renameModal() {
             const headerTitle = document.getElementById('chat-title');
             this.newTitle = headerTitle ? headerTitle.textContent : currentTitle;
             this.showModal = true;
+        }
+    };
+}
+
+// =============================================================================
+// Scenario Modal Component
+// =============================================================================
+
+function scenarioModal() {
+    return {
+        showModal: false,
+        sessionId: '',
+        content: '',
+        saving: false,
+        statusMessage: '',
+        statusType: '',
+        _saveUrl: '',
+
+        init() {
+            this._saveUrl = this.$el.dataset.saveUrl;
+            window.addEventListener('open-scenario-modal', () => this.open());
+        },
+
+        open() {
+            // Read from the hidden data div (updated on every chat_main.html swap)
+            const source = document.getElementById('scenario-data');
+            this.sessionId = source ? source.dataset.sessionId : '';
+            this.content = source ? source.dataset.scenario : '';
+            this.statusMessage = '';
+            this.showModal = true;
+        },
+
+        async save() {
+            if (!this.sessionId) {
+                this.statusMessage = 'No active session.';
+                this.statusType = 'error';
+                return;
+            }
+
+            this.saving = true;
+            this.statusMessage = '';
+
+            const body = new URLSearchParams();
+            body.append('session_id', this.sessionId);
+            body.append('scenario', this.content);
+
+            try {
+                const response = await fetch(this._saveUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: body.toString(),
+                });
+
+                if (response.ok) {
+                    // Update the in-page data source so a reopen reflects the new value
+                    const source = document.getElementById('scenario-data');
+                    if (source) source.dataset.scenario = this.content;
+                    this.showModal = false;
+                } else {
+                    this.statusMessage = `Save failed (${response.status}).`;
+                    this.statusType = 'error';
+                }
+            } catch (e) {
+                this.statusMessage = `Save failed: ${e.message}`;
+                this.statusType = 'error';
+            } finally {
+                this.saving = false;
+            }
         }
     };
 }

@@ -154,6 +154,30 @@ def clear_draft(session_id):
     return save_draft(session_id, '')
 
 
+def save_scenario(session_id, content):
+    """
+    Save scenario text to a session file.
+
+    Returns True on success, False if the session doesn't exist.
+    """
+    session_path = get_session_path(session_id)
+    data = _read_session(session_path)
+    if data is None:
+        return False
+
+    data['scenario'] = content
+    _write_session(session_path, data)
+    return True
+
+
+def get_session_scenario(session_id):
+    """Get the scenario text from a session file. Returns empty string if not set."""
+    data = load_session(session_id)
+    if data:
+        return data.get("scenario", "")
+    return ""
+
+
 def remove_last_assistant_message(session_id):
     """
     Remove the last assistant message from a session.

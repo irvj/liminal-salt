@@ -2,6 +2,9 @@
 <!-- Session ID for draft persistence -->
 <div data-session-id-for-draft="{{ session_id }}" class="hidden"></div>
 
+<!-- Scenario content source for the scenario modal -->
+<div id="scenario-data" class="hidden" data-session-id="{{ session_id }}" data-scenario="{{ scenario|default:''|escape }}"></div>
+
 <!-- Header -->
 <header class="bg-surface-secondary px-5 py-4 border-b border-border">
     <div class="flex items-center gap-2">
@@ -10,6 +13,12 @@
                 class="text-foreground-secondary hover:text-foreground cursor-pointer"
                 title="Rename chat">
             {% include 'icons/pencil.html' with class='w-4 h-4' %}
+        </button>
+        <button @click="window.dispatchEvent(new CustomEvent('open-scenario-modal'))"
+                class="relative text-foreground-secondary hover:text-foreground cursor-pointer"
+                :title="'Edit thread scenario'">
+            {% include 'icons/folder.html' with class='w-4 h-4' %}
+            {% if scenario %}<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-accent rounded-full"></span>{% endif %}
         </button>
     </div>
     <div class="text-xs text-foreground-secondary mt-1">

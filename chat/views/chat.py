@@ -14,6 +14,7 @@ from ..services import (
 from ..services.session_manager import (
     load_session, create_session, delete_session as delete_session_file,
     toggle_pin, rename_session, save_draft as save_session_draft,
+    save_scenario as save_session_scenario,
     clear_draft, remove_last_assistant_message, update_last_user_message,
     get_session_path, generate_session_id, make_user_timestamp,
 )
@@ -37,11 +38,12 @@ def get_model_for_persona(config, persona, personas_dir):
     return persona_model or default_model
 
 
-def _build_chat_core(config, session_id, session_persona, user_timezone='UTC'):
+def _build_chat_core(config, session_id, session_persona, session_data=None, user_timezone='UTC'):
     """Build a ChatCore instance for a session. Shared by multiple views."""
     model = get_model_for_persona(config, session_persona, django_settings.PERSONAS_DIR)
     persona_path = os.path.join(str(django_settings.PERSONAS_DIR), session_persona)
-    system_prompt = load_context(persona_path, persona_name=session_persona)
+    scenario = (session_data or {}).get('scenario', '')
+    system_prompt = load_context(persona_path, persona_name=session_persona, scenario=scenario)
 
     chat_core = ChatCore(
         api_key=config.get("OPENROUTER_API_KEY"),
@@ -182,7 +184,7 @@ def chat(request):
     session_draft = session_data.get("draft", "") if session_data else ""
 
     user_timezone = _get_user_timezone(request)
-    chat_core, model = _build_chat_core(config, session_id, session_persona, user_timezone)
+    chat_core, model = _build_chat_core(config, session_id, session_persona, session_data, user_timezone)
 
     # Handle message sending
     if request.method == 'POST' and 'message' in request.POST:
@@ -206,6 +208,7 @@ def chat(request):
         'model': model,
         'messages': chat_core.messages,
         'draft': session_draft,
+        'scenario': session_data.get('scenario', '') if session_data else '',
         'sessions': sessions,
         'pinned_sessions': pinned_sessions,
         'grouped_sessions': grouped_sessions,
@@ -339,7 +342,7 @@ def delete_chat(request):
             session_persona = _resolve_session_persona(session_data, config)
 
             user_timezone = request.session.get('user_timezone', 'UTC')
-            chat_core, model = _build_chat_core(config, new_session_id, session_persona, user_timezone)
+            chat_core, model = _build_chat_core(config, new_session_id, session_persona, session_data, user_timezone)
 
             sessions = get_sessions_with_titles()
             pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
@@ -352,6 +355,7 @@ def delete_chat(request):
                 'persona': chat_core.persona,
                 'model': model,
                 'messages': chat_core.messages,
+                'scenario': session_data.get('scenario', '') if session_data else '',
                 'pinned_sessions': pinned_sessions,
                 'grouped_sessions': grouped_sessions,
                 'current_session': new_session_id,
@@ -452,6 +456,21 @@ def save_draft(request):
 
 
 @require_POST
+def save_scenario(request):
+    """Save scenario text for a session (POST) - returns minimal response"""
+    session_id = request.POST.get('session_id')
+    scenario = request.POST.get('scenario', '')
+
+    if not session_id:
+        return HttpResponse(status=400)
+
+    if not save_session_scenario(session_id, scenario):
+        return HttpResponse(status=404)
+
+    return HttpResponse(status=204)
+
+
+@require_POST
 def send_message(request):
     """Send message to chat (HTMX endpoint) - returns HTML fragment"""
     user_message = request.POST.get('message', '').strip()
@@ -476,7 +495,7 @@ def send_message(request):
     session_persona = _resolve_session_persona(session_data, config)
 
     user_timezone = _get_user_timezone(request)
-    chat_core, model = _build_chat_core(config, session_id, session_persona, user_timezone)
+    chat_core, model = _build_chat_core(config, session_id, session_persona, session_data, user_timezone)
 
     skip_user_save = request.POST.get('skip_user_save') == 'true'
     assistant_message = chat_core.send_message(user_message, skip_user_save=skip_user_save)
@@ -539,7 +558,7 @@ def retry_message(request):
 
     session_persona = session_data.get('persona', config.get("DEFAULT_PERSONA", "assistant"))
     user_timezone = request.session.get('user_timezone', 'UTC')
-    chat_core, model = _build_chat_core(config, session_id, session_persona, user_timezone)
+    chat_core, model = _build_chat_core(config, session_id, session_persona, session_data, user_timezone)
 
     assistant_message = chat_core.send_message(user_message, skip_user_save=True)
     assistant_timestamp = chat_core.messages[-1].get('timestamp', '') if chat_core.messages else ''

@@ -50,13 +50,14 @@ def ensure_default_personas(personas_dir):
             shutil.copytree(persona, target)
             logger.info(f"Seeded default persona: {persona.name}")
 
-def load_context(persona_dir, persona_name=None):
+def load_context(persona_dir, persona_name=None, scenario=""):
     """
     Load context from a specific persona directory.
 
     Args:
         persona_dir: Path to persona folder (e.g., "personas/assistant")
         persona_name: Persona name for loading per-persona memory
+        scenario: Per-thread scenario text (empty string = none)
 
     Returns:
         Concatenated system prompt string
@@ -88,6 +89,13 @@ def load_context(persona_dir, persona_name=None):
     user_context = _load_enabled_user_context()
     if user_context:
         context_str += user_context + "\n\n"
+
+    # Append per-thread scenario (if set)
+    if scenario:
+        context_str += "--- SCENARIO ---\n"
+        context_str += "The following defines the scenario for this specific thread. "
+        context_str += "Treat it as authoritative setup for the conversation.\n\n"
+        context_str += scenario + "\n\n"
 
     # Append per-persona memory
     if persona_name:
