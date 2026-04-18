@@ -177,6 +177,7 @@ function threadMemoryModal() {
         _settingsSaveUrl: '',
         _settingsResetUrl: '',
         _pollHandle: null,
+        _watchHandle: null,
 
         init() {
             this._updateUrl = this.$el.dataset.updateUrl;
@@ -184,6 +185,14 @@ function threadMemoryModal() {
             this._settingsSaveUrl = this.$el.dataset.settingsSaveUrl;
             this._settingsResetUrl = this.$el.dataset.settingsResetUrl;
             window.addEventListener('open-thread-memory-modal', () => this.open());
+            // Stop polling and background watcher when the modal closes by any path
+            // (Close button, backdrop click, Esc, etc.).
+            this.$watch('showModal', (open) => {
+                if (!open) {
+                    this._stopPolling();
+                    this._stopWatch();
+                }
+            });
         },
 
         get formattedUpdatedAt() {
@@ -217,6 +226,25 @@ function threadMemoryModal() {
             // Don't reset `running` here — if an update is in flight the button
             // should stay disabled through the async status check.
             this._checkStatusOnce();
+            this._startWatch();
+        },
+
+        _startWatch() {
+            // Slow background refresh so a background auto-update that lands
+            // while the modal sits open still shows up without the user having
+            // to close and reopen. _checkStatusOnce refreshes content and will
+            // promote to the 2s fast poll if it catches a running update.
+            this._stopWatch();
+            this._watchHandle = setInterval(() => {
+                this._checkStatusOnce();
+            }, 15000);
+        },
+
+        _stopWatch() {
+            if (this._watchHandle) {
+                clearInterval(this._watchHandle);
+                this._watchHandle = null;
+            }
         },
 
         async _checkStatusOnce() {
