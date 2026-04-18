@@ -64,6 +64,12 @@ _thread_status = {}
 # Only read/written by the thread-memory scheduler, so no lock needed.
 _thread_next_fire_time = {}
 
+# Cache of session-derived scheduler inputs keyed by filename.
+# Value: {mtime, persona, updated_at, new_message_count, thread_memory_settings}.
+# Invalidated whenever the session file's mtime changes (which covers every
+# in-app write, since _write_session truncates and rewrites).
+_thread_scheduler_cache = {}
+
 
 def _get_session_lock(session_id):
     """Get or create a lock for a specific session's thread memory."""
@@ -560,6 +566,7 @@ def stop_scheduler():
     _thread_memory_scheduler_thread = None
     _next_fire_time.clear()
     _thread_next_fire_time.clear()
+    _thread_scheduler_cache.clear()
 
     with _scheduler_guard:
         _scheduler_started = False
@@ -691,6 +698,45 @@ def start_thread_memory_update(session_id, config, source="manual"):
 # Thread memory auto-update scheduler
 # =============================================================================
 
+def _get_cached_scheduler_view(filename, filepath):
+    """
+    Return cached scheduler-relevant fields for a session, reparsing JSON
+    only when the file's mtime has changed. Returns None if the file is
+    unreadable or not a dict. The returned dict contains `persona`,
+    `updated_at`, `new_message_count`, and `thread_memory_settings`;
+    effective settings are resolved at each tick (cheap) because persona
+    config changes don't bump session mtime.
+    """
+    try:
+        file_mtime = os.path.getmtime(filepath)
+    except OSError:
+        return None
+
+    cached = _thread_scheduler_cache.get(filename)
+    if cached and cached['mtime'] == file_mtime:
+        return cached
+
+    try:
+        with open(filepath, 'r') as f:
+            session_data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(session_data, dict):
+        return None
+
+    updated_at = session_data.get('thread_memory_updated_at', '')
+    new_messages = filter_new_messages(session_data.get('messages', []), updated_at)
+    entry = {
+        'mtime': file_mtime,
+        'persona': session_data.get('persona', 'assistant'),
+        'thread_memory_settings': session_data.get('thread_memory_settings') or {},
+        'updated_at': updated_at,
+        'new_message_count': len(new_messages),
+    }
+    _thread_scheduler_cache[filename] = entry
+    return entry
+
+
 def _thread_memory_auto_update_loop(stop_event):
     """Main loop for the per-session thread-memory scheduler daemon thread.
 
@@ -732,19 +778,17 @@ def _thread_memory_auto_update_loop(stop_event):
                 continue
 
             filepath = os.path.join(sessions_dir, filename)
-            try:
-                with open(filepath, 'r') as f:
-                    session_data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                continue
-            if not isinstance(session_data, dict):
+            view = _get_cached_scheduler_view(filename, filepath)
+            if view is None:
                 continue
 
             live_sessions.add(filename)
 
-            persona_name = session_data.get('persona', 'assistant')
-            persona_cfg = get_persona_config(persona_name, personas_dir)
-            effective = resolve_thread_memory_settings(session_data, persona_cfg)
+            persona_cfg = get_persona_config(view['persona'], personas_dir)
+            effective = resolve_thread_memory_settings(
+                {'thread_memory_settings': view['thread_memory_settings']},
+                persona_cfg,
+            )
 
             interval_min = effective.get('interval_minutes', 0)
             if interval_min <= 0:
@@ -758,10 +802,7 @@ def _thread_memory_auto_update_loop(stop_event):
                 next_due_times.append(due_at)
                 continue
 
-            messages = session_data.get('messages', [])
-            updated_at = session_data.get('thread_memory_updated_at', '')
-            new_messages = filter_new_messages(messages, updated_at)
-            if len(new_messages) < message_floor:
+            if view['new_message_count'] < message_floor:
                 _thread_next_fire_time[filename] = now + interval_sec
                 next_due_times.append(_thread_next_fire_time[filename])
                 continue
@@ -778,6 +819,9 @@ def _thread_memory_auto_update_loop(stop_event):
         stale = set(_thread_next_fire_time.keys()) - live_sessions
         for key in stale:
             del _thread_next_fire_time[key]
+        cache_stale = set(_thread_scheduler_cache.keys()) - live_sessions
+        for key in cache_stale:
+            del _thread_scheduler_cache[key]
 
         if next_due_times:
             sleep_seconds = max(10, min(next_due_times) - time.time())
