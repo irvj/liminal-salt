@@ -50,6 +50,10 @@ _next_fire_time = {}
 _session_cache = {}
 _session_cache_lock = threading.Lock()
 
+# Cache for persona message-floor counting: {filename: {mtime, persona, mode,
+# timestamps, missing}}. Scheduler-thread only — no lock needed.
+_persona_count_cache = {}
+
 # =============================================================================
 # Thread memory (per-session) state
 # =============================================================================
@@ -362,7 +366,8 @@ def _count_new_messages_for_persona(persona_name, since_mtime):
     scheduler to gate auto-update firings on the message-floor threshold.
 
     If `since_mtime` is 0 (no existing memory file), every message counts
-    as new.
+    as new. Per-session data is cached by mtime so unchanged session files
+    don't get re-parsed on each call.
     """
     sessions_dir = django_settings.SESSIONS_DIR
     if not os.path.exists(sessions_dir):
@@ -373,32 +378,69 @@ def _count_new_messages_for_persona(persona_name, since_mtime):
         since_iso = datetime.fromtimestamp(since_mtime, tz=timezone.utc).isoformat(timespec='microseconds')
 
     count = 0
+    live_filenames = set()
     for filename in os.listdir(sessions_dir):
         if not filename.endswith('.json'):
             continue
         filepath = os.path.join(sessions_dir, filename)
         try:
-            with open(filepath, 'r') as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError):
+            file_mtime = os.path.getmtime(filepath)
+        except OSError:
             continue
-        if not isinstance(data, dict):
-            continue
-        if data.get('persona', 'assistant') != persona_name:
-            continue
-        if data.get('mode', 'chatbot') == 'roleplay':
-            continue
-        for msg in data.get('messages', []):
-            ts = msg.get('timestamp', '')
-            if not since_iso:
-                count += 1
+        live_filenames.add(filename)
+
+        cached = _persona_count_cache.get(filename)
+        if cached and cached['mtime'] == file_mtime:
+            persona = cached['persona']
+            mode = cached['mode']
+            timestamps = cached['timestamps']
+            missing = cached['missing']
+        else:
+            try:
+                with open(filepath, 'r') as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, OSError):
                 continue
-            if not ts:
-                logger.warning("_count_new_messages_for_persona: message without timestamp in %s, counting as new", filename)
-                count += 1
+            if not isinstance(data, dict):
                 continue
-            if ts > since_iso:
-                count += 1
+            persona = data.get('persona', 'assistant')
+            mode = data.get('mode', 'chatbot')
+            timestamps = []
+            missing = 0
+            for msg in data.get('messages', []):
+                ts = msg.get('timestamp', '')
+                if ts:
+                    timestamps.append(ts)
+                else:
+                    missing += 1
+            _persona_count_cache[filename] = {
+                'mtime': file_mtime,
+                'persona': persona,
+                'mode': mode,
+                'timestamps': timestamps,
+                'missing': missing,
+            }
+
+        if persona != persona_name:
+            continue
+        if mode == 'roleplay':
+            continue
+
+        if not since_iso:
+            count += len(timestamps) + missing
+        else:
+            count += sum(1 for ts in timestamps if ts > since_iso)
+            if missing:
+                logger.warning(
+                    "_count_new_messages_for_persona: %d message(s) without timestamp in %s, counting as new",
+                    missing, filename,
+                )
+                count += missing
+
+    stale = set(_persona_count_cache.keys()) - live_filenames
+    for key in stale:
+        del _persona_count_cache[key]
+
     return count
 
 
@@ -574,6 +616,7 @@ def stop_scheduler():
     _next_fire_time.clear()
     _thread_next_fire_time.clear()
     _thread_scheduler_cache.clear()
+    _persona_count_cache.clear()
 
     with _scheduler_guard:
         _scheduler_started = False
