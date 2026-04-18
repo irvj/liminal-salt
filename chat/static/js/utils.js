@@ -1345,3 +1345,36 @@ function cleanupMessageButtons() {
         }
     });
 }
+
+// =============================================================================
+// Toast Notifications
+// =============================================================================
+
+/**
+ * Show a transient toast notification.
+ *
+ * The global <div x-data="toastContainer"> in base.html listens for the
+ * 'toast' window event and renders an ephemeral card in the top-right.
+ *
+ * @param {string} message  Text to display.
+ * @param {string} [type]   'success' | 'error' | 'info' (default 'info').
+ * @param {number} [duration]  Milliseconds before auto-dismiss. 0 = persistent
+ *                             until the user clicks the close button.
+ *                             Default 3000.
+ *
+ * Usage from JS:
+ *   showToast('Settings saved.', 'success');
+ *   showToast('Something went wrong.', 'error', 6000);
+ *   showToast('Reminder stays put.', 'info', 0);
+ *
+ * Usage from an Alpine template (when showToast isn't in scope):
+ *   @click="window.dispatchEvent(new CustomEvent('toast', {
+ *       detail: { message: 'Copied!', type: 'success' }
+ *   }))"
+ */
+function showToast(message, type = 'info', duration = 3000) {
+    if (!message) return;
+    window.dispatchEvent(new CustomEvent('toast', {
+        detail: { message, type, duration }
+    }));
+}

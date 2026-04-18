@@ -11,6 +11,7 @@ document.addEventListener('alpine:init', () => {
     // Reusable Components
     Alpine.data('collapsibleSection', collapsibleSection);
     Alpine.data('selectDropdown', selectDropdown);
+    Alpine.data('toastContainer', toastContainer);
 
     // Modal Components
     Alpine.data('deleteModal', deleteModal);
@@ -50,6 +51,40 @@ document.addEventListener('alpine:init', () => {
 function collapsibleSection(initiallyOpen = true) {
     return {
         open: initiallyOpen
+    };
+}
+
+// =============================================================================
+// Reusable: Toast Container
+// =============================================================================
+
+/**
+ * Global toast renderer. One instance lives in base.html and listens for
+ * the 'toast' window event dispatched by showToast() (utils.js). Toasts
+ * auto-dismiss after `duration` ms, or stay until manually closed when
+ * `duration` is 0.
+ */
+function toastContainer() {
+    return {
+        toasts: [],
+        _nextId: 1,
+
+        init() {
+            window.addEventListener('toast', (e) => this.show(e.detail || {}));
+        },
+
+        show({ message, type = 'info', duration = 3000 }) {
+            if (!message) return;
+            const id = this._nextId++;
+            this.toasts.push({ id, message, type });
+            if (duration > 0) {
+                setTimeout(() => this.dismiss(id), duration);
+            }
+        },
+
+        dismiss(id) {
+            this.toasts = this.toasts.filter(t => t.id !== id);
+        }
     };
 }
 
