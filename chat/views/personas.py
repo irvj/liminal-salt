@@ -387,11 +387,20 @@ def save_persona_thread_defaults(request):
     message_floor = max(1, min(1000, message_floor))
     size_limit = max(0, min(100000, size_limit))
 
-    cfg['default_thread_memory_settings'] = {
+    submitted = {
         'interval_minutes': interval_minutes,
         'message_floor': message_floor,
         'size_limit': size_limit,
     }
+
+    # If the submitted values match the global fallback, don't persist a
+    # persona-level default — clear the key so "Custom defaults for this
+    # persona" doesn't light up for values identical to the baseline.
+    global_defaults = resolve_persona_thread_memory_defaults({})
+    if submitted == global_defaults:
+        cfg.pop('default_thread_memory_settings', None)
+    else:
+        cfg['default_thread_memory_settings'] = submitted
 
     save_persona_config(persona, cfg, personas_dir)
     return JsonResponse(_persona_defaults_response(persona))

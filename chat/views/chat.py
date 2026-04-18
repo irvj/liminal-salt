@@ -799,8 +799,23 @@ def save_thread_memory_settings(request):
     if not settings:
         return JsonResponse({'error': 'No settings provided.'}, status=400)
 
-    if not save_thread_memory_settings_override(session_id, settings):
+    # If the resulting override state (existing keys + new keys merged)
+    # exactly matches the resolved defaults (persona default → global),
+    # drop the override rather than persist a no-op that lights up the
+    # "Custom override" indicator for values identical to upstream.
+    session_data = load_session(session_id)
+    if session_data is None:
         return JsonResponse({'error': 'Session not found.'}, status=404)
+    session_persona = session_data.get('persona', 'assistant')
+    persona_cfg = get_persona_config(session_persona, str(django_settings.PERSONAS_DIR))
+    defaults = resolve_thread_memory_settings({}, persona_cfg)
+    existing_override = session_data.get('thread_memory_settings') or {}
+    merged = {**existing_override, **settings}
+    if all(merged.get(k) == defaults.get(k) for k in defaults):
+        reset_thread_memory_settings_override(session_id)
+    else:
+        if not save_thread_memory_settings_override(session_id, settings):
+            return JsonResponse({'error': 'Session not found.'}, status=404)
 
     resolved = _resolved_settings_response(session_id)
     reschedule_thread_next_fire(session_id, resolved['effective']['interval_minutes'])
