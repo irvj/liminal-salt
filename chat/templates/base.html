@@ -39,8 +39,33 @@
          data-save-draft-url="{% url 'save_draft' %}"
          data-retry-url="{% url 'retry_message' %}"
          data-edit-message-url="{% url 'edit_message' %}"
-         data-chat-url="{% url 'chat' %}"></div>
+         data-chat-url="{% url 'chat' %}"
+         data-delete-chat-url="{% url 'delete_chat' %}"
+         data-wipe-memory-url="{% url 'wipe_memory' %}"
+         data-delete-persona-url="{% url 'delete_persona' %}"></div>
     {% block body %}{% endblock %}
+
+    <!-- Confirmation dialog: global renderer. Trigger via confirmDialog(...) in utils.js. -->
+    <div x-data="confirmModal" x-cloak>
+        <div x-show="showModal"
+             @keydown.escape.window="cancel()"
+             class="fixed inset-0 bg-black/60 flex items-center justify-center z-confirm"
+             @click.self="cancel()">
+            <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
+                <h3 class="text-foreground mb-3" x-text="title"></h3>
+                <p class="text-foreground-secondary mb-5" x-text="message"></p>
+                <div class="flex gap-3 justify-end">
+                    <button type="button" @click="cancel()"
+                            class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent"
+                            x-text="cancelText"></button>
+                    <button type="button" @click="confirm()"
+                            :class="confirmType === 'danger' ? 'bg-danger hover:bg-danger-hover' : 'bg-accent hover:bg-accent-hover'"
+                            class="px-4 py-2 text-foreground-on-accent rounded font-medium cursor-pointer"
+                            x-text="confirmText"></button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Toast notifications: global renderer. Trigger via showToast(...) in utils.js. -->
     <div x-data="toastContainer"

@@ -114,28 +114,6 @@
 </main>
 
 <!-- Modals (positioned fixed, kept outside document flow) -->
-<div x-data="deleteModal" x-cloak>
-    <div x-show="showModal"
-         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
-         @click.self="showModal = false">
-        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
-            <h3 class="text-foreground mb-3">Delete Chat?</h3>
-            <p class="text-foreground-secondary mb-5">Are you sure you want to delete "<span x-text="sessionTitle"></span>"? This cannot be undone.</p>
-            <form hx-post="{% url 'delete_chat' %}"
-                  hx-target="#main-content"
-                  hx-swap="innerHTML"
-                  @htmx:after-request="showModal = false">
-                {% csrf_token %}
-                <input type="hidden" name="session_id" x-bind:value="sessionId">
-                <div class="flex gap-3 justify-end">
-                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
-                    <button type="submit" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Delete</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
 <div x-data="threadMemoryModal" x-cloak
      data-update-url="{% url 'update_thread_memory' %}"
      data-status-url="{% url 'thread_memory_status' %}"
@@ -275,21 +253,6 @@
     </div>
 </div>
 
-<div x-data="wipeMemoryModal" x-cloak data-wipe-url="{% url 'wipe_memory' %}">
-    <div x-show="showModal"
-         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
-         @click.self="showModal = false">
-        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
-            <h3 class="text-foreground mb-3">Wipe Memory?</h3>
-            <p class="text-foreground-secondary mb-5">Are you sure you want to wipe your entire long-term memory? This action cannot be undone.</p>
-            <div class="flex gap-3 justify-end">
-                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
-                <button @click="confirmWipe()" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Wipe</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div x-data="editPersonaModal" x-cloak data-create-url="{% url 'create_persona' %}" data-save-url="{% url 'save_persona_file' %}">
     <div x-show="showModal"
          class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
@@ -310,21 +273,6 @@
             <div class="flex gap-3 justify-end">
                 <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
                 <button @click="savePersona()" class="px-4 py-2 bg-success text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-success/80">Save</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div x-data="deletePersonaModal" x-cloak data-delete-url="{% url 'delete_persona' %}">
-    <div x-show="showModal"
-         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
-         @click.self="showModal = false">
-        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
-            <h3 class="text-foreground mb-3">Delete Persona?</h3>
-            <p class="text-foreground-secondary mb-5">Are you sure you want to delete "<span x-text="displayName"></span>"? This cannot be undone.</p>
-            <div class="flex gap-3 justify-end">
-                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
-                <button @click="confirmDelete()" class="px-4 py-2 bg-danger text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-danger-hover">Delete</button>
             </div>
         </div>
     </div>

@@ -12,15 +12,13 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('collapsibleSection', collapsibleSection);
     Alpine.data('selectDropdown', selectDropdown);
     Alpine.data('toastContainer', toastContainer);
+    Alpine.data('confirmModal', confirmModal);
 
     // Modal Components
-    Alpine.data('deleteModal', deleteModal);
     Alpine.data('renameModal', renameModal);
     Alpine.data('scenarioModal', scenarioModal);
     Alpine.data('threadMemoryModal', threadMemoryModal);
-    Alpine.data('wipeMemoryModal', wipeMemoryModal);
     Alpine.data('editPersonaModal', editPersonaModal);
-    Alpine.data('deletePersonaModal', deletePersonaModal);
     Alpine.data('editPersonaModelModal', editPersonaModelModal);
     Alpine.data('contextFilesModal', contextFilesModal);
 
@@ -89,6 +87,57 @@ function toastContainer() {
 }
 
 // =============================================================================
+// Reusable: Confirm Dialog
+// =============================================================================
+
+/**
+ * Global confirmation-dialog renderer. One instance lives in base.html and
+ * listens for the 'confirm-dialog' window event dispatched by
+ * confirmDialog() (utils.js). Resolves the caller's promise with true on
+ * Confirm and false on Cancel / Esc / backdrop click.
+ */
+function confirmModal() {
+    return {
+        showModal: false,
+        title: 'Confirm',
+        message: '',
+        confirmText: 'Confirm',
+        cancelText: 'Cancel',
+        confirmType: 'danger',
+        _resolve: null,
+
+        init() {
+            window.addEventListener('confirm-dialog', (e) => this.open(e.detail || {}));
+        },
+
+        open({ title, message, confirmText, cancelText, confirmType, resolve }) {
+            this.title = title || 'Confirm';
+            this.message = message || 'Are you sure?';
+            this.confirmText = confirmText || 'Confirm';
+            this.cancelText = cancelText || 'Cancel';
+            this.confirmType = confirmType || 'danger';
+            this._resolve = resolve || null;
+            this.showModal = true;
+        },
+
+        confirm() {
+            const resolve = this._resolve;
+            this._resolve = null;
+            this.showModal = false;
+            if (resolve) resolve(true);
+        },
+
+        cancel() {
+            if (!this.showModal) return;
+            const resolve = this._resolve;
+            this._resolve = null;
+            this.showModal = false;
+            if (resolve) resolve(false);
+        }
+    };
+}
+
+// =============================================================================
 // Sidebar State Component
 // =============================================================================
 
@@ -131,30 +180,6 @@ function sidebarState() {
             this.$watch('collapsed', val => {
                 if (!this.isMobile) localStorage.setItem('sidebarCollapsed', val);
             });
-        }
-    };
-}
-
-// =============================================================================
-// Delete Modal Component
-// =============================================================================
-
-function deleteModal() {
-    return {
-        showModal: false,
-        sessionId: '',
-        sessionTitle: '',
-
-        init() {
-            window.addEventListener('open-delete-modal', (e) => {
-                this.open(e.detail.id, e.detail.title);
-            });
-        },
-
-        open(sessionId, sessionTitle) {
-            this.sessionId = sessionId;
-            this.sessionTitle = sessionTitle;
-            this.showModal = true;
         }
     };
 }
@@ -603,55 +628,6 @@ function scenarioModal() {
 }
 
 // =============================================================================
-// Wipe Memory Modal Component
-// =============================================================================
-
-function wipeMemoryModal() {
-    return {
-        showModal: false,
-        wipeUrl: '',
-
-        init() {
-            this.wipeUrl = this.$el.dataset.wipeUrl || '/memory/wipe/';
-            window.addEventListener('open-wipe-memory-modal', () => {
-                this.open();
-            });
-        },
-
-        open() {
-            this.showModal = true;
-        },
-
-        async confirmWipe() {
-            this.showModal = false;
-
-            const personaInput = document.querySelector('input[name="persona"]');
-            const persona = personaInput ? personaInput.value : '';
-            const body = new URLSearchParams();
-            body.append('persona', persona);
-
-            try {
-                const response = await fetch(this.wipeUrl, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCsrfToken(),
-                        'HX-Request': 'true',
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: body.toString()
-                });
-                const html = await response.text();
-                const mainContent = document.getElementById('main-content');
-                mainContent.innerHTML = html;
-                htmx.process(mainContent);
-            } catch (e) {
-                console.error('Failed to wipe memory:', e);
-            }
-        }
-    };
-}
-
-// =============================================================================
 // Edit Persona Modal Component
 // =============================================================================
 
@@ -741,54 +717,6 @@ function editPersonaModal() {
             } catch (e) {
                 console.error('Failed to save persona:', e);
                 showToast('Failed to save persona.', 'error');
-            }
-        }
-    };
-}
-
-// =============================================================================
-// Delete Persona Modal Component
-// =============================================================================
-
-function deletePersonaModal() {
-    return {
-        showModal: false,
-        persona: '',
-        displayName: '',
-        deleteUrl: '',
-
-        init() {
-            this.deleteUrl = this.$el.dataset.deleteUrl || '/settings/delete-persona/';
-            window.addEventListener('open-delete-persona-modal', () => {
-                const persona = document.querySelector('[name="persona"]')?.value || '';
-                this.open(persona);
-            });
-        },
-
-        open(persona) {
-            this.persona = persona;
-            this.displayName = toDisplayName(persona);
-            this.showModal = true;
-        },
-
-        async confirmDelete() {
-            try {
-                const response = await fetch(this.deleteUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'X-CSRFToken': getCsrfToken(),
-                        'HX-Request': 'true'
-                    },
-                    body: `persona=${encodeURIComponent(this.persona)}`
-                });
-                const html = await response.text();
-                const mainContent = document.getElementById('main-content');
-                mainContent.innerHTML = html;
-                htmx.process(mainContent);
-                this.showModal = false;
-            } catch (e) {
-                console.error('Failed to delete persona:', e);
             }
         }
     };
@@ -1082,7 +1010,11 @@ function contextFilesModal() {
         },
 
         async deleteFile(filename) {
-            if (!confirm(`Delete ${filename}?`)) return;
+            if (!await confirmDialog({
+                title: 'Delete File?',
+                message: `Remove "${filename}" from context?`,
+                confirmText: 'Delete',
+            })) return;
 
             const formData = new FormData();
             formData.append('filename', filename);
@@ -1235,7 +1167,11 @@ function contextFilesModal() {
         },
 
         async removeDirectory(dirPath) {
-            if (!confirm('Remove this directory from context?')) return;
+            if (!await confirmDialog({
+                title: 'Remove Directory?',
+                message: 'This directory will no longer contribute context files.',
+                confirmText: 'Remove',
+            })) return;
 
             const formData = new FormData();
             formData.append('dir_path', dirPath);

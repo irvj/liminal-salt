@@ -49,7 +49,7 @@
                         :class="selectedPersona === 'assistant' ? 'text-foreground-secondary cursor-not-allowed opacity-50' : 'text-foreground cursor-pointer hover:bg-danger hover:text-foreground-on-accent'"
                         :disabled="selectedPersona === 'assistant'"
                         :title="selectedPersona === 'assistant' ? 'Cannot delete the default Assistant persona' : 'Delete Persona'"
-                        @click="selectedPersona !== 'assistant' && window.dispatchEvent(new CustomEvent('open-delete-persona-modal'))">Delete Persona</button>
+                        @click="selectedPersona !== 'assistant' && deletePersonaWithConfirm(selectedPersona)">Delete Persona</button>
             </div>
         </div>
     </form>

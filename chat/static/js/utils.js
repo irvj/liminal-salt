@@ -1378,3 +1378,120 @@ function showToast(message, type = 'info', duration = 3000) {
         detail: { message, type, duration }
     }));
 }
+
+// =============================================================================
+// Confirmation Dialog
+// =============================================================================
+
+/**
+ * Show a confirmation dialog and resolve when the user picks Confirm or Cancel.
+ * The global <div x-data="confirmModal"> in base.html renders the dialog.
+ *
+ * Accepts a plain string (short form) or an options object.
+ *
+ * @param {string|object} messageOrOpts  Message text, or options object.
+ * @param {string} [messageOrOpts.title]         Dialog title (default "Confirm").
+ * @param {string} [messageOrOpts.message]       Body text.
+ * @param {string} [messageOrOpts.confirmText]   Confirm-button label (default "Confirm").
+ * @param {string} [messageOrOpts.cancelText]    Cancel-button label (default "Cancel").
+ * @param {string} [messageOrOpts.confirmType]   'danger' (default) or 'accent' — styles the confirm button.
+ * @returns {Promise<boolean>}  Resolves true on Confirm, false on Cancel / Esc / backdrop click.
+ *
+ * Usage:
+ *   if (!await confirmDialog(`Delete ${filename}?`)) return;
+ *
+ *   if (!await confirmDialog({
+ *       title: 'Delete Chat?',
+ *       message: `This will permanently delete "${title}".`,
+ *       confirmText: 'Delete',
+ *   })) return;
+ */
+function confirmDialog(messageOrOpts) {
+    const opts = typeof messageOrOpts === 'string'
+        ? { message: messageOrOpts }
+        : (messageOrOpts || {});
+    return new Promise(resolve => {
+        window.dispatchEvent(new CustomEvent('confirm-dialog', {
+            detail: { ...opts, resolve }
+        }));
+    });
+}
+
+/**
+ * Confirm-then-delete-session action. Invoked from the sidebar trash button.
+ * Server swaps main content; the OOB sidebar render reflects the change.
+ */
+async function deleteSessionWithConfirm(sessionId, sessionTitle) {
+    if (!await confirmDialog({
+        title: 'Delete Chat?',
+        message: `Are you sure you want to delete "${sessionTitle}"? This cannot be undone.`,
+        confirmText: 'Delete',
+    })) return;
+    htmx.ajax('POST', getAppUrl('deleteChatUrl', '/chat/delete/'), {
+        target: '#main-content',
+        swap: 'innerHTML',
+        values: { session_id: sessionId },
+    });
+}
+
+/**
+ * Confirm-then-wipe-memory action. Reads the current persona from the
+ * memory view's hidden input. Server response swaps main content.
+ */
+async function wipeMemoryWithConfirm() {
+    if (!await confirmDialog({
+        title: 'Wipe Memory?',
+        message: 'Are you sure you want to wipe your entire long-term memory? This action cannot be undone.',
+        confirmText: 'Wipe',
+    })) return;
+    const personaInput = document.querySelector('input[name="persona"]');
+    const persona = personaInput ? personaInput.value : '';
+    try {
+        const response = await fetch(getAppUrl('wipeMemoryUrl', '/memory/wipe/'), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'HX-Request': 'true',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `persona=${encodeURIComponent(persona)}`,
+        });
+        const html = await response.text();
+        const mainContent = document.getElementById('main-content');
+        mainContent.innerHTML = html;
+        htmx.process(mainContent);
+    } catch (e) {
+        console.error('Failed to wipe memory:', e);
+        showToast('Failed to wipe memory.', 'error');
+    }
+}
+
+/**
+ * Confirm-then-delete-persona action. Server response swaps main content
+ * and includes a success toast via its inline script.
+ */
+async function deletePersonaWithConfirm(persona) {
+    if (!await confirmDialog({
+        title: 'Delete Persona?',
+        message: `Are you sure you want to delete "${toDisplayName(persona)}"? This cannot be undone.`,
+        confirmText: 'Delete',
+    })) return;
+    try {
+        const response = await fetch(getAppUrl('deletePersonaUrl', '/settings/delete-persona/'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': getCsrfToken(),
+                'HX-Request': 'true',
+            },
+            body: `persona=${encodeURIComponent(persona)}`,
+        });
+        const html = await response.text();
+        const mainContent = document.getElementById('main-content');
+        mainContent.innerHTML = html;
+        htmx.process(mainContent);
+    } catch (e) {
+        console.error('Failed to delete persona:', e);
+        showToast('Failed to delete persona.', 'error');
+    }
+}

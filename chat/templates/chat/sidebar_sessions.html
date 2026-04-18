@@ -34,7 +34,7 @@
                     {% include 'icons/star-filled.html' with class='w-4 h-4' %}
                 </button>
                 <button class="w-8 p-0 m-0 bg-surface-elevated rounded-r flex items-center justify-center opacity-60 hover:bg-danger hover:opacity-100 cursor-pointer"
-                        @click="window.dispatchEvent(new CustomEvent('open-delete-modal', { detail: { id: '{{ session.id }}', title: '{{ session.title|escapejs }}' } }))"
+                        @click="deleteSessionWithConfirm('{{ session.id }}', '{{ session.title|escapejs }}')"
                         title="Delete chat">
                     {% include 'icons/trash.html' with class='w-4 h-4' %}
                 </button>
@@ -74,7 +74,7 @@
                         {% include 'icons/star-outline.html' with class='w-4 h-4' %}
                     </button>
                     <button class="w-8 p-0 m-0 bg-surface-elevated rounded-r flex items-center justify-center opacity-60 hover:bg-danger hover:opacity-100 cursor-pointer"
-                            @click="window.dispatchEvent(new CustomEvent('open-delete-modal', { detail: { id: '{{ session.id }}', title: '{{ session.title|escapejs }}' } }))"
+                            @click="deleteSessionWithConfirm('{{ session.id }}', '{{ session.title|escapejs }}')"
                             title="Delete chat">
                         {% include 'icons/trash.html' with class='w-4 h-4' %}
                     </button>
