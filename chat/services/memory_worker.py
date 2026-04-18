@@ -31,6 +31,10 @@ _scheduler_stop = threading.Event()
 _scheduler_started = False
 _scheduler_guard = threading.Lock()
 
+# Next-due epoch time per persona for auto-update scheduling.
+# Only read/written by the scheduler thread, so no lock needed.
+_next_fire_time = {}
+
 # Cache for session persona lookups: {filename: (mtime, persona)}
 _session_cache = {}
 _session_cache_lock = threading.Lock()
@@ -349,7 +353,13 @@ def _get_newest_session_mtime_for_persona(persona_name):
 
 
 def _auto_update_loop(stop_event):
-    """Main loop for the auto-update scheduler daemon thread."""
+    """Main loop for the auto-update scheduler daemon thread.
+
+    Each persona respects its own auto_memory_interval independently.
+    A persona fires only when: (a) its own interval has elapsed since its
+    last fire, and (b) there is new session activity since its last memory
+    update. The loop sleeps until the soonest next-due persona.
+    """
     while not stop_event.is_set():
         try:
             config = load_config()
@@ -364,41 +374,58 @@ def _auto_update_loop(stop_event):
         personas_dir = str(django_settings.PERSONAS_DIR)
         personas = get_available_personas(personas_dir)
 
-        # Find the shortest active auto-update interval across all personas
-        min_interval = None
+        now = time.time()
+        next_due_times = []
+
         for persona_name in personas:
             if stop_event.is_set():
                 return
 
             persona_cfg = get_persona_config(persona_name, personas_dir)
-            interval = persona_cfg.get('auto_memory_interval', 0)
-            if interval <= 0:
+            interval_min = persona_cfg.get('auto_memory_interval', 0)
+            if interval_min <= 0:
                 continue  # Auto-update disabled for this persona
 
-            interval = max(5, min(1440, interval))
+            interval_sec = max(5, min(1440, interval_min)) * 60
 
-            # Check if there's new activity since last memory update
+            # Respect per-persona interval: skip if not yet due
+            due_at = _next_fire_time.get(persona_name, 0)
+            if now < due_at:
+                next_due_times.append(due_at)
+                continue
+
+            # Interval has elapsed — check for new activity
             newest_session_mtime = _get_newest_session_mtime_for_persona(persona_name)
             if newest_session_mtime is None:
+                _next_fire_time[persona_name] = now + interval_sec
+                next_due_times.append(_next_fire_time[persona_name])
                 continue
 
             memory_file = get_memory_file(persona_name)
             if memory_file.exists():
                 memory_mtime = os.path.getmtime(memory_file)
                 if newest_session_mtime < memory_mtime:
-                    # No new activity, but still track interval for sleep
-                    if min_interval is None or interval < min_interval:
-                        min_interval = interval
+                    # No new activity — defer by this persona's interval
+                    _next_fire_time[persona_name] = now + interval_sec
+                    next_due_times.append(_next_fire_time[persona_name])
                     continue
 
-            # New activity detected — run update
-            run_memory_update(persona_name, config, source="auto")
-            if min_interval is None or interval < min_interval:
-                min_interval = interval
+            # Due and new activity — fire
+            fired = run_memory_update(persona_name, config, source="auto")
+            if fired:
+                _next_fire_time[persona_name] = time.time() + interval_sec
+            else:
+                # Lock held (e.g. manual update in progress) — retry soon
+                _next_fire_time[persona_name] = time.time() + 60
+            next_due_times.append(_next_fire_time[persona_name])
 
-        # Sleep for the shortest active interval, or 60s if none are active
-        sleep_minutes = min_interval if min_interval else 1
-        _sleep_interruptible(sleep_minutes * 60, stop_event)
+        # Sleep until the soonest next-due persona (floor 10s, default 60s)
+        if next_due_times:
+            sleep_seconds = max(10, min(next_due_times) - time.time())
+        else:
+            sleep_seconds = 60
+
+        _sleep_interruptible(sleep_seconds, stop_event)
 
 
 def _sleep_interruptible(total_seconds, stop_event):
@@ -435,6 +462,7 @@ def stop_scheduler():
     if _scheduler_thread and _scheduler_thread.is_alive():
         _scheduler_thread.join(timeout=15)
     _scheduler_thread = None
+    _next_fire_time.clear()
 
     with _scheduler_guard:
         _scheduler_started = False
