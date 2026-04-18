@@ -50,7 +50,7 @@ def ensure_default_personas(personas_dir):
             shutil.copytree(persona, target)
             logger.info(f"Seeded default persona: {persona.name}")
 
-def load_context(persona_dir, persona_name=None, scenario="", thread_memory=""):
+def load_context(persona_dir, persona_name=None, scenario="", thread_memory="", mode="chatbot"):
     """
     Load context from a specific persona directory.
 
@@ -59,6 +59,10 @@ def load_context(persona_dir, persona_name=None, scenario="", thread_memory=""):
         persona_name: Persona name for loading per-persona memory
         scenario: Per-thread scenario text (empty string = none)
         thread_memory: Per-thread running summary (empty string = none)
+        mode: Thread mode — "chatbot" (default) or "roleplay". Persona
+            memory is suppressed in roleplay threads to preserve
+            immersion; the fictional persona shouldn't know real-user
+            biographical facts mid-scene.
 
     Returns:
         Concatenated system prompt string
@@ -106,8 +110,9 @@ def load_context(persona_dir, persona_name=None, scenario="", thread_memory=""):
         context_str += "rolling window.\n\n"
         context_str += thread_memory + "\n\n"
 
-    # Append per-persona memory
-    if persona_name:
+    # Append per-persona memory (chatbot threads only). Roleplay threads
+    # suppress it so the scene isn't poisoned by real-user facts.
+    if persona_name and mode != "roleplay":
         memory_content = get_memory_content(persona_name)
         if memory_content:
             context_str += "--- YOUR MEMORY ABOUT THIS USER ---\n"

@@ -56,7 +56,7 @@ def _build_chat_core(config, session_id, session_persona, session_data=None, use
     thread_memory = (session_data or {}).get('thread_memory', '')
     system_prompt = load_context(
         persona_path, persona_name=session_persona,
-        scenario=scenario, thread_memory=thread_memory,
+        scenario=scenario, thread_memory=thread_memory, mode=mode,
     )
 
     chat_core = ChatCore(

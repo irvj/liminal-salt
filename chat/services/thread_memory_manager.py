@@ -173,12 +173,12 @@ class ThreadMemoryManager:
     def _build_chatbot_prompt(self, persona_display_name, existing_block,
                               transcript, size_instruction):
         return (
-            "You are maintaining a running summary of a conversation thread between a user\n"
-            f"and {persona_display_name}. The summary captures what has happened in THIS\n"
-            "specific thread — decisions made, topics discussed, state changes, emotional\n"
-            "beats, commitments, promises, and any context worth carrying forward as the\n"
-            "conversation grows. It is not a log of every exchange; it is the narrative\n"
-            "shape of the thread.\n\n"
+            f"You are {persona_display_name}. Below is your running summary of a\n"
+            "conversation thread with a user — what has happened in THIS specific thread\n"
+            "so far. It's your inner continuity for this conversation: decisions reached,\n"
+            "topics covered, state shifts, commitments made, emotional beats, anything\n"
+            "worth carrying forward as the thread grows. Not a log of every exchange —\n"
+            "the shape of the thread, in your own head.\n\n"
 
             "--- CURRENT THREAD SUMMARY ---\n"
             f"{existing_block}\n\n"
@@ -188,17 +188,35 @@ class ThreadMemoryManager:
 
             "--- INSTRUCTIONS ---\n\n"
 
-            "Produce an updated summary that:\n"
-            "- MERGES the new events into the existing summary; don't rewrite from scratch.\n"
-            "- COMPRESSES repeated or similar events into single observations.\n"
-            "- PRESERVES specific details: names, decisions, key quotes, turning points,\n"
-            "  anything that changes the trajectory.\n"
-            "- LETS minor or superseded details fade as the thread progresses.\n"
-            "- IS written in neutral narrative prose using standard capitalization and\n"
-            "  punctuation. Not bullet-point logs, not a transcript.\n"
-            f"- REFERS to participants as \"the user\" and \"{persona_display_name}\" (or\n"
-            "  character names if clear from the conversation).\n"
-            "- AVOIDS meta-commentary about the update process or timestamps.\n\n"
+            "Update the summary so it reflects everything that has happened through the\n"
+            "new messages. This is YOUR inner continuity — notes you keep for yourself\n"
+            "about this particular conversation.\n\n"
+
+            "MERGING:\n"
+            "- MERGE the new events into the existing summary; don't rewrite from scratch.\n"
+            "- COMPRESS repeated or similar exchanges into a single observation.\n"
+            "- PRESERVE specifics that matter: decisions, turning points, quotes that\n"
+            "  stuck, commitments, problems worked through.\n"
+            "- LET minor or superseded details fade as the thread moves on.\n"
+            "- IF the existing summary is written in a different voice (e.g. third-person\n"
+            "  narrator, \"the user discussed X with...\"), rewrite it into the perspective\n"
+            "  below as you merge. The voice should be consistent across the whole summary.\n\n"
+
+            "PERSPECTIVE — apply to every sentence:\n"
+            "- ALWAYS \"you\" for yourself: \"You walked them through...\", \"You agreed to...\",\n"
+            "  \"You noticed he...\"\n"
+            "- NEVER \"I\": not \"I explained...\", not \"I noticed...\"\n"
+            "- ALWAYS third person for the user: \"he\", \"she\", \"they\" — infer from\n"
+            "  context, default to \"they\" if unclear.\n"
+            "- AVOID \"the user\" as a label; refer to them like a person whose conversation\n"
+            "  you remember.\n\n"
+
+            "FORMAT:\n"
+            "- Write in standard prose with proper capitalization and punctuation,\n"
+            "  regardless of your conversational style elsewhere. This is memory, not\n"
+            "  dialogue.\n"
+            "- No bullet-point log, no transcript, no timestamps, no meta-commentary\n"
+            "  about the update process.\n\n"
 
             f"{size_instruction}"
 
