@@ -3,6 +3,7 @@ from .chat import (
     chat, switch_session, new_chat, start_chat, delete_chat,
     toggle_pin_chat, rename_chat, save_draft, save_scenario, send_message,
     retry_message, edit_message, get_model_for_persona,
+    update_thread_memory, thread_memory_status,
 )
 from .memory import (
     memory, update_memory, memory_update_status, save_memory_settings, wipe_memory, modify_memory, seed_memory,

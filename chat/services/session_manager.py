@@ -7,7 +7,7 @@ Views never touch session files directly.
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from django.conf import settings as django_settings
@@ -176,6 +176,23 @@ def get_session_scenario(session_id):
     if data:
         return data.get("scenario", "")
     return ""
+
+
+def save_thread_memory(session_id, content):
+    """
+    Save thread memory for a session and stamp the update time in UTC.
+
+    Returns True on success, False if the session doesn't exist.
+    """
+    session_path = get_session_path(session_id)
+    data = _read_session(session_path)
+    if data is None:
+        return False
+
+    data['thread_memory'] = content
+    data['thread_memory_updated_at'] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _write_session(session_path, data)
+    return True
 
 
 def remove_last_assistant_message(session_id):

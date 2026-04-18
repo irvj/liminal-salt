@@ -138,6 +138,50 @@
     </div>
 </div>
 
+<div x-data="threadMemoryModal" x-cloak
+     data-update-url="{% url 'update_thread_memory' %}"
+     data-status-url="{% url 'thread_memory_status' %}">
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:leave="transition ease-in duration-150"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal-xl w-[90%] border border-border">
+            <h3 class="text-foreground mb-2">Thread Memory</h3>
+            <p class="text-foreground-secondary text-sm mb-4">
+                Running summary of what has happened in this thread. Included in the prompt
+                on every turn so continuity survives as older messages fall out of the
+                rolling window. Update manually after key exchanges.
+            </p>
+
+            <div x-show="statusMessage" x-transition
+                 :class="statusType === 'success' ? 'bg-success text-surface' : (statusType === 'info' ? 'bg-surface text-foreground-secondary border border-border' : 'bg-danger text-white')"
+                 class="p-2 px-3 rounded mb-4 text-sm">
+                <span x-text="statusMessage"></span>
+            </div>
+
+            <div class="flex items-center gap-3 mb-3 text-xs text-foreground-secondary">
+                <span x-show="updatedAt">Last updated: <span x-text="formattedUpdatedAt"></span></span>
+                <span x-show="!updatedAt">No summary yet.</span>
+            </div>
+
+            <textarea :value="content"
+                      readonly
+                      placeholder="Thread memory will appear here after the first update."
+                      class="w-full h-[400px] bg-surface border border-border rounded text-foreground font-mono text-sm p-3 resize-y mb-4 focus:outline-none"></textarea>
+
+            <div class="flex gap-3 justify-end">
+                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Close</button>
+                <button @click="updateNow()" :disabled="running"
+                        class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-accent">
+                    <span x-show="!running">Update now</span>
+                    <span x-show="running">Updating...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div x-data="scenarioModal" x-cloak data-save-url="{% url 'save_scenario' %}">
     <div x-show="showModal"
          x-transition:enter="transition ease-out duration-200"

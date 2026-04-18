@@ -14,6 +14,10 @@ from .context_manager import get_persona_identity, get_available_personas, get_p
 from .memory_manager import (
     MemoryManager, get_memory_file, get_memory_model,
 )
+from .session_manager import load_session, save_thread_memory
+from .thread_memory_manager import (
+    ThreadMemoryManager, filter_new_messages, DEFAULT_THREAD_MEMORY_SIZE,
+)
 
 
 # =============================================================================
@@ -38,6 +42,38 @@ _next_fire_time = {}
 # Cache for session persona lookups: {filename: (mtime, persona)}
 _session_cache = {}
 _session_cache_lock = threading.Lock()
+
+# =============================================================================
+# Thread memory (per-session) state
+# =============================================================================
+
+_session_locks_guard = threading.Lock()
+_session_locks = {}
+
+_thread_status_lock = threading.Lock()
+_thread_status = {}
+
+
+def _get_session_lock(session_id):
+    """Get or create a lock for a specific session's thread memory."""
+    with _session_locks_guard:
+        if session_id not in _session_locks:
+            _session_locks[session_id] = threading.Lock()
+        return _session_locks[session_id]
+
+
+def get_thread_update_status(session_id):
+    """Return current thread-memory update status for a session. Thread-safe."""
+    with _thread_status_lock:
+        return dict(_thread_status.get(session_id, {"state": "idle"}))
+
+
+def _set_thread_status(session_id, **kwargs):
+    """Update thread-memory status for a session. Thread-safe."""
+    with _thread_status_lock:
+        if session_id not in _thread_status:
+            _thread_status[session_id] = {"state": "idle"}
+        _thread_status[session_id].update(kwargs)
 
 
 # =============================================================================
@@ -466,3 +502,98 @@ def stop_scheduler():
 
     with _scheduler_guard:
         _scheduler_started = False
+
+
+# =============================================================================
+# Thread memory update worker (per-session, manual-only in phase 2)
+# =============================================================================
+
+def run_thread_memory_update(session_id, config):
+    """
+    Run a thread-memory update for a single session. Acquires per-session lock.
+
+    Returns True if an attempt ran (success or failure); False if the lock
+    was already held.
+    """
+    lock = _get_session_lock(session_id)
+    if not lock.acquire(blocking=False):
+        return False
+
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        _set_thread_status(session_id, state="running", source="manual",
+                           started_at=now, error=None)
+        logger.info(f"Thread memory update started for session '{session_id}'")
+
+        session_data = load_session(session_id)
+        if session_data is None:
+            finished = datetime.now(timezone.utc).isoformat()
+            _set_thread_status(session_id, state="failed", finished_at=finished,
+                               error="Session not found.")
+            return True
+
+        messages = session_data.get('messages', [])
+        existing_memory = session_data.get('thread_memory', '')
+        updated_at = session_data.get('thread_memory_updated_at', '')
+
+        new_messages = filter_new_messages(messages, updated_at)
+        if not new_messages:
+            finished = datetime.now(timezone.utc).isoformat()
+            _set_thread_status(session_id, state="completed", finished_at=finished,
+                               error="No new messages since last update.")
+            logger.info(f"Thread memory update skipped for session '{session_id}': no new messages")
+            return True
+
+        persona_name = session_data.get('persona', 'assistant')
+        persona_display = persona_name.replace('_', ' ').title()
+
+        api_key = config.get("OPENROUTER_API_KEY")
+        site_url = config.get("SITE_URL")
+        site_name = config.get("SITE_NAME")
+        personas_dir = str(django_settings.PERSONAS_DIR)
+        model = get_memory_model(config, persona_name, personas_dir)
+
+        manager = ThreadMemoryManager(api_key, model, site_url, site_name)
+        updated_memory = manager.merge(
+            persona_display, existing_memory, new_messages,
+            size_limit=DEFAULT_THREAD_MEMORY_SIZE,
+        )
+
+        finished = datetime.now(timezone.utc).isoformat()
+        if updated_memory is None:
+            _set_thread_status(session_id, state="failed", finished_at=finished,
+                               error="The model returned an unusable response.")
+            logger.warning(f"Thread memory update failed for '{session_id}': unusable response")
+            return True
+
+        save_thread_memory(session_id, updated_memory)
+        _set_thread_status(session_id, state="completed", finished_at=finished)
+        logger.info(f"Thread memory update completed for session '{session_id}'")
+        return True
+
+    except Exception as e:
+        finished = datetime.now(timezone.utc).isoformat()
+        _set_thread_status(session_id, state="failed", finished_at=finished, error=str(e))
+        logger.error(f"Thread memory update failed for '{session_id}': {e}")
+        return True
+
+    finally:
+        lock.release()
+
+
+def start_thread_memory_update(session_id, config):
+    """
+    Start a background thread-memory update. Returns False if an update is
+    already running for this session.
+    """
+    lock = _get_session_lock(session_id)
+    if lock.locked():
+        return False
+
+    thread = threading.Thread(
+        target=run_thread_memory_update,
+        args=(session_id, config),
+        daemon=True,
+    )
+    thread.start()
+    return True

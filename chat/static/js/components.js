@@ -16,6 +16,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('deleteModal', deleteModal);
     Alpine.data('renameModal', renameModal);
     Alpine.data('scenarioModal', scenarioModal);
+    Alpine.data('threadMemoryModal', threadMemoryModal);
     Alpine.data('wipeMemoryModal', wipeMemoryModal);
     Alpine.data('editPersonaModal', editPersonaModal);
     Alpine.data('deletePersonaModal', deletePersonaModal);
@@ -144,6 +145,184 @@ function renameModal() {
             const headerTitle = document.getElementById('chat-title');
             this.newTitle = headerTitle ? headerTitle.textContent : currentTitle;
             this.showModal = true;
+        }
+    };
+}
+
+// =============================================================================
+// Thread Memory Modal Component
+// =============================================================================
+
+function threadMemoryModal() {
+    return {
+        showModal: false,
+        sessionId: '',
+        content: '',
+        updatedAt: '',
+        running: false,
+        statusMessage: '',
+        statusType: '',
+        _updateUrl: '',
+        _statusUrl: '',
+        _pollHandle: null,
+
+        init() {
+            this._updateUrl = this.$el.dataset.updateUrl;
+            this._statusUrl = this.$el.dataset.statusUrl;
+            window.addEventListener('open-thread-memory-modal', () => this.open());
+        },
+
+        get formattedUpdatedAt() {
+            if (!this.updatedAt) return '';
+            try {
+                const d = new Date(this.updatedAt);
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    + ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            } catch (e) {
+                return this.updatedAt;
+            }
+        },
+
+        _readFromDOM() {
+            const source = document.getElementById('thread-memory-data');
+            this.sessionId = source ? source.dataset.sessionId : '';
+            this.content = source ? source.dataset.memory : '';
+            this.updatedAt = source ? source.dataset.updatedAt : '';
+        },
+
+        open() {
+            this._readFromDOM();
+            this.statusMessage = '';
+            this.showModal = true;
+            // Don't reset `running` here — if an update is in flight the button
+            // should stay disabled through the async status check.
+            this._checkStatusOnce();
+        },
+
+        async _checkStatusOnce() {
+            if (!this.sessionId) {
+                this.running = false;
+                return;
+            }
+            try {
+                const response = await fetch(`${this._statusUrl}?session_id=${encodeURIComponent(this.sessionId)}`);
+                if (!response.ok) {
+                    this.running = false;
+                    return;
+                }
+                const data = await response.json();
+                if (data.state === 'running') {
+                    this.running = true;
+                    this.statusMessage = 'Summarizing thread...';
+                    this.statusType = 'info';
+                    this._startPolling();
+                } else {
+                    this.running = false;
+                }
+            } catch (e) {
+                this.running = false;
+            }
+        },
+
+        async updateNow() {
+            if (!this.sessionId) {
+                this.statusMessage = 'No active session.';
+                this.statusType = 'error';
+                return;
+            }
+
+            this.running = true;
+            this.statusMessage = 'Summarizing thread...';
+            this.statusType = 'info';
+
+            const body = new URLSearchParams();
+            body.append('session_id', this.sessionId);
+
+            try {
+                const response = await fetch(this._updateUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: body.toString(),
+                });
+
+                if (response.status === 202) {
+                    this._startPolling();
+                } else if (response.status === 409) {
+                    this.statusMessage = 'An update is already running for this thread.';
+                    this.statusType = 'info';
+                    this._startPolling();
+                } else {
+                    const data = await response.json().catch(() => ({}));
+                    this.statusMessage = data.error || `Update failed (${response.status}).`;
+                    this.statusType = 'error';
+                    this.running = false;
+                }
+            } catch (e) {
+                this.statusMessage = `Update failed: ${e.message}`;
+                this.statusType = 'error';
+                this.running = false;
+            }
+        },
+
+        _startPolling() {
+            this._stopPolling();
+            const maxDuration = 10 * 60 * 1000;
+            const startTime = Date.now();
+
+            this._pollHandle = setInterval(async () => {
+                if (Date.now() - startTime > maxDuration) {
+                    this._stopPolling();
+                    this.statusMessage = 'Update timed out.';
+                    this.statusType = 'error';
+                    this.running = false;
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${this._statusUrl}?session_id=${encodeURIComponent(this.sessionId)}`);
+                    if (!response.ok) return;
+                    const data = await response.json();
+
+                    if (data.state === 'completed') {
+                        this._stopPolling();
+                        this.running = false;
+                        // Refresh displayed content from the just-completed update
+                        this.content = data.memory || '';
+                        this.updatedAt = data.updated_at || '';
+                        if (data.error) {
+                            this.statusMessage = data.error;
+                            this.statusType = 'info';
+                        } else {
+                            this.statusMessage = 'Thread memory updated.';
+                            this.statusType = 'success';
+                        }
+                        // Sync the DOM data source so a re-open reflects the new value
+                        const source = document.getElementById('thread-memory-data');
+                        if (source) {
+                            source.dataset.memory = this.content;
+                            source.dataset.updatedAt = this.updatedAt;
+                        }
+                    } else if (data.state === 'failed') {
+                        this._stopPolling();
+                        this.running = false;
+                        this.statusMessage = data.error || 'Update failed.';
+                        this.statusType = 'error';
+                    }
+                    // state === 'running': leave existing content visible, keep polling
+                } catch (e) {
+                    // Transient fetch error — keep polling
+                }
+            }, 2000);
+        },
+
+        _stopPolling() {
+            if (this._pollHandle) {
+                clearInterval(this._pollHandle);
+                this._pollHandle = null;
+            }
         }
     };
 }

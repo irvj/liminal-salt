@@ -3,13 +3,16 @@ import logging
 import os
 
 from django.shortcuts import render, redirect
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.conf import settings as django_settings
 from django.views.decorators.http import require_POST
 
 from ..services import (
     load_context, get_available_personas, get_persona_model,
     ChatCore, Summarizer,
+)
+from ..services.memory_worker import (
+    start_thread_memory_update, get_thread_update_status,
 )
 from ..services.session_manager import (
     load_session, create_session, delete_session as delete_session_file,
@@ -43,7 +46,11 @@ def _build_chat_core(config, session_id, session_persona, session_data=None, use
     model = get_model_for_persona(config, session_persona, django_settings.PERSONAS_DIR)
     persona_path = os.path.join(str(django_settings.PERSONAS_DIR), session_persona)
     scenario = (session_data or {}).get('scenario', '')
-    system_prompt = load_context(persona_path, persona_name=session_persona, scenario=scenario)
+    thread_memory = (session_data or {}).get('thread_memory', '')
+    system_prompt = load_context(
+        persona_path, persona_name=session_persona,
+        scenario=scenario, thread_memory=thread_memory,
+    )
 
     chat_core = ChatCore(
         api_key=config.get("OPENROUTER_API_KEY"),
@@ -209,6 +216,8 @@ def chat(request):
         'messages': chat_core.messages,
         'draft': session_draft,
         'scenario': session_data.get('scenario', '') if session_data else '',
+        'thread_memory': session_data.get('thread_memory', '') if session_data else '',
+        'thread_memory_updated_at': session_data.get('thread_memory_updated_at', '') if session_data else '',
         'sessions': sessions,
         'pinned_sessions': pinned_sessions,
         'grouped_sessions': grouped_sessions,
@@ -356,6 +365,8 @@ def delete_chat(request):
                 'model': model,
                 'messages': chat_core.messages,
                 'scenario': session_data.get('scenario', '') if session_data else '',
+                'thread_memory': session_data.get('thread_memory', '') if session_data else '',
+                'thread_memory_updated_at': session_data.get('thread_memory_updated_at', '') if session_data else '',
                 'pinned_sessions': pinned_sessions,
                 'grouped_sessions': grouped_sessions,
                 'current_session': new_session_id,
@@ -584,3 +595,39 @@ def edit_message(request):
         return HttpResponse(status=404)
 
     return HttpResponse(status=200)
+
+
+@require_POST
+def update_thread_memory(request):
+    """Spawn a background thread-memory update for the current session."""
+    session_id = request.POST.get('session_id') or get_current_session(request)
+    if not session_id:
+        return JsonResponse({'error': 'No active session.'}, status=400)
+
+    config = load_config()
+    if not config or not config.get('OPENROUTER_API_KEY'):
+        return JsonResponse({'error': 'API key not configured.'}, status=400)
+
+    started = start_thread_memory_update(session_id, config)
+    if not started:
+        return JsonResponse({'state': 'already_running'}, status=409)
+
+    return JsonResponse({'state': 'started'}, status=202)
+
+
+def thread_memory_status(request):
+    """Return the current thread-memory status and content (polling endpoint)."""
+    session_id = request.GET.get('session_id') or get_current_session(request)
+    if not session_id:
+        return JsonResponse({'error': 'No active session.'}, status=400)
+
+    status = get_thread_update_status(session_id)
+    session_data = load_session(session_id)
+    if session_data:
+        status['memory'] = session_data.get('thread_memory', '')
+        status['updated_at'] = session_data.get('thread_memory_updated_at', '')
+    else:
+        status['memory'] = ''
+        status['updated_at'] = ''
+
+    return JsonResponse(status)

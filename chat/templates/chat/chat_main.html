@@ -5,6 +5,13 @@
 <!-- Scenario content source for the scenario modal -->
 <div id="scenario-data" class="hidden" data-session-id="{{ session_id }}" data-scenario="{{ scenario|default:''|escape }}"></div>
 
+<!-- Thread memory data source for the thread-memory modal -->
+<div id="thread-memory-data"
+     class="hidden"
+     data-session-id="{{ session_id }}"
+     data-memory="{{ thread_memory|default:''|escape }}"
+     data-updated-at="{{ thread_memory_updated_at|default:'' }}"></div>
+
 <!-- Header -->
 <header class="bg-surface-secondary px-5 py-4 border-b border-border">
     <div class="flex items-center gap-2">
@@ -19,6 +26,11 @@
                 :title="'Edit thread scenario'">
             {% include 'icons/folder.html' with class='w-4 h-4' %}
             {% if scenario %}<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-accent rounded-full"></span>{% endif %}
+        </button>
+        <button @click="window.dispatchEvent(new CustomEvent('open-thread-memory-modal'))"
+                class="text-foreground-secondary hover:text-foreground cursor-pointer"
+                title="Thread memory">
+            {% include 'icons/brain-cog.html' with class='w-4 h-4' %}
         </button>
     </div>
     <div class="text-xs text-foreground-secondary mt-1">
