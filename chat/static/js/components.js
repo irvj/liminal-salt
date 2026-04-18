@@ -432,6 +432,12 @@ function threadMemoryModal() {
             this.settingsSaving = true;
             this.settingsStatusMessage = '';
 
+            // Coerce first so empty/NaN inputs don't reach the server as "NaN".
+            // Assign back so the visible field matches what we send.
+            this.intervalMinutes = this.clampInterval(this.intervalMinutes);
+            this.messageFloor = this.clampMessageFloor(this.messageFloor);
+            this.sizeLimit = this.clampSizeLimit(this.sizeLimit);
+
             const body = new URLSearchParams();
             body.append('session_id', this.sessionId);
             body.append('interval_minutes', String(this.intervalMinutes));
@@ -1999,6 +2005,12 @@ function personaThreadDefaults() {
             if (!this.persona) return;
             this.saving = true;
             this.statusMessage = '';
+
+            // Coerce first so empty/NaN inputs don't reach the server as "NaN".
+            this.intervalMinutes = this.clampInterval(this.intervalMinutes);
+            this.messageFloor = this.clampMessageFloor(this.messageFloor);
+            this.sizeLimit = this.clampSizeLimit(this.sizeLimit);
+
             const body = new URLSearchParams();
             body.append('persona', this.persona);
             body.append('default_mode', this.defaultMode || '');
