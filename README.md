@@ -2,7 +2,7 @@
 
 **v0.9.3**
 
-A self-hosted LLM chatbot with persistent memory, customizable personas, and beautiful themes. Your conversations, your data, your control.
+A self-hosted LLM chatbot with persistent per-persona memory, customizable personas, and a roleplay mode. Runs locally; state lives in plain JSON and Markdown files under `data/`.
 
 ![Liminal Salt](docs/images/main-screenshot.png)
 
@@ -10,62 +10,11 @@ A self-hosted LLM chatbot with persistent memory, customizable personas, and bea
 
 ## Why Liminal Salt?
 
-**For Writers & Roleplayers**
-Create unique AI personas with distinct voices and personalities. The app remembers context across all your conversations, making interactions feel more natural and consistent over time.
+**For writers and roleplayers.** Build personas as Markdown, switch threads into roleplay mode with per-scene memory, and let each persona build up its own continuity across conversations.
 
-**For Privacy-Conscious Users**
-Runs entirely on your machine. No database, no cloud storage, no tracking. All data is stored locally in simple JSON and Markdown files you can read, edit, or delete anytime.
+**For privacy-conscious users.** Runs on your machine. No database, no cloud, no telemetry. All state is readable text on disk.
 
-**For Tinkerers**
-Open source and easy to extend. Personas are just Markdown files. Themes are JSON. No complex setup required—just Python and an API key.
-
----
-
-## Features
-
-### Conversations
-- **Multi-Session Management** — Create, switch between, and organize multiple chat sessions
-- **Pinned Chats** — Keep important conversations at the top of your sidebar
-- **Smart Titles** — Auto-generated session titles based on conversation content
-- **Grouped Sidebar** — Sessions organized by persona with collapsible sections
-- **Configurable Context** — Adjust how much conversation history is sent to the LLM
-
-### Personas
-- **Customizable Personalities** — Define AI personas using simple Markdown files
-- **Per-Persona Models** — Assign different LLM models to different personas
-- **Context Files** — Upload documents or reference local directories that apply only to specific personas
-- **In-App Editor** — Create and edit personas directly from the web interface
-
-### Memory
-- **Per-Persona Living Memory** — Each persona maintains its own memory about the user, written from the persona's perspective
-- **Incremental Merge** — Memory grows naturally as new information is merged in, rather than being fully rewritten
-- **Background Updates** — Memory updates run in the background without blocking the UI
-- **Auto-Update Scheduler** — Optionally auto-update memory on a configurable interval per persona
-- **Per-Persona Settings** — Control history limits, memory size, and auto-update interval per persona
-- **Global Context Files** — Upload documents or reference local directories available to all personas
-- **Local Directory Context** — Reference `.md`/`.txt` files from local directories without copying them into the app
-
-### Interface
-- **16 Color Themes** — Including the custom Liminal Salt theme, with dark and light modes
-- **Reactive UI** — Smooth, fast interactions powered by HTMX and Alpine.js
-- **Setup Wizard** — Get started in minutes with guided configuration
-
-### Technical
-- **No Database Required** — All data stored in human-readable JSON and Markdown
-- **OpenRouter Integration** — Access to hundreds of LLM models through a single API
-- **Lightweight** — Django-based with minimal dependencies
-
----
-
-## Screenshots
-
-![Chat](docs/images/chat.png)
-
-![User Memory](docs/images/user-memory.png)
-
-![Persona Settings](docs/images/persona-settings.png)
-
-![Settings](docs/images/settings.png)
+**For tinkerers.** Personas are Markdown. Themes are JSON. Django + HTMX + Alpine, easy to extend.
 
 ---
 
@@ -77,32 +26,35 @@ cd liminal-salt-app
 python run.py
 ```
 
-The launcher automatically creates a virtual environment and installs dependencies on first run. Open http://localhost:8420 in your browser.
+The launcher creates a virtual environment and installs dependencies on first run. Open http://localhost:8420 and follow the setup wizard.
+
+Requires Python 3.10+ and an [OpenRouter API key](https://openrouter.ai/).
 
 ---
 
-## Requirements
+## Features
 
-- Python 3.10+
-- [OpenRouter API key](https://openrouter.ai/)
+- **Per-persona memory.** Each persona maintains its own evolving notes about you, merged in the background as you talk.
+- **Roleplay mode.** Per-thread scenarios and scene-level memory, with persona memory suppressed in-scene for immersion. Fork any chat thread into a roleplay thread without losing context.
+- **Context files.** Upload documents per-persona or globally; reference local directories to pull in live files without copying them.
+- **Multi-session.** Sessions grouped by persona, pinnable, auto-titled, with drafts saved per thread.
+- **OpenRouter.** Hundreds of models, with per-persona model overrides.
+- **Themes.** Dark and light modes across 16 color themes.
+
+---
+
+## Screenshots
+
+![Chat](docs/images/chat.png)
+![User Memory](docs/images/user-memory.png)
+![Persona Settings](docs/images/persona-settings.png)
+![Settings](docs/images/settings.png)
 
 ---
 
 ## Roadmap
 
-**Current State:** Fully usable as-is. Create and manage personas directly from the web interface—no code editing required.
-
-**Vision:** An open, customizable chatbot for writers and creative users who want to build unique characters, explore conversations, and bring depth to their creative work.
-
-**Personas:** Future releases will include a library of thoughtfully crafted, in-depth personas ready to use out of the box.
-
-**Development:** Continuous releases focused on quality-of-life improvements and new features. Development is driven by real usage rather than a rigid schedule.
-
----
-
-## Documentation
-
-For technical details, architecture overview, and development guide, see [CLAUDE.md](CLAUDE.md).
+Development is usage-driven, not scheduled. Near-term work focuses on continued improvements to the memory and roleplay systems. Longer-term, the app is headed toward a standalone desktop build.
 
 ---
 
