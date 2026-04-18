@@ -289,6 +289,59 @@ def generate_session_id():
     return f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
 
 
+def fork_session_to_roleplay(source_session_id):
+    """
+    Fork a chatbot thread into a new roleplay session.
+
+    The fork is a create-only action — no memory of any kind is edited.
+    Thread memory carries over intact so the user can keep, clear, or
+    regenerate it at their discretion. Persona memory is untouched.
+    The original session is untouched and continues contributing to
+    persona memory normally.
+
+    Copies:  persona, messages, thread_memory, thread_memory_updated_at
+    Resets:  title ("New Chat"), pinned/draft (absent), scenario (absent)
+    Sets:    mode = "roleplay"
+
+    Returns the new session id on success, None if the source doesn't
+    exist or no non-colliding id could be generated.
+    """
+    source = _read_session(get_session_path(source_session_id))
+    if source is None:
+        return None
+
+    # Generate a collision-free id. Second-precision timestamps can collide
+    # if the user created and forked the source in the same second.
+    new_session_id = generate_session_id()
+    new_path = get_session_path(new_session_id)
+    if new_session_id == source_session_id or os.path.exists(new_path):
+        base = new_session_id[:-len('.json')]
+        new_session_id = None
+        for i in range(1, 100):
+            candidate = f"{base}_{i}.json"
+            candidate_path = get_session_path(candidate)
+            if candidate != source_session_id and not os.path.exists(candidate_path):
+                new_session_id = candidate
+                new_path = candidate_path
+                break
+        if new_session_id is None:
+            return None
+
+    new_data = {
+        "title": "New Chat",
+        "persona": source.get("persona", "assistant"),
+        "mode": "roleplay",
+        "messages": list(source.get("messages", [])),
+    }
+    if "thread_memory" in source:
+        new_data["thread_memory"] = source["thread_memory"]
+    if "thread_memory_updated_at" in source:
+        new_data["thread_memory_updated_at"] = source["thread_memory_updated_at"]
+
+    _write_session(new_path, new_data)
+    return new_session_id
+
+
 def make_user_timestamp(user_timezone='UTC'):
     """Create an ISO 8601 timestamp in the user's timezone."""
     try:

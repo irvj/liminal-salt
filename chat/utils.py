@@ -55,9 +55,10 @@ def get_sessions_with_titles():
                 title = data.get("title", "New Chat") if isinstance(data, dict) else "Old Session"
                 persona = data.get("persona", "assistant") if isinstance(data, dict) else "assistant"
                 pinned = data.get("pinned", False) if isinstance(data, dict) else False
-                sessions.append({"id": f, "title": title, "persona": persona, "pinned": pinned})
+                mode = data.get("mode", "chatbot") if isinstance(data, dict) else "chatbot"
+                sessions.append({"id": f, "title": title, "persona": persona, "pinned": pinned, "mode": mode})
         except Exception:
-            sessions.append({"id": f, "title": "Error Loading", "persona": "assistant", "pinned": False})
+            sessions.append({"id": f, "title": "Error Loading", "persona": "assistant", "pinned": False, "mode": "chatbot"})
 
     return sorted(sessions, key=lambda x: x['id'], reverse=True)
 

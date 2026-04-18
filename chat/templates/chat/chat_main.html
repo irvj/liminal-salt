@@ -28,6 +28,15 @@
             {% include 'icons/folder.html' with class='w-4 h-4' %}
             {% if scenario %}<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-accent rounded-full"></span>{% endif %}
         </button>
+        {% else %}
+        <button hx-post="{% url 'fork_to_roleplay' %}"
+                hx-target="#main-content"
+                hx-swap="innerHTML"
+                hx-vals='{"session_id": "{{ session_id }}"}'
+                class="text-foreground-secondary hover:text-foreground cursor-pointer"
+                title="Fork to roleplay thread">
+            {% include 'icons/drama.html' with class='w-4 h-4' %}
+        </button>
         {% endif %}
         <button @click="window.dispatchEvent(new CustomEvent('open-thread-memory-modal'))"
                 class="text-foreground-secondary hover:text-foreground cursor-pointer"

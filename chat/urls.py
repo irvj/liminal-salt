@@ -18,6 +18,7 @@ urlpatterns = [
     path('session/scenario/save/', views.save_scenario, name='save_scenario'),
     path('session/thread-memory/update/', views.update_thread_memory, name='update_thread_memory'),
     path('session/thread-memory/status/', views.thread_memory_status, name='thread_memory_status'),
+    path('session/fork-to-roleplay/', views.fork_to_roleplay, name='fork_to_roleplay'),
     path('chat/send/', views.send_message, name='send_message'),
     path('chat/retry/', views.retry_message, name='retry_message'),
     path('chat/edit-message/', views.edit_message, name='edit_message'),

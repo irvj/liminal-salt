@@ -19,7 +19,7 @@ from ..services.memory_worker import (
 from ..services.session_manager import (
     load_session, create_session, delete_session as delete_session_file,
     toggle_pin, rename_session, save_draft as save_session_draft,
-    save_scenario as save_session_scenario,
+    save_scenario as save_session_scenario, fork_session_to_roleplay,
     clear_draft, remove_last_assistant_message, update_last_user_message,
     get_session_path, generate_session_id, make_user_timestamp,
 )
@@ -642,6 +642,59 @@ def edit_message(request):
         return HttpResponse(status=404)
 
     return HttpResponse(status=200)
+
+
+@require_POST
+def fork_to_roleplay(request):
+    """
+    Fork a chatbot thread into a new roleplay session. Thread memory
+    copies over; no memory is edited. Switches the current session to
+    the new fork and returns the chat view for it.
+    """
+    source_session_id = request.POST.get('session_id') or get_current_session(request)
+    if not source_session_id:
+        return HttpResponse(status=400)
+
+    config = load_config()
+    if not config:
+        return HttpResponse(status=500)
+
+    new_session_id = fork_session_to_roleplay(source_session_id)
+    if not new_session_id:
+        return HttpResponse(status=404)
+
+    set_current_session(request, new_session_id)
+
+    session_data = load_session(new_session_id)
+    session_persona = _resolve_session_persona(session_data, config)
+
+    user_timezone = request.session.get('user_timezone', 'UTC')
+    chat_core, model = _build_chat_core(config, new_session_id, session_persona, session_data, user_timezone)
+
+    sessions = get_sessions_with_titles()
+    pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
+    available_personas = get_available_personas(str(django_settings.PERSONAS_DIR))
+    default_persona = config.get("DEFAULT_PERSONA", "")
+
+    context = {
+        'session_id': new_session_id,
+        'title': chat_core.title,
+        'persona': chat_core.persona,
+        'model': model,
+        'mode': session_data.get('mode', 'chatbot') if session_data else 'chatbot',
+        'messages': chat_core.messages,
+        'scenario': session_data.get('scenario', '') if session_data else '',
+        'thread_memory': session_data.get('thread_memory', '') if session_data else '',
+        'thread_memory_updated_at': session_data.get('thread_memory_updated_at', '') if session_data else '',
+        'pinned_sessions': pinned_sessions,
+        'grouped_sessions': grouped_sessions,
+        'current_session': new_session_id,
+        'available_personas': available_personas,
+        'default_persona': default_persona,
+        'is_htmx': True,
+    }
+
+    return render(request, 'chat/chat_main.html', context)
 
 
 @require_POST

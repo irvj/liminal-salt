@@ -1,6 +1,6 @@
 # Thread Memory & Roleplay Mode — Implementation Plan
 
-**Status:** scoping
+**Status:** phases 1–3 shipped; phase 4 in progress
 **Last updated:** 2026-04-18
 
 ## Goals
@@ -58,18 +58,26 @@ This separation is what makes immutable modes workable: starting a fresh rolepla
 
 Available on chatbot-mode threads only. Roleplay threads have no fork action.
 
-Behavior (initial implementation kept deliberately simple):
+**Fork does not edit memory.** Neither persona memory nor thread memory is modified by the fork action. Auto-updates at both levels remain valid elsewhere (configured by the user in phase 5); fork itself is strictly a new-session creation that copies memory state forward. The user can manually clear, regenerate, or purge afterwards if they want.
+
+Behavior:
 - Creates a new session with `mode=roleplay`, same persona, duplicated message history.
-- Thread memory is cleared in the fork (chatbot-mode memory doesn't map cleanly to roleplay prompts; the new thread builds fresh from the copied messages).
+- **Thread memory (`thread_memory` and `thread_memory_updated_at`) is copied over intact.** Users can regenerate it under the roleplay prompt from the thread memory modal if they want a scene-shaped summary.
 - Draft cleared. Pinned state reset. Title reset (summarizer will regenerate).
-- Scenario field starts empty; user fills it in from the control panel.
+- Scenario starts empty (chatbot-mode sources have no scenario to copy); user fills it in from the control panel.
+- `excluded_from_persona_memory` starts false (the fork is a new thread, its own flag).
 - Original thread is untouched and continues contributing to persona memory normally.
+- **Persona memory is not touched** by the fork action.
 
 Forking a roleplay thread into another roleplay thread is **not supported** — it would carry story A's message history into story B's scenario, which is exactly the kind of narrative pollution the scope principle rejects. A fresh roleplay thread is the clean path.
 
-### Control-panel action: purge from persona memory
+### Persona memory contamination — existing defenses
 
-**Remove this thread's influence from persona memory** — purges what this thread has contributed to the persona's cross-thread memory. General-purpose safety valve, **not tied to mode**. Useful when a user vented in a chatbot thread, wrote creative content that wasn't formal roleplay, or otherwise wants to keep a thread out of persona memory without deleting it.
+No dedicated "purge this thread from persona memory" action. See the rejected-features section at the bottom for the reasoning. The existing defenses cover the real use cases:
+
+- **Roleplay mode filter** (phase 3) keeps fictional content out of persona memory automatically by excluding roleplay sessions from `aggregate_all_sessions_messages`. This is the primary defense and handles the most common contamination scenario.
+- **`modify_memory_with_command`** (existing) — the user can issue a natural-language correction ("forget what I said about X"). Surgical, user-described, scoped to what the user actually wants removed.
+- **Wipe memory** (existing) — the nuclear option when the user wants a clean slate.
 
 ### Thread memory triggering
 
@@ -87,6 +95,7 @@ New fields:
 - `mode`: `"chatbot"` | `"roleplay"`
 - `scenario`: `{ "type": "inline" | "file", "content": "..." }`
 - `thread_memory`: string (LLM-maintained summary)
+- `thread_memory_updated_at`: ISO timestamp of the last thread memory update
 - `thread_memory_settings`: object — overrides for interval, message floor, size limit, trigger mode. Inherits from persona defaults when absent.
 
 ### Per-persona config (`data/personas/{name}/config.json`)
@@ -104,7 +113,7 @@ Recommend starting with **inline content** in the session JSON. Add file upload 
 - Extend `context_manager.load_context()` to accept session data and inject the scenario + thread memory layers.
 - New `ThreadMemoryManager` (or extend `MemoryManager`) — mode-aware merge prompts, per-session memory I/O.
 - Extend `MemoryWorker` with per-session locks, a separate scheduler path for thread-memory auto-updates, and a status channel.
-- New helpers in `session_manager`: save scenario, save thread memory, fork-to-roleplay (duplicate session with mode=roleplay, clear thread memory/draft/title/pinned), purge-from-persona-memory.
+- New helpers in `session_manager`: save scenario, save thread memory, fork-to-roleplay (duplicate session with `mode=roleplay`; thread memory copied; draft/title/pinned reset).
 - `aggregate_all_sessions_messages` (in `utils.py`) filters out sessions whose mode is `roleplay` when building cross-persona memory.
 
 ## New URL routes (draft)
@@ -116,7 +125,6 @@ Recommend starting with **inline content** in the session JSON. Add file upload 
 /session/thread-memory/regenerate/
 /session/thread-memory/status/
 /session/fork-to-roleplay/
-/session/purge-from-persona-memory/
 /session/settings/save/
 ```
 
@@ -136,7 +144,6 @@ New button in the chat header (next to title). Opens a modal or side panel. Cont
 - Mode indicator (read-only).
 - Thread memory view (read-only) with **Update now** and **Regenerate** buttons and a status indicator.
 - Thread memory settings — interval, message floor, size limit, trigger mode; inherits from persona defaults.
-- **Purge from persona memory** action (confirmation modal).
 
 **Roleplay threads also show:**
 - Scenario editor (textarea, with file upload in a later phase).
@@ -156,7 +163,7 @@ Each phase is independently shippable.
 1. **Scenario layer** — session JSON field + scenario editor in thread header + inject into system prompt. Biggest immediate win, lowest cost. (Scenario is only meaningful for roleplay-mode threads; early phases can ship with mode hard-defaulted to `chatbot` and the scenario UI hidden until phase 3.)
 2. **Thread memory, chatbot mode only** — summarizer, background worker, inject into system prompt, manual **Update now** button.
 3. **Mode at creation + mode-aware behavior** — new-chat flow picks mode, mode-aware summarizer prompts, persona-memory aggregator filters out roleplay sessions, scenario editor becomes visible for roleplay threads.
-4. **Fork to roleplay + purge actions** — fork button on chatbot threads, purge-from-persona-memory action on all threads.
+4. **Fork to roleplay** — fork button on chatbot threads. Creates a new roleplay session with messages and thread memory copied; no memory is edited anywhere else.
 5. **Automatic triggering + advanced settings** — hybrid trigger, on-rollover mode, per-persona defaults.
 6. **Control panel consolidation** — unify scattered UI into a single thread control panel.
 
@@ -164,7 +171,17 @@ Each phase is independently shippable.
 
 - Does persona memory appear in roleplay-mode threads, or is it suppressed for immersion?
 - Scenario: inline-only to start, or ship file upload in phase 1?
-- Is **Purge from persona memory** an LLM-driven surgical edit of the existing memory, or a full regeneration from the remaining non-roleplay threads? (The latter is cleaner.)
+
+## Resolved decisions
+
+- **Fork does not edit memory.** Thread memory copies over intact on fork; persona memory is untouched. Auto-memory updates (configured by the user in phase 5) remain valid elsewhere; fork itself is strictly a new-session creation.
+
+## Rejected features
+
+- **Purge-from-persona-memory action.** Originally scoped for phase 4 (two-effect action: set an exclusion flag + LLM-driven surgical edit of existing memory). Rejected because for long threads the LLM can't reliably distinguish content that originated from the thread vs. content that was reinforced across many interactions — a bad purge could quietly wreck months of accumulated context. The risk outweighs the convenience. The existing defenses cover the real use cases:
+  - Roleplay-mode filter (phase 3) prevents future contamination automatically.
+  - `modify_memory_with_command` lets users make precise, user-described corrections.
+  - Wipe memory is available for a clean slate.
 
 ## Related fix (addressed separately)
 
