@@ -166,10 +166,15 @@ def aggregate_all_sessions_messages(user_history_max_threads=None, user_history_
                 data = json.load(f)
                 title = data.get("title", "Untitled")
                 persona = data.get("persona", "assistant")
+                mode = data.get("mode", "chatbot")
                 messages = data.get("messages", [])
 
                 # Skip sessions that don't match the persona filter
                 if persona_filter and persona != persona_filter:
+                    continue
+
+                # Roleplay threads never contribute to cross-persona memory
+                if mode == "roleplay":
                     continue
 
                 if isinstance(messages, list) and messages:

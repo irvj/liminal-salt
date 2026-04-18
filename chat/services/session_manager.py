@@ -54,7 +54,7 @@ def load_session(session_id):
     return _read_session(session_path)
 
 
-def create_session(session_id, persona, messages=None, title="New Chat"):
+def create_session(session_id, persona, messages=None, title="New Chat", mode="chatbot"):
     """
     Create a new session file.
 
@@ -63,6 +63,7 @@ def create_session(session_id, persona, messages=None, title="New Chat"):
         persona: Persona name for this session
         messages: Initial message list (default empty)
         title: Session title (default "New Chat")
+        mode: Thread mode, "chatbot" (default) or "roleplay". Immutable once set.
 
     Returns the session data dict that was written.
     """
@@ -70,6 +71,7 @@ def create_session(session_id, persona, messages=None, title="New Chat"):
     data = {
         "title": title,
         "persona": persona,
+        "mode": mode,
         "messages": messages or [],
     }
     _write_session(session_path, data)

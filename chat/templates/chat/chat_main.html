@@ -21,12 +21,14 @@
                 title="Rename chat">
             {% include 'icons/pencil.html' with class='w-4 h-4' %}
         </button>
+        {% if mode == 'roleplay' %}
         <button @click="window.dispatchEvent(new CustomEvent('open-scenario-modal'))"
                 class="relative text-foreground-secondary hover:text-foreground cursor-pointer"
                 :title="'Edit thread scenario'">
             {% include 'icons/folder.html' with class='w-4 h-4' %}
             {% if scenario %}<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-accent rounded-full"></span>{% endif %}
         </button>
+        {% endif %}
         <button @click="window.dispatchEvent(new CustomEvent('open-thread-memory-modal'))"
                 class="text-foreground-secondary hover:text-foreground cursor-pointer"
                 title="Thread memory">
@@ -34,7 +36,7 @@
         </button>
     </div>
     <div class="text-xs text-foreground-secondary mt-1">
-        Persona: {{ persona|display_name }} | Model: {{ model }}
+        Persona: {{ persona|display_name }}{% if mode == 'roleplay' %} · <span class="text-accent-secondary">Roleplay</span>{% endif %} | Model: {{ model }}
     </div>
 </header>
 

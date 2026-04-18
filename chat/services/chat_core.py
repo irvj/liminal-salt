@@ -39,13 +39,26 @@ class ChatCore:
         if not self.history_file:
             return
         try:
-            to_save = {
-                "title": self.title,
-                "persona": self.persona,
-                "messages": self.messages  # Save ALL messages locally
-            }
+            # Read-modify-write so we preserve fields ChatCore doesn't own
+            # (mode, scenario, thread_memory, thread_memory_updated_at, pinned, draft, etc.)
+            existing = {}
+            if os.path.exists(self.history_file):
+                try:
+                    with open(self.history_file, 'r') as f:
+                        loaded = json.load(f)
+                    if isinstance(loaded, dict):
+                        existing = loaded
+                except (json.JSONDecodeError, IOError):
+                    existing = {}
+
+            existing["title"] = self.title
+            existing["persona"] = self.persona
+            existing["messages"] = self.messages
+
             with open(self.history_file, 'w') as f:
-                json.dump(to_save, f, indent=4)
+                json.dump(existing, f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
         except Exception as e:
             print(f"Error saving history: {e}")
 

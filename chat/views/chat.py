@@ -9,8 +9,10 @@ from django.views.decorators.http import require_POST
 
 from ..services import (
     load_context, get_available_personas, get_persona_model,
+    get_persona_config,
     ChatCore, Summarizer,
 )
+from ..services.context_manager import get_persona_default_mode
 from ..services.memory_worker import (
     start_thread_memory_update, get_thread_update_status,
 )
@@ -45,7 +47,9 @@ def _build_chat_core(config, session_id, session_persona, session_data=None, use
     """Build a ChatCore instance for a session. Shared by multiple views."""
     model = get_model_for_persona(config, session_persona, django_settings.PERSONAS_DIR)
     persona_path = os.path.join(str(django_settings.PERSONAS_DIR), session_persona)
-    scenario = (session_data or {}).get('scenario', '')
+    mode = (session_data or {}).get('mode', 'chatbot')
+    # Scenario is only meaningful for roleplay threads; silently ignore it in chatbot mode.
+    scenario = (session_data or {}).get('scenario', '') if mode == 'roleplay' else ''
     thread_memory = (session_data or {}).get('thread_memory', '')
     system_prompt = load_context(
         persona_path, persona_name=session_persona,
@@ -73,6 +77,22 @@ def _build_persona_model_map(available_personas, default_model):
         pm = get_persona_model(p, str(django_settings.PERSONAS_DIR))
         persona_models[p] = pm or default_model
     return persona_models
+
+
+def _build_persona_mode_map(available_personas):
+    """
+    Build a {persona: default_mode} mapping for personas with an EXPLICIT
+    default_mode. Personas without one are omitted so the frontend can
+    distinguish "no opinion" from "explicitly chatbot".
+    """
+    personas_dir = str(django_settings.PERSONAS_DIR)
+    result = {}
+    for p in available_personas:
+        cfg = get_persona_config(p, personas_dir)
+        explicit = cfg.get("default_mode")
+        if explicit in ("chatbot", "roleplay"):
+            result[p] = explicit
+    return result
 
 
 def _get_user_timezone(request):
@@ -146,12 +166,14 @@ def chat(request):
         default_model = config.get("MODEL", "")
         pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
         persona_models = _build_persona_model_map(available_personas, default_model)
+        persona_modes = _build_persona_mode_map(available_personas)
 
         context = {
             'personas': available_personas,
             'default_persona': default_persona,
             'default_model': default_model,
             'persona_models_json': json.dumps(persona_models),
+            'persona_modes_json': json.dumps(persona_modes),
             'pinned_sessions': pinned_sessions,
             'grouped_sessions': grouped_sessions,
             'current_session': None,
@@ -172,12 +194,14 @@ def chat(request):
             default_model = config.get("MODEL", "")
             pinned_sessions, grouped_sessions = group_sessions_by_persona([])
             persona_models = _build_persona_model_map(available_personas, default_model)
+            persona_modes = _build_persona_mode_map(available_personas)
 
             context = {
                 'personas': available_personas,
                 'default_persona': default_persona,
                 'default_model': default_model,
                 'persona_models_json': json.dumps(persona_models),
+                'persona_modes_json': json.dumps(persona_modes),
                 'pinned_sessions': pinned_sessions,
                 'grouped_sessions': grouped_sessions,
                 'current_session': None,
@@ -213,6 +237,7 @@ def chat(request):
         'title': chat_core.title,
         'persona': chat_core.persona,
         'model': model,
+        'mode': session_data.get('mode', 'chatbot') if session_data else 'chatbot',
         'messages': chat_core.messages,
         'draft': session_draft,
         'scenario': session_data.get('scenario', '') if session_data else '',
@@ -259,12 +284,14 @@ def new_chat(request):
     sessions = get_sessions_with_titles()
     pinned_sessions, grouped_sessions = group_sessions_by_persona(sessions)
     persona_models = _build_persona_model_map(available_personas, default_model)
+    persona_modes = _build_persona_mode_map(available_personas)
 
     context = {
         'personas': available_personas,
         'default_persona': default_persona,
         'default_model': default_model,
         'persona_models_json': json.dumps(persona_models),
+        'persona_modes_json': json.dumps(persona_modes),
         'pinned_sessions': pinned_sessions,
         'grouped_sessions': grouped_sessions,
         'current_session': None,
@@ -291,6 +318,10 @@ def start_chat(request):
         return redirect('chat')
 
     selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant")) or "assistant"
+    selected_mode = request.POST.get('mode', 'chatbot')
+    if selected_mode not in ('chatbot', 'roleplay'):
+        selected_mode = 'chatbot'
+    initial_scenario = request.POST.get('scenario', '') if selected_mode == 'roleplay' else ''
     session_id = generate_session_id()
 
     user_timezone = _get_user_timezone(request)
@@ -299,7 +330,9 @@ def start_chat(request):
     initial_messages = [
         {"role": "user", "content": user_message, "timestamp": timestamp}
     ]
-    create_session(session_id, selected_persona, messages=initial_messages)
+    create_session(session_id, selected_persona, messages=initial_messages, mode=selected_mode)
+    if initial_scenario:
+        save_session_scenario(session_id, initial_scenario)
 
     set_current_session(request, session_id)
 
@@ -314,7 +347,11 @@ def start_chat(request):
         'title': 'New Chat',
         'persona': selected_persona,
         'model': model,
+        'mode': selected_mode,
         'messages': initial_messages,
+        'scenario': initial_scenario,
+        'thread_memory': '',
+        'thread_memory_updated_at': '',
         'pinned_sessions': pinned_sessions,
         'grouped_sessions': grouped_sessions,
         'current_session': session_id,
@@ -363,6 +400,7 @@ def delete_chat(request):
                 'title': chat_core.title,
                 'persona': chat_core.persona,
                 'model': model,
+                'mode': session_data.get('mode', 'chatbot') if session_data else 'chatbot',
                 'messages': chat_core.messages,
                 'scenario': session_data.get('scenario', '') if session_data else '',
                 'thread_memory': session_data.get('thread_memory', '') if session_data else '',
@@ -385,12 +423,14 @@ def delete_chat(request):
             default_persona = config.get("DEFAULT_PERSONA", "") or "assistant"
             default_model = config.get("MODEL", "")
             persona_models = _build_persona_model_map(available_personas, default_model)
+            persona_modes = _build_persona_mode_map(available_personas)
 
             context = {
                 'personas': available_personas,
                 'default_persona': default_persona,
                 'default_model': default_model,
                 'persona_models_json': json.dumps(persona_models),
+                'persona_modes_json': json.dumps(persona_modes),
                 'pinned_sessions': pinned_sessions,
                 'grouped_sessions': grouped_sessions,
                 'current_session': None,
@@ -497,8 +537,11 @@ def send_message(request):
 
     if is_new_chat or not session_id:
         selected_persona = request.POST.get('persona', config.get("DEFAULT_PERSONA", "assistant")) or "assistant"
+        selected_mode = request.POST.get('mode', 'chatbot')
+        if selected_mode not in ('chatbot', 'roleplay'):
+            selected_mode = 'chatbot'
         session_id = generate_session_id()
-        create_session(session_id, selected_persona)
+        create_session(session_id, selected_persona, mode=selected_mode)
         set_current_session(request, session_id)
 
     # Load session data via SessionManager
@@ -530,7 +573,11 @@ def send_message(request):
             'title': chat_core.title,
             'persona': chat_core.persona,
             'model': model,
+            'mode': session_data.get('mode', 'chatbot') if session_data else 'chatbot',
             'messages': chat_core.messages,
+            'scenario': session_data.get('scenario', '') if session_data else '',
+            'thread_memory': session_data.get('thread_memory', '') if session_data else '',
+            'thread_memory_updated_at': session_data.get('thread_memory_updated_at', '') if session_data else '',
             'pinned_sessions': pinned_sessions,
             'grouped_sessions': grouped_sessions,
             'current_session': session_id,

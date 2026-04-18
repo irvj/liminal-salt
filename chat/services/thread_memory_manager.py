@@ -54,7 +54,7 @@ class ThreadMemoryManager:
         self.site_name = site_name
 
     def merge(self, persona_display_name, existing_memory, new_messages,
-              size_limit=DEFAULT_THREAD_MEMORY_SIZE):
+              size_limit=DEFAULT_THREAD_MEMORY_SIZE, mode="chatbot"):
         """
         Merge new messages into the existing thread summary via LLM.
 
@@ -63,6 +63,7 @@ class ThreadMemoryManager:
             existing_memory: Current thread memory string (may be empty)
             new_messages: List of message dicts (each with role/content/timestamp)
             size_limit: Target character count (0 = unlimited)
+            mode: "chatbot" or "roleplay" — selects prompt variant
 
         Returns:
             Updated memory string on success, None on failure.
@@ -85,7 +86,36 @@ class ThreadMemoryManager:
             else "No summary yet. This is the start of the thread."
         )
 
-        prompt = (
+        if mode == "roleplay":
+            prompt = self._build_roleplay_prompt(
+                persona_display_name, existing_block, transcript, size_instruction,
+            )
+        else:
+            prompt = self._build_chatbot_prompt(
+                persona_display_name, existing_block, transcript, size_instruction,
+            )
+
+        try:
+            updated = call_llm(
+                self.api_key, self.model,
+                [{"role": "user", "content": prompt}],
+                site_url=self.site_url, site_name=self.site_name,
+                timeout=600,
+            )
+
+            if len(updated) < 10 and len(existing_memory) > 50:
+                # Safety: reject suspiciously short replacements of substantial memory
+                return None
+
+            return updated
+
+        except LLMError as e:
+            logger.error(f"Thread memory merge failed: {e}")
+            return None
+
+    def _build_chatbot_prompt(self, persona_display_name, existing_block,
+                              transcript, size_instruction):
+        return (
             "You are maintaining a running summary of a conversation thread between a user\n"
             f"and {persona_display_name}. The summary captures what has happened in THIS\n"
             "specific thread — decisions made, topics discussed, state changes, emotional\n"
@@ -118,20 +148,40 @@ class ThreadMemoryManager:
             "Return ONLY the updated summary. No preamble, no explanation."
         )
 
-        try:
-            updated = call_llm(
-                self.api_key, self.model,
-                [{"role": "user", "content": prompt}],
-                site_url=self.site_url, site_name=self.site_name,
-                timeout=600,
-            )
+    def _build_roleplay_prompt(self, persona_display_name, existing_block,
+                               transcript, size_instruction):
+        return (
+            "You are maintaining a running summary of a ROLEPLAY thread. Treat the\n"
+            "exchange as fiction — a scene unfolding between characters. Your job is\n"
+            "to preserve scene state, character positions, emotional beats, plot\n"
+            "threads, unresolved tensions, and anything that needs to survive into\n"
+            "future scenes as the rolling window trims older messages.\n\n"
 
-            if len(updated) < 10 and len(existing_memory) > 50:
-                # Safety: reject suspiciously short replacements of substantial memory
-                return None
+            "--- CURRENT SCENE SUMMARY ---\n"
+            f"{existing_block}\n\n"
 
-            return updated
+            "--- NEW MESSAGES (since last update) ---\n"
+            f"{transcript}\n\n"
 
-        except LLMError as e:
-            logger.error(f"Thread memory merge failed: {e}")
-            return None
+            "--- INSTRUCTIONS ---\n\n"
+
+            "Produce an updated summary that:\n"
+            "- MERGES the new events into the existing summary; don't rewrite from scratch.\n"
+            "- PRESERVES narrative continuity: where characters are, what they're doing,\n"
+            "  what they're feeling, what was said, what was implied.\n"
+            "- TRACKS plot threads, promises made, secrets revealed, relationship shifts.\n"
+            "- KEEPS vivid moments: specific lines of dialogue, sensory details, emotional\n"
+            "  turning points — these anchor the scene and shouldn't be flattened out.\n"
+            "- COMPRESSES filler: long back-and-forth that doesn't advance the scene can\n"
+            "  be summarized in a sentence.\n"
+            "- LETS minor details fade once they're no longer relevant.\n"
+            "- USES character names (not \"the user\" and not the persona's raw name if a\n"
+            "  character name is clear from context) and writes in third-person narrative\n"
+            "  prose, past tense. Not a script, not a log.\n"
+            "- DOES NOT extract the real user's biographical facts; this is fiction.\n"
+            "- AVOIDS meta-commentary about the update process.\n\n"
+
+            f"{size_instruction}"
+
+            "Return ONLY the updated summary. No preamble, no explanation."
+        )

@@ -546,6 +546,7 @@ def run_thread_memory_update(session_id, config):
 
         persona_name = session_data.get('persona', 'assistant')
         persona_display = persona_name.replace('_', ' ').title()
+        mode = session_data.get('mode', 'chatbot')
 
         api_key = config.get("OPENROUTER_API_KEY")
         site_url = config.get("SITE_URL")
@@ -557,6 +558,7 @@ def run_thread_memory_update(session_id, config):
         updated_memory = manager.merge(
             persona_display, existing_memory, new_messages,
             size_limit=DEFAULT_THREAD_MEMORY_SIZE,
+            mode=mode,
         )
 
         finished = datetime.now(timezone.utc).isoformat()

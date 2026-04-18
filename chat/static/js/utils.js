@@ -1111,6 +1111,16 @@ function clearNewChatDraft() {
 }
 
 /**
+ * Clear any pending home-page scenario. Called on new-chat submit so the
+ * scenario is consumed once the thread is created. The homePersonaPicker
+ * component listens for the event and zeros its state.
+ */
+function clearNewChatScenario() {
+    localStorage.removeItem('home-chat-scenario');
+    window.dispatchEvent(new CustomEvent('home-scenario-cleared'));
+}
+
+/**
  * Copy message content to clipboard.
  * @param {HTMLElement} button - The button element with data-message attribute
  */

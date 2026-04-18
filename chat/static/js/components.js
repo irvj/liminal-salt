@@ -356,9 +356,14 @@ function scenarioModal() {
         },
 
         async save() {
+            // Home mode: no session exists yet. Just propagate the content
+            // back to the home page component and close. Submission will
+            // carry the scenario along as a form field.
             if (!this.sessionId) {
-                this.statusMessage = 'No active session.';
-                this.statusType = 'error';
+                window.dispatchEvent(new CustomEvent('home-scenario-saved', {
+                    detail: { content: this.content },
+                }));
+                this.showModal = false;
                 return;
             }
 
@@ -1342,8 +1347,15 @@ function providerModelSettings() {
 function homePersonaPicker() {
     return {
         selectedPersona: '',
+        selectedMode: 'chatbot',
+        scenarioContent: '',
         personaItems: [],
+        modeItems: [
+            { id: 'chatbot', label: 'Chatbot' },
+            { id: 'roleplay', label: 'Roleplay' },
+        ],
         personaModels: {},
+        personaModes: {},
         defaultModel: '',
 
         get currentModel() {
@@ -1357,6 +1369,17 @@ function homePersonaPicker() {
 
         onPersonaSelect(detail) {
             this.selectedPersona = detail.id;
+            // Honor the persona's default mode when switching personas
+            const defaultMode = this.personaModes[detail.id];
+            if (defaultMode === 'chatbot' || defaultMode === 'roleplay') {
+                this.selectedMode = defaultMode;
+            }
+        },
+
+        onModeSelect(detail) {
+            if (detail.id === 'chatbot' || detail.id === 'roleplay') {
+                this.selectedMode = detail.id;
+            }
         },
 
         init() {
@@ -1380,8 +1403,38 @@ function homePersonaPicker() {
                 } catch (e) {
                     this.personaModels = {};
                 }
+                try {
+                    this.personaModes = JSON.parse(dataEl.dataset.personaModes || '{}');
+                } catch (e) {
+                    this.personaModes = {};
+                }
                 this.defaultModel = dataEl.dataset.defaultModel || '';
             }
+
+            // Seed selectedMode from the default persona's configured default_mode
+            const initialMode = this.personaModes[this.selectedPersona];
+            if (initialMode === 'chatbot' || initialMode === 'roleplay') {
+                this.selectedMode = initialMode;
+            }
+
+            // Restore any saved home-page scenario
+            this.scenarioContent = localStorage.getItem('home-chat-scenario') || '';
+
+            // Scenario modal reports back via this event (home mode path)
+            window.addEventListener('home-scenario-saved', (e) => {
+                this.scenarioContent = e.detail.content || '';
+                if (this.scenarioContent) {
+                    localStorage.setItem('home-chat-scenario', this.scenarioContent);
+                } else {
+                    localStorage.removeItem('home-chat-scenario');
+                }
+            });
+
+            // Clear hook — called from the form's before-request handler
+            window.addEventListener('home-scenario-cleared', () => {
+                this.scenarioContent = '';
+                localStorage.removeItem('home-chat-scenario');
+            });
 
             // Set timezone
             setTimezoneInput();

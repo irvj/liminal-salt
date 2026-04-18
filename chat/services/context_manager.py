@@ -209,3 +209,15 @@ def get_persona_model(persona_name, personas_dir="personas"):
     """
     config = get_persona_config(persona_name, personas_dir)
     return config.get("model")
+
+
+def get_persona_default_mode(persona_name, personas_dir="personas"):
+    """
+    Get the default thread mode for a persona, or "chatbot" if not set.
+
+    Returns:
+        "chatbot" or "roleplay"
+    """
+    config = get_persona_config(persona_name, personas_dir)
+    mode = config.get("default_mode", "chatbot")
+    return mode if mode in ("chatbot", "roleplay") else "chatbot"
