@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.1] - 2026-04-18
+
+### Changes
+- reconcile audit-fixes against current tree, relocate planning docs under docs/planning/
+
 ## [0.10.0] - 2026-04-18
 
 ### Changes
