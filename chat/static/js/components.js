@@ -219,6 +219,23 @@ function threadMemoryModal() {
             this.settingsStatusMessage = '';
         },
 
+        // Match server-side clamping (chat.views.chat.save_thread_memory_settings)
+        // so the displayed value reflects what would be saved. Applied on @change
+        // (blur) so the user sees the snap before they hit Save.
+        clampInterval(v) {
+            const n = Number.isFinite(v) ? v : 0;
+            if (n <= 0) return 0;
+            return Math.max(5, Math.min(1440, Math.round(n)));
+        },
+        clampMessageFloor(v) {
+            const n = Number.isFinite(v) ? v : 4;
+            return Math.max(1, Math.min(1000, Math.round(n)));
+        },
+        clampSizeLimit(v) {
+            const n = Number.isFinite(v) ? v : 0;
+            return Math.max(0, Math.min(100000, Math.round(n)));
+        },
+
         open() {
             this._readFromDOM();
             this.statusMessage = '';
@@ -1927,6 +1944,23 @@ function personaThreadDefaults() {
         ],
         _saveUrl: '',
         _clearUrl: '',
+
+        // Match server-side clamping (chat.views.personas.save_persona_thread_defaults)
+        // so the displayed value reflects what would be saved. Applied on @change
+        // so the user sees the snap before Save.
+        clampInterval(v) {
+            const n = Number.isFinite(v) ? v : 0;
+            if (n <= 0) return 0;
+            return Math.max(5, Math.min(1440, Math.round(n)));
+        },
+        clampMessageFloor(v) {
+            const n = Number.isFinite(v) ? v : 4;
+            return Math.max(1, Math.min(1000, Math.round(n)));
+        },
+        clampSizeLimit(v) {
+            const n = Number.isFinite(v) ? v : 0;
+            return Math.max(0, Math.min(100000, Math.round(n)));
+        },
 
         init() {
             const el = this.$el;

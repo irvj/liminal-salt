@@ -109,18 +109,21 @@
             <div>
                 <label class="block text-xs text-foreground-secondary mb-1">Interval (min)</label>
                 <input type="number" x-model.number="intervalMinutes" @input="dirty = true"
+                       @change="intervalMinutes = clampInterval(intervalMinutes)"
                        min="0" max="1440" placeholder="0"
                        class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
             </div>
             <div>
                 <label class="block text-xs text-foreground-secondary mb-1">Message Floor</label>
                 <input type="number" x-model.number="messageFloor" @input="dirty = true"
+                       @change="messageFloor = clampMessageFloor(messageFloor)"
                        min="1" max="1000" placeholder="4"
                        class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
             </div>
             <div>
                 <label class="block text-xs text-foreground-secondary mb-1">Size Limit</label>
                 <input type="number" x-model.number="sizeLimit" @input="dirty = true"
+                       @change="sizeLimit = clampSizeLimit(sizeLimit)"
                        min="0" max="100000" step="500" placeholder="4000"
                        class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
             </div>
