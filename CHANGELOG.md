@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.3] - 2026-04-18
+
+### Changes
+- fix per persona intervals for memory update loop
+
 ## [0.9.2] - 2026-04-15
 
 ### Changes
