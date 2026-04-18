@@ -23,6 +23,24 @@ DEFAULT_THREAD_MEMORY_INTERVAL_MINUTES = 0
 DEFAULT_THREAD_MEMORY_MESSAGE_FLOOR = 4
 
 
+def resolve_persona_thread_memory_defaults(persona_config):
+    """
+    Return the persona's effective thread-memory defaults: persona config
+    values merged with global fallback. Used by the persona settings UI
+    to prefill form fields.
+    """
+    result = {
+        'interval_minutes': DEFAULT_THREAD_MEMORY_INTERVAL_MINUTES,
+        'message_floor': DEFAULT_THREAD_MEMORY_MESSAGE_FLOOR,
+        'size_limit': DEFAULT_THREAD_MEMORY_SIZE,
+    }
+    persona_defaults = (persona_config or {}).get('default_thread_memory_settings') or {}
+    for key in list(result.keys()):
+        if key in persona_defaults:
+            result[key] = persona_defaults[key]
+    return result
+
+
 def resolve_thread_memory_settings(session_data, persona_config):
     """
     Merge effective thread-memory settings: per-thread override (in session

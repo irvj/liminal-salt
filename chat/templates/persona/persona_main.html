@@ -71,8 +71,76 @@
     </div>
     {% endif %}
 
+    <!-- Thread Defaults for this persona -->
+    <div class="mt-6 pt-5 border-t border-border"
+         x-data="personaThreadDefaults"
+         data-persona="{{ selected_persona }}"
+         data-default-mode="{{ persona_default_mode_raw|default:'' }}"
+         data-interval-minutes="{{ persona_default_interval_minutes|default:0 }}"
+         data-message-floor="{{ persona_default_message_floor|default:4 }}"
+         data-size-limit="{{ persona_default_size_limit|default:4000 }}"
+         data-has-thread-defaults="{{ persona_has_thread_defaults|yesno:'true,false' }}"
+         data-save-url="{% url 'save_persona_thread_defaults' %}"
+         data-clear-url="{% url 'clear_persona_thread_defaults' %}">
+
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-lg text-foreground">Thread Defaults</h3>
+            <span class="text-xs text-foreground-muted"
+                  x-text="hasDefaults ? 'Custom defaults for this persona' : 'Standard settings'"></span>
+        </div>
+        <p class="text-xs text-foreground-muted mb-4">
+            Applied when a new thread is created with <span class="text-accent-secondary">{{ selected_persona|display_name }}</span>. Individual threads can override these from the thread memory modal. Chatbot is the baseline; switch to Roleplay only if you want this persona to open as roleplay by default.
+        </p>
+
+        <div x-show="statusMessage" x-transition
+             :class="statusType === 'success' ? 'bg-success text-surface' : 'bg-danger text-white'"
+             class="p-2 px-3 rounded mb-3 text-xs">
+            <span x-text="statusMessage"></span>
+        </div>
+
+        <div class="flex flex-wrap items-end gap-4 mb-2"
+             @dropdown-select="onModeSelect($event.detail)">
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Default Mode</label>
+                <div x-data="selectDropdown" :data-items="JSON.stringify(modeItems)" :data-selected="defaultMode">
+                    {% include 'components/select_dropdown.html' with placeholder='Use app default' trigger_class='flex items-center gap-2 text-foreground text-sm cursor-pointer outline-none focus:ring-1 focus:ring-accent-secondary rounded p-2 border border-border bg-surface w-48 justify-between' %}
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Interval (min)</label>
+                <input type="number" x-model.number="intervalMinutes" @input="dirty = true"
+                       min="0" max="1440" placeholder="0"
+                       class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Message Floor</label>
+                <input type="number" x-model.number="messageFloor" @input="dirty = true"
+                       min="1" max="1000" placeholder="4"
+                       class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Size Limit</label>
+                <input type="number" x-model.number="sizeLimit" @input="dirty = true"
+                       min="0" max="100000" step="500" placeholder="4000"
+                       class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
+            <button @click="save()" x-show="dirty" :disabled="saving"
+                    class="px-3 py-2 bg-accent text-foreground-on-accent rounded text-sm font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
+                <span x-show="!saving">Save</span>
+                <span x-show="saving">...</span>
+            </button>
+            <button @click="clear()" x-show="hasDefaults && !dirty" :disabled="saving"
+                    class="px-3 py-2 bg-border text-foreground rounded text-sm font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent disabled:opacity-50">
+                Clear persona defaults
+            </button>
+        </div>
+        <p class="text-xs text-foreground-muted mt-2">
+            Interval 0 = auto-update disabled. Size Limit 0 = unlimited.
+        </p>
+    </div>
+
     {% if persona_preview %}
-    <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent mt-2 prose prose-invert max-w-none !text-foreground-secondary prose-headings:!text-foreground-secondary prose-strong:!text-foreground-secondary marker:!text-foreground-secondary">
+    <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent mt-6 prose prose-invert max-w-none !text-foreground-secondary prose-headings:!text-foreground-secondary prose-strong:!text-foreground-secondary marker:!text-foreground-secondary">
         {{ persona_preview|markdown }}
     </div>
     {% endif %}

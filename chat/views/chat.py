@@ -101,17 +101,18 @@ def _thread_memory_settings_context(session_data, session_persona):
 
 def _build_persona_mode_map(available_personas):
     """
-    Build a {persona: default_mode} mapping for personas with an EXPLICIT
-    default_mode. Personas without one are omitted so the frontend can
-    distinguish "no opinion" from "explicitly chatbot".
+    Build a {persona: default_mode} mapping only for personas that have
+    explicitly opted into `roleplay` as their default. Chatbot is the
+    baseline — it doesn't need to appear in the map to take effect, and
+    an old stray `default_mode: "chatbot"` in some config should not
+    force the home picker to switch.
     """
     personas_dir = str(django_settings.PERSONAS_DIR)
     result = {}
     for p in available_personas:
         cfg = get_persona_config(p, personas_dir)
-        explicit = cfg.get("default_mode")
-        if explicit in ("chatbot", "roleplay"):
-            result[p] = explicit
+        if cfg.get("default_mode") == "roleplay":
+            result[p] = "roleplay"
     return result
 
 

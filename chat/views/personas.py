@@ -20,6 +20,7 @@ from ..services.persona_manager import (
     rename_persona, persona_exists,
 )
 from ..services.session_manager import update_persona_across_sessions
+from ..services.thread_memory_manager import resolve_persona_thread_memory_defaults
 from ..utils import load_config, save_config, get_formatted_model_list
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,41 @@ def _persona_context_extras(persona_name):
     return {
         'persona_context_local_dirs_json': json.dumps(local_dirs),
         'persona_context_badge_count': _persona_context_badge_count(persona_name),
+    }
+
+
+def _persona_defaults_context(persona_name):
+    """
+    Return template-context keys for the persona's thread-defaults form:
+    the raw explicit default_mode (empty string if unset) and the
+    effective thread memory defaults (merged with global fallback).
+    """
+    if not persona_name:
+        return {
+            'persona_default_mode_raw': '',
+            'persona_default_interval_minutes': 0,
+            'persona_default_message_floor': 4,
+            'persona_default_size_limit': 4000,
+            'persona_has_thread_defaults': False,
+        }
+
+    personas_dir = str(django_settings.PERSONAS_DIR)
+    cfg = get_persona_config(persona_name, personas_dir)
+
+    # Chatbot is the baseline; only 'roleplay' counts as a meaningful override.
+    raw_mode = cfg.get('default_mode', '')
+    if raw_mode != 'roleplay':
+        raw_mode = ''
+
+    effective = resolve_persona_thread_memory_defaults(cfg)
+    has_thread_defaults = bool(cfg.get('default_thread_memory_settings'))
+
+    return {
+        'persona_default_mode_raw': raw_mode,
+        'persona_default_interval_minutes': effective['interval_minutes'],
+        'persona_default_message_floor': effective['message_floor'],
+        'persona_default_size_limit': effective['size_limit'],
+        'persona_has_thread_defaults': has_thread_defaults or bool(raw_mode),
     }
 
 
@@ -90,6 +126,7 @@ def persona_settings(request):
         'persona_context_files_json': json.dumps(persona_context_files),
         'success': request.GET.get('success'),
         **_persona_context_extras(selected_persona),
+        **_persona_defaults_context(selected_persona),
     }
 
     if request.headers.get('HX-Request'):
@@ -155,6 +192,7 @@ def save_persona_file(request):
         'persona_context_files_json': json.dumps(list_persona_context_files(final_persona)),
         'success': "Persona saved" + (" and renamed" if is_rename else ""),
         **_persona_context_extras(final_persona),
+        **_persona_defaults_context(final_persona),
     }
     return render(request, 'persona/persona_main.html', context)
 
@@ -200,6 +238,7 @@ def create_persona(request):
         'persona_context_files_json': '[]',
         'success': "Persona created",
         **_persona_context_extras(name),
+        **_persona_defaults_context(name),
     }
     return render(request, 'persona/persona_main.html', context)
 
@@ -264,6 +303,7 @@ def delete_persona(request):
         'persona_context_files_json': json.dumps(list_persona_context_files(default_persona)),
         'success': "Persona deleted",
         **_persona_context_extras(default_persona),
+        **_persona_defaults_context(default_persona),
     }
     return render(request, 'persona/persona_main.html', context)
 
@@ -292,3 +332,86 @@ def save_persona_model(request):
     save_persona_config(persona, config, personas_dir)
 
     return JsonResponse({'success': True, 'model': model or None})
+
+
+def _persona_defaults_response(persona_name):
+    """Build the JSON payload describing the persona's effective defaults."""
+    personas_dir = str(django_settings.PERSONAS_DIR)
+    cfg = get_persona_config(persona_name, personas_dir)
+    raw_mode = cfg.get('default_mode', '')
+    if raw_mode != 'roleplay':
+        raw_mode = ''
+    effective = resolve_persona_thread_memory_defaults(cfg)
+    return {
+        'default_mode_raw': raw_mode,
+        'effective': effective,
+        'has_thread_defaults': bool(cfg.get('default_thread_memory_settings')) or bool(raw_mode),
+    }
+
+
+@require_POST
+def save_persona_thread_defaults(request):
+    """
+    Save per-persona thread defaults: `default_mode` (empty string = unset)
+    and `default_thread_memory_settings` (all three fields always written).
+    """
+    persona = request.POST.get('persona', '').strip()
+    if not persona:
+        return JsonResponse({'error': 'Persona is required'}, status=400)
+    if not persona_exists(persona):
+        return JsonResponse({'error': 'Persona not found'}, status=404)
+
+    personas_dir = str(django_settings.PERSONAS_DIR)
+    cfg = get_persona_config(persona, personas_dir)
+
+    # Chatbot is the baseline — only 'roleplay' persists as an override.
+    # Saving 'chatbot' (or anything else) clears the key.
+    raw_mode = request.POST.get('default_mode', '').strip()
+    if raw_mode == 'roleplay':
+        cfg['default_mode'] = 'roleplay'
+    elif 'default_mode' in cfg:
+        del cfg['default_mode']
+
+    # Thread memory defaults
+    try:
+        interval_minutes = int(request.POST.get('interval_minutes', 0))
+        message_floor = int(request.POST.get('message_floor', 4))
+        size_limit = int(request.POST.get('size_limit', 4000))
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'Invalid setting value.'}, status=400)
+
+    if interval_minutes > 0:
+        interval_minutes = max(5, min(1440, interval_minutes))
+    else:
+        interval_minutes = 0
+    message_floor = max(1, min(1000, message_floor))
+    size_limit = max(0, min(100000, size_limit))
+
+    cfg['default_thread_memory_settings'] = {
+        'interval_minutes': interval_minutes,
+        'message_floor': message_floor,
+        'size_limit': size_limit,
+    }
+
+    save_persona_config(persona, cfg, personas_dir)
+    return JsonResponse(_persona_defaults_response(persona))
+
+
+@require_POST
+def clear_persona_thread_defaults(request):
+    """Clear both `default_mode` and `default_thread_memory_settings`."""
+    persona = request.POST.get('persona', '').strip()
+    if not persona:
+        return JsonResponse({'error': 'Persona is required'}, status=400)
+    if not persona_exists(persona):
+        return JsonResponse({'error': 'Persona not found'}, status=404)
+
+    personas_dir = str(django_settings.PERSONAS_DIR)
+    cfg = get_persona_config(persona, personas_dir)
+
+    for key in ('default_mode', 'default_thread_memory_settings'):
+        if key in cfg:
+            del cfg[key]
+
+    save_persona_config(persona, cfg, personas_dir)
+    return JsonResponse(_persona_defaults_response(persona))

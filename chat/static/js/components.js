@@ -29,6 +29,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('homePersonaPicker', homePersonaPicker);
     Alpine.data('memoryPersonaPicker', memoryPersonaPicker);
     Alpine.data('personaSettingsPicker', personaSettingsPicker);
+    Alpine.data('personaThreadDefaults', personaThreadDefaults);
     Alpine.data('providerPicker', providerPicker);
     Alpine.data('modelPicker', modelPicker);
     Alpine.data('themePicker', themePicker);
@@ -1869,6 +1870,134 @@ function memorySettings() {
                 if (resp.ok) this.saved = true;
             } catch (e) {
                 console.error('Failed to save memory settings:', e);
+            } finally {
+                this.saving = false;
+            }
+        }
+    };
+}
+
+// =============================================================================
+// Persona Thread Defaults Component (persona settings page)
+// =============================================================================
+
+function personaThreadDefaults() {
+    return {
+        persona: '',
+        defaultMode: 'chatbot',
+        intervalMinutes: 0,
+        messageFloor: 4,
+        sizeLimit: 4000,
+        hasDefaults: false,
+        dirty: false,
+        saving: false,
+        statusMessage: '',
+        statusType: '',
+        modeItems: [
+            { id: 'chatbot', label: 'Chatbot' },
+            { id: 'roleplay', label: 'Roleplay' },
+        ],
+        _saveUrl: '',
+        _clearUrl: '',
+
+        init() {
+            const el = this.$el;
+            this.persona = el.dataset.persona || '';
+            // Backend returns 'roleplay' or ''. Chatbot is the baseline so '' → chatbot.
+            this.defaultMode = el.dataset.defaultMode === 'roleplay' ? 'roleplay' : 'chatbot';
+            this.intervalMinutes = parseInt(el.dataset.intervalMinutes) || 0;
+            this.messageFloor = parseInt(el.dataset.messageFloor) || 4;
+            this.sizeLimit = parseInt(el.dataset.sizeLimit) || 4000;
+            this.hasDefaults = el.dataset.hasThreadDefaults === 'true';
+            this._saveUrl = el.dataset.saveUrl;
+            this._clearUrl = el.dataset.clearUrl;
+        },
+
+        onModeSelect(detail) {
+            const id = detail && detail.id === 'roleplay' ? 'roleplay' : 'chatbot';
+            if (id === this.defaultMode) return;
+            this.defaultMode = id;
+            this.dirty = true;
+        },
+
+        _applyResponse(data) {
+            if (!data) return;
+            // Backend returns 'roleplay' or ''. Chatbot is baseline.
+            const rawMode = (data.default_mode_raw === 'roleplay') ? 'roleplay' : 'chatbot';
+            this.defaultMode = rawMode;
+            const eff = data.effective || {};
+            if (typeof eff.interval_minutes === 'number') this.intervalMinutes = eff.interval_minutes;
+            if (typeof eff.message_floor === 'number') this.messageFloor = eff.message_floor;
+            if (typeof eff.size_limit === 'number') this.sizeLimit = eff.size_limit;
+            this.hasDefaults = !!data.has_thread_defaults;
+            this.dirty = false;
+        },
+
+        async save() {
+            if (!this.persona) return;
+            this.saving = true;
+            this.statusMessage = '';
+            const body = new URLSearchParams();
+            body.append('persona', this.persona);
+            body.append('default_mode', this.defaultMode || '');
+            body.append('interval_minutes', String(this.intervalMinutes));
+            body.append('message_floor', String(this.messageFloor));
+            body.append('size_limit', String(this.sizeLimit));
+            try {
+                const resp = await fetch(this._saveUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: body.toString(),
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    this._applyResponse(data);
+                    this.statusMessage = 'Defaults saved.';
+                    this.statusType = 'success';
+                } else {
+                    const data = await resp.json().catch(() => ({}));
+                    this.statusMessage = data.error || `Save failed (${resp.status}).`;
+                    this.statusType = 'error';
+                }
+            } catch (e) {
+                this.statusMessage = `Save failed: ${e.message}`;
+                this.statusType = 'error';
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async clear() {
+            if (!this.persona) return;
+            this.saving = true;
+            this.statusMessage = '';
+            const body = new URLSearchParams();
+            body.append('persona', this.persona);
+            try {
+                const resp = await fetch(this._clearUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: body.toString(),
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    this._applyResponse(data);
+                    this.statusMessage = 'Persona defaults cleared.';
+                    this.statusType = 'success';
+                } else {
+                    const data = await resp.json().catch(() => ({}));
+                    this.statusMessage = data.error || `Clear failed (${resp.status}).`;
+                    this.statusType = 'error';
+                }
+            } catch (e) {
+                this.statusMessage = `Clear failed: ${e.message}`;
+                this.statusType = 'error';
             } finally {
                 this.saving = false;
             }

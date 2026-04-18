@@ -19,6 +19,7 @@ from .memory import (
 from .personas import (
     persona_settings, save_persona_file, create_persona, delete_persona,
     save_persona_model,
+    save_persona_thread_defaults, clear_persona_thread_defaults,
 )
 from .settings import (
     settings, save_settings, save_context_history_limit,
