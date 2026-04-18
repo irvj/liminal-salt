@@ -21,7 +21,7 @@ from ..services.persona_manager import (
 )
 from ..services.session_manager import update_persona_across_sessions
 from ..services.thread_memory_manager import resolve_persona_thread_memory_defaults
-from ..utils import load_config, save_config, get_formatted_model_list
+from ..utils import load_config, save_config
 
 logger = logging.getLogger(__name__)
 
@@ -79,14 +79,6 @@ def _persona_defaults_context(persona_name):
         'persona_default_size_limit': effective['size_limit'],
         'persona_has_thread_defaults': has_thread_defaults or bool(raw_mode),
     }
-
-
-def _fetch_available_models_list(config):
-    """Fetch and format available models if API key exists. Returns (has_api_key, models_list)."""
-    api_key = config.get("OPENROUTER_API_KEY", "")
-    if not api_key:
-        return False, []
-    return True, get_formatted_model_list(api_key)
 
 
 def persona_settings(request):
@@ -172,7 +164,7 @@ def save_persona_file(request):
     provider = config.get("PROVIDER", "openrouter")
     providers = get_providers()
 
-    has_api_key, available_models = _fetch_available_models_list(config)
+    has_api_key = bool(config.get("OPENROUTER_API_KEY"))
     persona_model = get_persona_model(final_persona, personas_dir)
 
     context = {
@@ -186,8 +178,6 @@ def save_persona_file(request):
         'selected_persona': final_persona,
         'persona_preview': content,
         'persona_model': persona_model or '',
-        'available_models': available_models,
-        'available_models_json': json.dumps(available_models),
         'persona_context_files': list_persona_context_files(final_persona),
         'persona_context_files_json': json.dumps(list_persona_context_files(final_persona)),
         'success': "Persona saved" + (" and renamed" if is_rename else ""),
@@ -219,7 +209,7 @@ def create_persona(request):
     provider = config.get("PROVIDER", "openrouter")
     providers = get_providers()
 
-    has_api_key, available_models = _fetch_available_models_list(config)
+    has_api_key = bool(config.get("OPENROUTER_API_KEY"))
 
     context = {
         'model': model,
@@ -232,8 +222,6 @@ def create_persona(request):
         'selected_persona': name,
         'persona_preview': content,
         'persona_model': '',
-        'available_models': available_models,
-        'available_models_json': json.dumps(available_models),
         'persona_context_files': [],
         'persona_context_files_json': '[]',
         'success': "Persona created",
@@ -282,7 +270,7 @@ def delete_persona(request):
     provider = config.get("PROVIDER", "openrouter")
     providers = get_providers()
 
-    has_api_key, available_models = _fetch_available_models_list(config)
+    has_api_key = bool(config.get("OPENROUTER_API_KEY"))
     persona_preview = get_persona_preview(default_persona)
     persona_model = get_persona_model(default_persona, personas_dir)
 
@@ -297,8 +285,6 @@ def delete_persona(request):
         'selected_persona': default_persona,
         'persona_preview': persona_preview,
         'persona_model': persona_model or '',
-        'available_models': available_models,
-        'available_models_json': json.dumps(available_models),
         'persona_context_files': list_persona_context_files(default_persona),
         'persona_context_files_json': json.dumps(list_persona_context_files(default_persona)),
         'success': "Persona deleted",

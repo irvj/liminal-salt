@@ -100,11 +100,7 @@ def save_settings(request):
         default_persona = config.get("DEFAULT_PERSONA", "")
         model = config.get("MODEL", "")
         provider = config.get("PROVIDER", "openrouter")
-
-        # Fetch models
-        api_key = config.get("OPENROUTER_API_KEY", "")
-        has_api_key = bool(api_key)
-        available_models = get_formatted_model_list(api_key)
+        has_api_key = bool(config.get("OPENROUTER_API_KEY"))
 
         # Read persona preview for the newly set default (if set)
         persona_preview = get_persona_preview(default_persona) if default_persona else ""
@@ -122,8 +118,6 @@ def save_settings(request):
                 'persona_model': persona_model or '',
                 'persona_context_files': persona_context_files,
                 'persona_context_files_json': json.dumps(persona_context_files),
-                'available_models': available_models,
-                'available_models_json': json.dumps(available_models),
                 'success': success_msg,
             }
             return render(request, 'persona/persona_main.html', context)
