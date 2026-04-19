@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.4] - 2026-04-19
+
+### Changes
+- add LLM-provider-terms clause to AGREEMENT (v1.1), scope section to README, and SECURITY.md
+- add roleplay behavioral contract at docs/prompts/roleplay.md with adult-only positive framing
+
 ## [0.10.3] - 2026-04-19
 
 ### Changes
