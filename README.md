@@ -21,8 +21,8 @@ A self-hosted LLM chatbot with persistent per-persona memory, customizable perso
 ## Quick Start
 
 ```bash
-git clone https://github.com/irvj/liminal-salt-app.git
-cd liminal-salt-app
+git clone https://github.com/irvj/liminal-salt.git
+cd liminal-salt
 python run.py
 ```
 
