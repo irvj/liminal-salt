@@ -195,14 +195,6 @@ def aggregate_all_sessions_messages(user_history_max_threads=None, user_history_
     return threads
 
 
-def title_has_artifacts(title):
-    """Check if title needs regeneration due to artifacts"""
-    if not title or title == "New Chat" or title == "":
-        return False
-    bad_patterns = ['[', ']', '<', '>', '#', '\n', 'Prompt', 'INST', 'SYS', '###']
-    return any(pattern in title for pattern in bad_patterns)
-
-
 def ensure_sessions_dir():
     """Ensure sessions directory exists"""
     os.makedirs(settings.SESSIONS_DIR, exist_ok=True)

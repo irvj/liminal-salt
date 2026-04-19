@@ -19,6 +19,7 @@ class ChatCore:
         self.user_timezone = user_timezone
         self.assistant_timezone = assistant_timezone
         self.title = "New Chat"
+        self.title_locked = False
         self.messages = self._load_history()
 
     def _session_id(self):
@@ -33,6 +34,7 @@ class ChatCore:
         if not data:
             return []
         self.title = data.get("title", "New Chat")
+        self.title_locked = bool(data.get("title_locked", False))
         self.persona = data.get("persona", self.persona)
         return data.get("messages", [])
 
@@ -40,7 +42,10 @@ class ChatCore:
         session_id = self._session_id()
         if not session_id:
             return
-        save_chat_history(session_id, self.title, self.persona, self.messages)
+        # Only propagate `title_locked=True` (finalize). Leave it absent
+        # otherwise so we don't clobber a True set by a concurrent rename.
+        locked = True if self.title_locked else None
+        save_chat_history(session_id, self.title, self.persona, self.messages, title_locked=locked)
 
     def clear_history(self):
         self.messages = []

@@ -29,7 +29,7 @@ from ..services.thread_memory_manager import resolve_thread_memory_settings
 from ..utils import (
     load_config, get_sessions_with_titles,
     group_sessions_by_persona, get_current_session, set_current_session,
-    get_collapsed_personas, title_has_artifacts, ensure_sessions_dir,
+    get_collapsed_personas, ensure_sessions_dir,
 )
 from .core import _get_theme_context
 
@@ -135,9 +135,15 @@ def _resolve_session_persona(session_data, config):
 
 def _handle_title_generation(chat_core, assistant_message, config):
     """
-    Handle 3-tier title generation logic. Returns True if title changed.
+    Generate a session title from the first exchange. Runs at most once per
+    session — the first successful auto-gen, or any user rename, marks the
+    title as finalized via `title_locked` and auto-gen never runs again.
+    Returns True if the title changed.
     """
     if assistant_message.startswith("ERROR:"):
+        return False
+
+    if chat_core.title_locked:
         return False
 
     first_user_msg = ""
@@ -149,24 +155,17 @@ def _handle_title_generation(chat_core, assistant_message, config):
     if not first_user_msg:
         return False
 
-    needs_title = (
-        chat_core.title == "New Chat"
-        or title_has_artifacts(chat_core.title)
+    summarizer = Summarizer(
+        config.get("OPENROUTER_API_KEY"),
+        chat_core.model,
+        config.get("SITE_URL"),
+        config.get("SITE_NAME"),
     )
-
-    if needs_title:
-        summarizer = Summarizer(
-            config.get("OPENROUTER_API_KEY"),
-            chat_core.model,
-            config.get("SITE_URL"),
-            config.get("SITE_NAME"),
-        )
-        new_title = summarizer.generate_title(first_user_msg, assistant_message)
-        chat_core.title = new_title
-        chat_core._save_history()
-        return True
-
-    return False
+    new_title = summarizer.generate_title(first_user_msg, assistant_message)
+    chat_core.title = new_title
+    chat_core.title_locked = True
+    chat_core._save_history()
+    return True
 
 
 def chat(request):

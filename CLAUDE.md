@@ -75,7 +75,8 @@ Written by `session_manager.py`. Fields:
 
 | Field | Type | Notes |
 |---|---|---|
-| `title` | str | "New Chat" on create; auto-generated after first reply |
+| `title` | str | "New Chat" on create; auto-generated once on first reply unless `title_locked`. |
+| `title_locked` | bool | Set True by `rename_session` or the one-shot auto-gen. Absent until finalized. |
 | `persona` | str | Persona folder name |
 | `mode` | str | `"chatbot"` \| `"roleplay"`. Immutable after create. |
 | `messages` | list | `[{role, content, timestamp}]` |

@@ -202,13 +202,16 @@ def delete_session(session_id):
     return deleted
 
 
-def save_chat_history(session_id, title, persona, messages):
+def save_chat_history(session_id, title, persona, messages, title_locked=None):
     """
     Write chat-owned fields (title, persona, messages) while preserving
     every other field (mode, scenario, thread_memory, thread_memory_updated_at,
     thread_memory_settings, pinned, draft, etc.). Called by ChatCore in
     place of its own file I/O so writes serialize against other session
     writers via the per-session lock.
+
+    Pass `title_locked=True` to flag the title as user-set (or finalized by
+    the one-shot auto-gen). `None` leaves the existing flag alone.
     """
     if not _valid_session_id(session_id):
         return
@@ -218,6 +221,8 @@ def save_chat_history(session_id, title, persona, messages):
         data['title'] = title
         data['persona'] = persona
         data['messages'] = messages
+        if title_locked is not None:
+            data['title_locked'] = bool(title_locked)
         _write_session(session_path, data)
 
 
@@ -242,7 +247,9 @@ def toggle_pin(session_id):
 
 def rename_session(session_id, new_title):
     """
-    Update the title of a session.
+    Update the title of a session. Flags the title as user-set so the auto
+    title-generation path won't overwrite it on subsequent sends — this
+    applies even when the user renames to the literal string "New Chat".
 
     Returns True on success, False if the session id is invalid or the
     session doesn't exist.
@@ -255,6 +262,7 @@ def rename_session(session_id, new_title):
         if data is None:
             return False
         data['title'] = new_title
+        data['title_locked'] = True
         _write_session(session_path, data)
         return True
 
