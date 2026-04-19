@@ -58,9 +58,15 @@ Development is usage-driven, not scheduled. Near-term work focuses on continued 
 
 ---
 
+## Scope
+
+Liminal Salt is a local application, not a hosted service. You run it on your own machine with your own API key. Running it as a service for other people is outside the project's scope and would make you the operator of whatever you built.
+
+---
+
 ## User Agreement
 
-Using Liminal Salt means agreeing to the terms in [AGREEMENT.md](AGREEMENT.md) — short, plain-language, covers age, open source, non-determinism, and responsibility for content submitted to and returned from the LLM. The app presents it once during setup.
+Using Liminal Salt means agreeing to the terms in [AGREEMENT.md](AGREEMENT.md) — short, plain-language, covers age, open source, non-determinism, provider terms, and responsibility for content submitted to and returned from the LLM. The app presents it once during setup.
 
 ---
 
