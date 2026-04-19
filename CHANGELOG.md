@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.6] - 2026-04-19
+
+### Changes
+- update screenshots
+- update django version pin
+
 ## [0.10.5] - 2026-04-19
 
 ### Changes
