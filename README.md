@@ -45,8 +45,9 @@ Requires Python 3.10+ and an [OpenRouter API key](https://openrouter.ai/).
 
 ## Screenshots
 
-![Chat](docs/images/chat.png)
-![User Memory](docs/images/user-memory.png)
+![Chat: Chatbot](docs/images/chat-chatbot.png)
+![Chat: Roleplay](docs/images/chat-roleplay.png)
+![Persona Memory](docs/images/persona-memory.png)
 ![Persona Settings](docs/images/persona-settings.png)
 ![Settings](docs/images/settings.png)
 
