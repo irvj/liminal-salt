@@ -221,6 +221,7 @@ function threadMemoryModal() {
         content: '',
         updatedAt: '',
         running: false,
+        runningSource: '',  // 'manual' (Rebuild click) | 'auto' (scheduler) — labels the button
         statusMessage: '',
         statusType: '',
         // Settings state
@@ -350,14 +351,17 @@ function threadMemoryModal() {
 
                 if (data.state === 'running') {
                     this.running = true;
+                    this.runningSource = data.source || 'auto';
                     this.statusMessage = 'Summarizing thread...';
                     this.statusType = 'info';
                     this._startPolling();
                 } else {
                     this.running = false;
+                    this.runningSource = '';
                 }
             } catch (e) {
                 this.running = false;
+                this.runningSource = '';
             }
         },
 
@@ -369,6 +373,7 @@ function threadMemoryModal() {
             }
 
             this.running = true;
+            this.runningSource = 'manual';
             this.statusMessage = 'Summarizing thread...';
             this.statusType = 'info';
 
@@ -390,17 +395,22 @@ function threadMemoryModal() {
                 } else if (response.status === 409) {
                     this.statusMessage = 'An update is already running for this thread.';
                     this.statusType = 'info';
+                    // Another update is already running — leave it to polling to tell us
+                    // what source it is (it might not be our manual click).
+                    this.runningSource = '';
                     this._startPolling();
                 } else {
                     const data = await response.json().catch(() => ({}));
                     this.statusMessage = data.error || `Update failed (${response.status}).`;
                     this.statusType = 'error';
                     this.running = false;
+                    this.runningSource = '';
                 }
             } catch (e) {
                 this.statusMessage = `Update failed: ${e.message}`;
                 this.statusType = 'error';
                 this.running = false;
+                this.runningSource = '';
             }
         },
 
@@ -415,6 +425,7 @@ function threadMemoryModal() {
                     this.statusMessage = 'Update timed out.';
                     this.statusType = 'error';
                     this.running = false;
+                    this.runningSource = '';
                     return;
                 }
 
@@ -423,9 +434,17 @@ function threadMemoryModal() {
                     if (!response.ok) return;
                     const data = await response.json();
 
-                    if (data.state === 'completed') {
+                    if (data.state === 'running') {
+                        // Pick up the source once the server reports it. updateNow()
+                        // pre-sets 'manual'; for polling that catches an auto run
+                        // (or a 409 manual-over-running), fill in from the server.
+                        if (!this.runningSource && data.source) {
+                            this.runningSource = data.source;
+                        }
+                    } else if (data.state === 'completed') {
                         this._stopPolling();
                         this.running = false;
+                        this.runningSource = '';
                         // Refresh displayed content from the just-completed update
                         this.content = data.memory || '';
                         this.updatedAt = data.updated_at || '';
@@ -445,10 +464,10 @@ function threadMemoryModal() {
                     } else if (data.state === 'failed') {
                         this._stopPolling();
                         this.running = false;
+                        this.runningSource = '';
                         this.statusMessage = data.error || 'Update failed.';
                         this.statusType = 'error';
                     }
-                    // state === 'running': leave existing content visible, keep polling
                 } catch (e) {
                     // Transient fetch error — keep polling
                 }

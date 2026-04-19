@@ -655,6 +655,14 @@ def run_thread_memory_update(session_id, config, source="manual"):
         updated_at = session_data.get('thread_memory_updated_at', '')
 
         new_messages = filter_new_messages(messages, updated_at)
+
+        # Manual runs always do something. If there's nothing new since the last
+        # summary, reprocess the full thread so the user can refresh the memory
+        # (after changing size_limit, prompt tweaks, or just wanting a fresh
+        # pass). Auto runs skip quietly — the floor/interval already gated them.
+        if not new_messages and source == "manual" and messages:
+            new_messages = list(messages)
+
         if not new_messages:
             finished = datetime.now(timezone.utc).isoformat()
             _set_thread_status(session_id, state="completed", finished_at=finished,
