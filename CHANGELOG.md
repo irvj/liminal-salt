@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.3] - 2026-04-19
+
+### Changes
+- add AGREEMENT.md at repo root as the agreement source, parse version and render body in setup
+- split setup wizard into three steps, add agreement gate with versioning, and decouple app access from api key
+- lock session titles on rename and one-shot auto-gen so user renames can't be overwritten
+- distinguish rebuild vs update in thread memory button and bias merge prompts historical over recent
+- rewrite thread memory prompts around working-memory framing to resist decay
+
 ## [0.10.2] - 2026-04-18
 
 ### Changes
