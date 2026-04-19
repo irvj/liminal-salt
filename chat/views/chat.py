@@ -26,6 +26,7 @@ from ..services.session_manager import (
     get_session_path, generate_session_id, make_user_timestamp,
 )
 from ..services.thread_memory_manager import resolve_thread_memory_settings
+from ..services.config_manager import is_app_ready
 from ..utils import (
     load_config, get_sessions_with_titles,
     group_sessions_by_persona, get_current_session, set_current_session,
@@ -172,7 +173,7 @@ def chat(request):
     """Main chat view - session determined from Django session storage"""
     ensure_sessions_dir()
     config = load_config()
-    if not config or not config.get("OPENROUTER_API_KEY"):
+    if not is_app_ready(config):
         return redirect('setup')
 
     session_id = get_current_session(request)
@@ -294,7 +295,7 @@ def switch_session(request):
 def new_chat(request):
     """Show new chat home page (clears current session)"""
     config = load_config()
-    if not config:
+    if not is_app_ready(config):
         return redirect('setup')
 
     set_current_session(request, None)
@@ -331,7 +332,7 @@ def start_chat(request):
     """Start a new chat - creates session, saves user message, returns chat view with thinking indicator"""
 
     config = load_config()
-    if not config:
+    if not is_app_ready(config):
         return redirect('setup')
 
     user_message = request.POST.get('message', '').strip()

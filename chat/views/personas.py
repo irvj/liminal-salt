@@ -21,6 +21,7 @@ from ..services.persona_manager import (
 )
 from ..services.session_manager import update_persona_across_sessions
 from ..services.thread_memory_manager import resolve_persona_thread_memory_defaults
+from ..services.config_manager import is_app_ready
 from ..utils import load_config, save_config
 
 logger = logging.getLogger(__name__)
@@ -84,7 +85,7 @@ def _persona_defaults_context(persona_name):
 def persona_settings(request):
     """Persona settings view"""
     config = load_config()
-    if not config:
+    if not is_app_ready(config):
         return redirect('setup')
 
     personas_dir = str(django_settings.PERSONAS_DIR)

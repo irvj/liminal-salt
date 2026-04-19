@@ -28,6 +28,7 @@ from ..services import (
     browse_directory,
 )
 from ..utils import load_config
+from ..services.config_manager import is_app_ready
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def _build_memory_view_context(config, selected_persona, success=None, error=Non
 def memory(request):
     """User memory view"""
     config = load_config()
-    if not config:
+    if not is_app_ready(config):
         return redirect('setup')
 
     selected_persona = request.GET.get('persona', config.get("DEFAULT_PERSONA", "assistant"))

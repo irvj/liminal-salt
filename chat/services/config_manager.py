@@ -3,6 +3,26 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Bump this whenever the user agreement copy materially changes. Users whose
+# stored AGREEMENT_ACCEPTED doesn't match the current version will be kicked
+# back to the agreement step (setup step 3) without having to redo provider
+# or model selection.
+CURRENT_AGREEMENT_VERSION = "1.0"
+
+
+def is_app_ready(config):
+    """
+    App is accessible only when setup has finished AND the user has accepted
+    the current agreement version. Either missing → wizard.
+    """
+    if not config:
+        return False
+    return (
+        config.get("SETUP_COMPLETE") is True
+        and config.get("AGREEMENT_ACCEPTED") == CURRENT_AGREEMENT_VERSION
+    )
+
+
 # Available API providers
 # Each provider has: id, name, api_key_url, api_key_placeholder
 PROVIDERS = [

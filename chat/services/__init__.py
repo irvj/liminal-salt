@@ -14,7 +14,10 @@ from .persona_manager import (
     delete_persona as delete_persona_dir,
     rename_persona, persona_exists,
 )
-from .config_manager import fetch_available_models, validate_api_key, get_providers
+from .config_manager import (
+    fetch_available_models, validate_api_key, get_providers,
+    is_app_ready, CURRENT_AGREEMENT_VERSION,
+)
 from .context_manager import load_context, get_available_personas, get_persona_config, save_persona_config, get_persona_model, get_persona_identity, ensure_default_personas
 from .llm_client import call_llm, LLMError
 from .memory_manager import (

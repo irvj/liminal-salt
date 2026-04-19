@@ -11,7 +11,11 @@
         <div class="p-3 px-4 rounded mb-4 bg-danger text-white">{{ error }}</div>
         {% endif %}
 
-        <form method="POST" id="modelForm">
+        <form method="POST"
+              x-data="modelPicker"
+              data-selected-model="{{ selected_model|default:'' }}"
+              data-models='{{ available_models_json|safe }}'
+              @dropdown-select="onModelSelect($event.detail)">
             {% csrf_token %}
 
             <!-- Theme Selection -->
@@ -51,21 +55,28 @@
             </div>
 
             <!-- Model Selection -->
-            <div class="mb-5"
-                 x-data="modelPicker"
-                 data-selected-model="{{ selected_model|default:'' }}"
-                 data-models='{{ available_models_json|safe }}'
-                 @dropdown-select="onModelSelect($event.detail)">
+            <div class="mb-5">
                 <label class="block mb-2 font-medium">Select a model:</label>
                 <div x-data="selectDropdown" :data-items="JSON.stringify(modelItems)" :data-selected="selectedId">
                     {% include 'components/select_dropdown.html' with searchable='true' placeholder='Search models...' name='model' %}
                 </div>
             </div>
 
-            <button type="submit" id="submitBtn" tabindex="0" disabled
-                    class="px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:bg-border disabled:text-foreground-muted disabled:cursor-not-allowed">
-                Complete Setup
-            </button>
+            <div class="flex gap-3">
+                <button type="submit"
+                        name="setup_action"
+                        value="back"
+                        tabindex="0"
+                        class="px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
+                    Back
+                </button>
+                <button type="submit"
+                        tabindex="0"
+                        :disabled="!selectedId"
+                        class="px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:bg-border disabled:text-foreground-muted disabled:cursor-not-allowed">
+                    Continue
+                </button>
+            </div>
         </form>
     </div>
 {% endblock %}

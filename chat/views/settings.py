@@ -19,6 +19,7 @@ from ..services import (
     list_context_local_directories,
 )
 from ..services.persona_manager import get_persona_preview
+from ..services.config_manager import is_app_ready
 from ..utils import load_config, save_config, get_formatted_model_list
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ def _context_badge_count():
 def settings(request):
     """Settings view"""
     config = load_config()
-    if not config:
+    if not is_app_ready(config):
         return redirect('setup')
 
     model = config.get("MODEL", "")

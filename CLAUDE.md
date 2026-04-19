@@ -26,7 +26,7 @@ chat/
   urls.py                  App routes
   utils.py                 load_config, session listing, model list, theme list
 data/                      Gitignored user state (entire folder)
-  config.json              App config — API key, default model, default persona, theme
+  config.json              App config — API key, default model, persona, theme, SETUP_COMPLETE, AGREEMENT_ACCEPTED
   sessions/session_*.json  Chat sessions
   personas/{name}/         identity.md + config.json (model override, memory settings, thread defaults)
   memory/{name}.md         Per-persona memory
@@ -106,6 +106,8 @@ Written by `session_manager.py`. Fields:
 **Thread memory ≠ persona memory.** Thread memory is per-session, stored inline on the session JSON, written by `ThreadMemoryManager`. Persona memory is cross-thread, stored in `data/memory/{persona}.md`, written by `MemoryManager`. Roleplay sessions are excluded from persona-memory aggregation and don't receive persona memory in their prompt.
 
 **Settings resolver pattern.** `resolve_thread_memory_settings(session_data, persona_config)` merges per-thread override → persona default (`default_thread_memory_settings`) → global fallback. Same pattern for `default_mode`: only `"roleplay"` is persisted as a persona override; `"chatbot"` is the unwritten baseline. Save endpoints compare submitted values to resolved defaults and clear the override rather than persist no-ops.
+
+**App-access gate.** Access to any non-setup view checks `is_app_ready(config)` in `config_manager.py` — both `SETUP_COMPLETE == True` *and* `AGREEMENT_ACCEPTED == CURRENT_AGREEMENT_VERSION` must hold. Either missing → redirect to `/setup/`. A missing or broken API key does *not* gate access; it surfaces as an in-chat error when the user tries to send. Bump `CURRENT_AGREEMENT_VERSION` to force users through step 3 again without redoing provider/model.
 
 **Schedulers + caches.** Two daemons in `memory_worker.py`: persona-memory loop (per-persona interval + message floor) and thread-memory loop (per-session effective settings). Both cache session-derived scheduler inputs keyed by mtime (`_session_cache`, `_thread_scheduler_cache`, `_persona_count_cache`) — never re-parse JSON when mtime is unchanged. Caches prune deleted sessions each sweep and clear on `stop_scheduler()`.
 

@@ -1705,12 +1705,6 @@ function modelPicker() {
 
         onModelSelect(detail) {
             this.selectedId = detail.id;
-            this.updateButton();
-        },
-
-        updateButton() {
-            const btn = document.getElementById('submitBtn');
-            if (btn) btn.disabled = !this.selectedId;
         },
 
         init() {
@@ -1725,7 +1719,6 @@ function modelPicker() {
             }
 
             this.selectedId = el.dataset.selectedModel || '';
-            this.updateButton();
         }
     };
 }
