@@ -1,13 +1,38 @@
+import re
 import requests
 import logging
+from pathlib import Path
+
+from django.conf import settings as django_settings
 
 logger = logging.getLogger(__name__)
 
-# Bump this whenever the user agreement copy materially changes. Users whose
-# stored AGREEMENT_ACCEPTED doesn't match the current version will be kicked
-# back to the agreement step (setup step 3) without having to redo provider
-# or model selection.
-CURRENT_AGREEMENT_VERSION = "1.0"
+# The canonical user agreement lives at AGREEMENT.md in the repo root so it
+# can be read on GitHub or any checkout. Its version is encoded in an HTML
+# comment on the first line (invisible when rendered): <!-- version: X.Y -->
+_AGREEMENT_PATH = Path(django_settings.BASE_DIR) / 'AGREEMENT.md'
+_VERSION_RE = re.compile(r'<!--\s*version:\s*(\S+)\s*-->', re.IGNORECASE)
+
+
+def _load_agreement():
+    """Read AGREEMENT.md and return (version, markdown_body)."""
+    if not _AGREEMENT_PATH.exists():
+        logger.warning(f"AGREEMENT.md not found at {_AGREEMENT_PATH}")
+        return ("0.0", "")
+    text = _AGREEMENT_PATH.read_text(encoding='utf-8')
+    m = _VERSION_RE.search(text)
+    version = m.group(1) if m else "0.0"
+    # Strip the version comment (and any immediately-following blank lines)
+    # so the rendered body is clean.
+    body = _VERSION_RE.sub('', text, count=1).lstrip('\n').rstrip()
+    return (version, body)
+
+
+# Parsed once at import. Restart the server to pick up edits to AGREEMENT.md.
+# Bump the version in AGREEMENT.md to force users through the agreement step
+# again; their stored AGREEMENT_ACCEPTED won't match CURRENT_AGREEMENT_VERSION
+# and they'll be re-prompted without having to redo provider / model.
+CURRENT_AGREEMENT_VERSION, AGREEMENT_BODY = _load_agreement()
 
 
 def is_app_ready(config):

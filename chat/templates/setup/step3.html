@@ -1,18 +1,15 @@
 {% extends "base.html" %}
+{% load markdown_extras %}
 
 {% block body %}
     <div class="max-w-xl mx-auto mt-12 p-5">
         <h1 class="text-foreground text-2xl mb-4">Welcome to Liminal Salt</h1>
 
-        <h2 class="text-xl text-foreground mb-2">Step 3: Agreement</h2>
-        <p class="text-foreground-secondary text-sm mb-4">Version {{ agreement_version }}</p>
-
-        <div class="bg-surface-secondary border border-border rounded p-5 mb-5 text-foreground-secondary text-sm leading-relaxed">
-            <!-- Placeholder copy — replace with real agreement text when ready. -->
-            <p class="mb-3">
-                Placeholder agreement text. Replace with the real agreement copy.
-            </p>
+        <div class="bg-surface-secondary border border-border rounded p-5 mb-3 prose prose-invert max-w-none text-sm">
+            {{ agreement_body|markdown }}
         </div>
+
+        <p class="text-xs text-foreground-muted mb-5">Version {{ agreement_version }}</p>
 
         <form method="POST">
             {% csrf_token %}

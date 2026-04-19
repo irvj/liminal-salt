@@ -6,7 +6,8 @@ from django.conf import settings as django_settings
 from django.views.decorators.http import require_http_methods
 
 from ..services import (
-    validate_api_key, get_providers, is_app_ready, CURRENT_AGREEMENT_VERSION,
+    validate_api_key, get_providers, is_app_ready,
+    CURRENT_AGREEMENT_VERSION, AGREEMENT_BODY,
 )
 from ..utils import (
     load_config, save_config, get_formatted_model_list, get_theme_list,
@@ -237,5 +238,6 @@ def _setup_step3(request, config):
 
     return render(request, 'setup/step3.html', {
         'agreement_version': CURRENT_AGREEMENT_VERSION,
+        'agreement_body': AGREEMENT_BODY,
         'can_go_back': can_go_back,
     })

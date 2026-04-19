@@ -31,6 +31,7 @@ data/                      Gitignored user state (entire folder)
   personas/{name}/         identity.md + config.json (model override, memory settings, thread defaults)
   memory/{name}.md         Per-persona memory
   user_context/            Global + per-persona context files; local_directories config
+AGREEMENT.md               Canonical user agreement. Version in HTML comment on line 1.
 ```
 
 ## Services (`chat/services/`)
@@ -107,7 +108,9 @@ Written by `session_manager.py`. Fields:
 
 **Settings resolver pattern.** `resolve_thread_memory_settings(session_data, persona_config)` merges per-thread override → persona default (`default_thread_memory_settings`) → global fallback. Same pattern for `default_mode`: only `"roleplay"` is persisted as a persona override; `"chatbot"` is the unwritten baseline. Save endpoints compare submitted values to resolved defaults and clear the override rather than persist no-ops.
 
-**App-access gate.** Access to any non-setup view checks `is_app_ready(config)` in `config_manager.py` — both `SETUP_COMPLETE == True` *and* `AGREEMENT_ACCEPTED == CURRENT_AGREEMENT_VERSION` must hold. Either missing → redirect to `/setup/`. A missing or broken API key does *not* gate access; it surfaces as an in-chat error when the user tries to send. Bump `CURRENT_AGREEMENT_VERSION` to force users through step 3 again without redoing provider/model.
+**App-access gate.** Access to any non-setup view checks `is_app_ready(config)` in `config_manager.py` — both `SETUP_COMPLETE == True` *and* `AGREEMENT_ACCEPTED == CURRENT_AGREEMENT_VERSION` must hold. Either missing → redirect to `/setup/`. A missing or broken API key does *not* gate access; it surfaces as an in-chat error when the user tries to send.
+
+**Agreement source of truth.** `AGREEMENT.md` at the repo root owns the user-agreement copy and version. The version lives in an HTML comment on line 1 (`<!-- version: X.Y -->`), which is invisible on GitHub and parsed by `_load_agreement()` in `config_manager.py` at import. To force a re-prompt without redoing provider/model, edit the file *and* bump the comment; restart to pick up the change. The body is rendered via `{{ agreement_body|markdown }}` on setup step 3.
 
 **Schedulers + caches.** Two daemons in `memory_worker.py`: persona-memory loop (per-persona interval + message floor) and thread-memory loop (per-session effective settings). Both cache session-derived scheduler inputs keyed by mtime (`_session_cache`, `_thread_scheduler_cache`, `_persona_count_cache`) — never re-parse JSON when mtime is unchanged. Caches prune deleted sessions each sweep and clear on `stop_scheduler()`.
 

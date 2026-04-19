@@ -58,6 +58,12 @@ Development is usage-driven, not scheduled. Near-term work focuses on continued 
 
 ---
 
+## User Agreement
+
+Using Liminal Salt means agreeing to the terms in [AGREEMENT.md](AGREEMENT.md) — short, plain-language, covers age, open source, non-determinism, and responsibility for content submitted to and returned from the LLM. The app presents it once during setup.
+
+---
+
 ## License
 
 MIT
