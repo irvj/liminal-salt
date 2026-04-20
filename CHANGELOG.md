@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.8] - 2026-04-20
+
+### Changes
+- centralize OpenRouter app attribution in llm_client, add categories header
+
 ## [0.10.7] - 2026-04-19
 
 ### Changes
