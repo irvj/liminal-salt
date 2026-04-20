@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.7] - 2026-04-19
+
+### Changes
+- add favicon
+
 ## [0.10.6] - 2026-04-19
 
 ### Changes

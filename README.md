@@ -1,6 +1,6 @@
 # Liminal Salt
 
-**v0.10.6**
+**v0.10.7**
 
 A self-hosted LLM chatbot with persistent per-persona memory, customizable personas, and a roleplay mode. Runs locally; state lives in plain JSON and Markdown files under `data/`.
 
