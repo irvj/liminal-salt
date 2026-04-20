@@ -4,11 +4,9 @@ from .llm_client import call_llm
 class Summarizer:
     """Title generation service. Memory operations are in memory_manager.py."""
 
-    def __init__(self, api_key, model, site_url=None, site_name=None):
+    def __init__(self, api_key, model):
         self.api_key = api_key
         self.model = model
-        self.site_url = site_url
-        self.site_name = site_name
 
     def generate_title(self, user_prompt, assistant_response):
         """
@@ -66,7 +64,6 @@ class Summarizer:
             title = call_llm(
                 self.api_key, self.model,
                 [{"role": "user", "content": prompt}],
-                site_url=self.site_url, site_name=self.site_name
             )
 
             # Clean up title aggressively

@@ -153,8 +153,6 @@ def run_memory_update(persona_name, config, source="manual"):
         logger.info(f"Memory update started for '{persona_name}' ({source})")
 
         api_key = config.get("OPENROUTER_API_KEY")
-        site_url = config.get("SITE_URL")
-        site_name = config.get("SITE_NAME")
         personas_dir = str(django_settings.PERSONAS_DIR)
 
         # Load per-persona memory settings
@@ -179,7 +177,7 @@ def run_memory_update(persona_name, config, source="manual"):
         memory_model = get_memory_model(config, persona_name, personas_dir)
         size_limit = persona_cfg.get('memory_size_limit', 8000)
 
-        manager = MemoryManager(api_key, memory_model, site_url, site_name)
+        manager = MemoryManager(api_key, memory_model)
         success = manager.update_persona_memory(persona_name, persona_identity, threads, size_limit)
 
         finished = datetime.now(timezone.utc).isoformat()
@@ -256,8 +254,6 @@ def _run_modify_update(persona_name, config, command):
         logger.info(f"Memory modify started for '{persona_name}'")
 
         api_key = config.get("OPENROUTER_API_KEY")
-        site_url = config.get("SITE_URL")
-        site_name = config.get("SITE_NAME")
         personas_dir = str(django_settings.PERSONAS_DIR)
 
         persona_cfg = get_persona_config(persona_name, personas_dir)
@@ -267,7 +263,7 @@ def _run_modify_update(persona_name, config, command):
         persona_identity = get_persona_identity(persona_dir)
         memory_model = get_memory_model(config, persona_name, personas_dir)
 
-        manager = MemoryManager(api_key, memory_model, site_url, site_name)
+        manager = MemoryManager(api_key, memory_model)
         success = manager.modify_memory_with_command(persona_name, persona_identity, command, size_limit)
 
         finished = datetime.now(timezone.utc).isoformat()
@@ -321,8 +317,6 @@ def _run_seed_update(persona_name, config, seed_content):
         logger.info(f"Memory seed started for '{persona_name}'")
 
         api_key = config.get("OPENROUTER_API_KEY")
-        site_url = config.get("SITE_URL")
-        site_name = config.get("SITE_NAME")
         personas_dir = str(django_settings.PERSONAS_DIR)
 
         persona_cfg = get_persona_config(persona_name, personas_dir)
@@ -332,7 +326,7 @@ def _run_seed_update(persona_name, config, seed_content):
         persona_identity = get_persona_identity(persona_dir)
         memory_model = get_memory_model(config, persona_name, personas_dir)
 
-        manager = MemoryManager(api_key, memory_model, site_url, site_name)
+        manager = MemoryManager(api_key, memory_model)
         success = manager.seed_memory(persona_name, persona_identity, seed_content, size_limit)
 
         finished = datetime.now(timezone.utc).isoformat()
@@ -684,11 +678,9 @@ def run_thread_memory_update(session_id, config, source="manual"):
         effective = resolve_thread_memory_settings(session_data, persona_cfg)
 
         api_key = config.get("OPENROUTER_API_KEY")
-        site_url = config.get("SITE_URL")
-        site_name = config.get("SITE_NAME")
         model = get_memory_model(config, persona_name, personas_dir)
 
-        manager = ThreadMemoryManager(api_key, model, site_url, site_name)
+        manager = ThreadMemoryManager(api_key, model)
         updated_memory = manager.merge(
             persona_display, existing_memory, new_messages,
             size_limit=effective.get('size_limit', DEFAULT_THREAD_MEMORY_SIZE),

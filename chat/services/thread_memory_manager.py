@@ -104,11 +104,9 @@ def _format_messages_for_prompt(messages, persona_display_name):
 
 
 class ThreadMemoryManager:
-    def __init__(self, api_key, model, site_url=None, site_name=None):
+    def __init__(self, api_key, model):
         self.api_key = api_key
         self.model = model
-        self.site_url = site_url
-        self.site_name = site_name
 
     def merge(self, persona_display_name, existing_memory, new_messages,
               size_limit=DEFAULT_THREAD_MEMORY_SIZE, mode="chatbot"):
@@ -158,7 +156,6 @@ class ThreadMemoryManager:
             updated = call_llm(
                 self.api_key, self.model,
                 [{"role": "user", "content": prompt}],
-                site_url=self.site_url, site_name=self.site_name,
                 timeout=600,
             )
 

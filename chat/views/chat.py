@@ -63,8 +63,6 @@ def _build_chat_core(config, session_id, session_persona, session_data=None, use
     chat_core = ChatCore(
         api_key=config.get("OPENROUTER_API_KEY"),
         model=model,
-        site_url=config.get("SITE_URL"),
-        site_name=config.get("SITE_NAME"),
         system_prompt=system_prompt,
         context_history_limit=config.get("CONTEXT_HISTORY_LIMIT", 50),
         history_file=str(get_session_path(session_id)),
@@ -159,8 +157,6 @@ def _handle_title_generation(chat_core, assistant_message, config):
     summarizer = Summarizer(
         config.get("OPENROUTER_API_KEY"),
         chat_core.model,
-        config.get("SITE_URL"),
-        config.get("SITE_NAME"),
     )
     new_title = summarizer.generate_title(first_user_msg, assistant_message)
     chat_core.title = new_title

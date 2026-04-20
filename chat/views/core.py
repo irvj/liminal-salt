@@ -117,8 +117,6 @@ def _setup_step1(request):
         config['PROVIDER'] = provider
         if provider == 'openrouter':
             config['OPENROUTER_API_KEY'] = api_key
-        config.setdefault('SITE_URL', 'https://liminalsalt.app')
-        config.setdefault('SITE_NAME', 'Liminal Salt')
         config.setdefault('DEFAULT_PERSONA', 'assistant')
         config.setdefault('CONTEXT_HISTORY_LIMIT', 50)
         config.setdefault('MODEL', '')

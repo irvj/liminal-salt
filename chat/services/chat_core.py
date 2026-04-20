@@ -7,11 +7,9 @@ from .llm_client import call_llm, LLMError
 from .session_manager import now_timestamp, load_session, save_chat_history
 
 class ChatCore:
-    def __init__(self, api_key, model, site_url=None, site_name=None, system_prompt="", context_history_limit=50, history_file=None, persona="assistant", user_timezone="UTC", assistant_timezone=None):
+    def __init__(self, api_key, model, system_prompt="", context_history_limit=50, history_file=None, persona="assistant", user_timezone="UTC", assistant_timezone=None):
         self.api_key = api_key
         self.model = model
-        self.site_url = site_url
-        self.site_name = site_name
         self.system_prompt = system_prompt
         self.context_history_limit = context_history_limit
         self.history_file = history_file
@@ -141,7 +139,6 @@ class ChatCore:
                 assistant_message = call_llm(
                     self.api_key, self.model,
                     self._get_payload_messages(),
-                    site_url=self.site_url, site_name=self.site_name,
                     timeout=120
                 )
                 if attempt > 0:

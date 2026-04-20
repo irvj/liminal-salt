@@ -86,11 +86,9 @@ def get_memory_model(config, persona_name, personas_dir):
 # =============================================================================
 
 class MemoryManager:
-    def __init__(self, api_key, model, site_url=None, site_name=None):
+    def __init__(self, api_key, model):
         self.api_key = api_key
         self.model = model
-        self.site_url = site_url
-        self.site_name = site_name
 
     def _merge_memory(self, persona_name, persona_identity, new_data_label, new_data_content,
                       instructions_opener, size_limit=8000, extra_sections=""):
@@ -202,7 +200,6 @@ class MemoryManager:
             updated_memory = call_llm(
                 self.api_key, self.model,
                 [{"role": "user", "content": prompt}],
-                site_url=self.site_url, site_name=self.site_name,
                 timeout=600
             )
 
