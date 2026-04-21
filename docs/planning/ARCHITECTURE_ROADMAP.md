@@ -2,7 +2,7 @@
 
 **Created:** April 14, 2026
 **Updated:** April 21, 2026
-**Status:** SoC refactor largely complete (minor drift noted below); Rust migration planned
+**Status:** Rust migration in progress — Phase 0 and Phase 1 complete; Phase 2 up next
 **Scope:** Python/Django → Rust (Axum + Tera) → Tauri desktop app
 
 ---
@@ -50,6 +50,8 @@ These shape every decision in the plan.
 - Templates have no inline handlers, no inline styles, no business logic.
 
 ### Minor drift to clean up before migrating
+**Done 2026-04-21** (Phase 0). Kept below for historical context.
+
 Not blockers, but simpler to fix in Python first than to port flawed behavior to Rust:
 
 - **`chat/static/js/utils.js:726-753`** — memory-update status poll uses `fetch().then().then().catch()`. Convert to `async/await`.
@@ -178,6 +180,8 @@ Each phase has: **deliverable**, **files**, **gotchas**, **done-when**. Phases r
 
 ### Phase 0 — Python-side cleanup (Django, not Rust)
 
+**Done 2026-04-21.** All five tasks landed on main via commit 920b808.
+
 **Deliverable:** SoC drift from the current review is resolved before porting begins, so the Rust port isn't reproducing flaws.
 
 **Tasks:**
@@ -190,6 +194,8 @@ Each phase has: **deliverable**, **files**, **gotchas**, **done-when**. Phases r
 **Done when:** `node --check chat/static/js/components.js`, `node --check chat/static/js/utils.js`, `.venv/bin/python3 manage.py check` all pass; manual smoke test of memory update, clipboard copy, message edit confirms nothing regressed.
 
 ### After Phase 0 — Branch setup for the migration
+
+**Done 2026-04-21.** `python-legacy` and `rust-migration` exist on origin; main carries the freeze notice; python-legacy carries a one-line "final Python version" banner. Optional `v0.99.0` tag was skipped — the branches are sufficient.
 
 Once Phase 0 is merged into main, create the long-lived branches **before** adding the freeze notice to main, so `python-legacy` inherits a clean README (no freeze notice, which only belongs on `main`).
 
@@ -222,6 +228,8 @@ git push origin main
 
 ### Phase 1 — Rust scaffold
 
+**Done 2026-04-21.** See "Outcome" block below for the concrete choices that were settled.
+
 **Deliverable:** Axum server boots, serves `/health`, serves static files from `chat/static/`, renders a hello-world Tera template.
 
 **Files to create:**
@@ -243,6 +251,16 @@ git push origin main
 - Tera template auto-reload only in dev. Add a `cfg!(debug_assertions)` gate.
 
 **Done when:** `cargo run` boots, `curl localhost:PORT/health` returns 200, `curl localhost:PORT/static/js/utils.js` returns the file, `curl localhost:PORT/hello` renders the template.
+
+**Phase 1 outcome (what was actually settled):**
+
+- **Layout:** workspace root at repo root; single member crate at `crates/liminal-salt/`. Keeps room for `src-tauri/` as a sibling member in M2. All source files live inside the crate (`crates/liminal-salt/src/...`, `crates/liminal-salt/templates/...`) rather than at repo root.
+- **Toolchain:** Rust 1.95.0, edition = `"2024"`.
+- **Port:** 8420 (reused from Django for continuity on localhost).
+- **Templates dir:** `crates/liminal-salt/templates/` (inside the crate, not at repo root). Path resolved via `CARGO_MANIFEST_DIR` at compile time so `cargo run` works from any cwd. Positions the crate for `rust-embed` in M2 without further restructuring.
+- **Static dir:** unchanged at `chat/static/`; served via `tower-http::ServeDir` mounted at `/static`. Reached from the crate as `manifest_dir.join("../../chat/static")`.
+- **Dependency versions actually pinned:** `axum = "0.8"`, `tokio = "1"` (features `rt-multi-thread`/`macros`/`fs`/`signal`), `tower = "0.5"`, `tower-http = "0.6"` (features `fs`/`trace`), `tera = "1"` (2.x is alpha only), `serde = "1"`, `serde_json = "1"`, **`reqwest = "0.13"`** with `default-features = false, features = ["json", "rustls"]` — note the feature was renamed from `rustls-tls` to `rustls` in 0.13; **`pulldown-cmark = "0.13"`**, `chrono = "0.4"` (serde feature), `tracing = "0.1"`, `tracing-subscriber = "0.3"` (env-filter), `anyhow = "1"`, `thiserror = "2"`, `regex = "1"`. `once_cell` deferred — `std::sync::OnceLock` / `LazyLock` works for now.
+- **Tera auto-reload under `cfg!(debug_assertions)`: not yet wired.** Phase 1 builds templates once at boot. Add the dev-reload gate when Phase 3 starts real template iteration.
 
 ---
 
