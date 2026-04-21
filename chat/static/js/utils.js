@@ -476,7 +476,8 @@ function addUserMessage(event) {
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
     editBtn.className = 'text-foreground-muted hover:text-foreground cursor-pointer';
-    editBtn.setAttribute('onclick', 'editLastMessage(this)');
+    editBtn.dataset.action = 'edit-message';
+    editBtn.addEventListener('click', () => editLastMessage(editBtn));
     editBtn.setAttribute('data-message', escapedMessage);
     editBtn.setAttribute('title', 'Edit');
     editBtn.innerHTML = '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>';
@@ -706,7 +707,7 @@ function pollMemoryUpdateStatus(persona, statusUrl, memoryUrl) {
         return bar && bar.dataset.persona === persona;
     }
 
-    const poll = setInterval(() => {
+    const poll = setInterval(async () => {
         if (cancelled || !isStillViewing()) {
             clearInterval(poll);
             window._memoryPollInterval = null;
@@ -723,34 +724,36 @@ function pollMemoryUpdateStatus(persona, statusUrl, memoryUrl) {
             return;
         }
 
-        fetch(statusUrl + '?persona=' + encodeURIComponent(persona))
-            .then(r => r.json())
-            .then(data => {
-                // Always re-check before acting on results
-                if (cancelled || !isStillViewing()) {
-                    clearInterval(poll);
-                    window._memoryPollInterval = null;
-                    return;
-                }
+        let data;
+        try {
+            const response = await fetch(statusUrl + '?persona=' + encodeURIComponent(persona));
+            data = await response.json();
+        } catch (err) {
+            // Network error — keep polling
+            return;
+        }
 
-                if (data.state === 'completed') {
-                    cancelled = true;
-                    clearInterval(poll);
-                    window._memoryPollInterval = null;
-                    htmx.ajax('GET', memoryUrl + '?persona=' + encodeURIComponent(persona), {target: '#main-content', swap: 'innerHTML'});
-                } else if (data.state === 'failed') {
-                    cancelled = true;
-                    clearInterval(poll);
-                    window._memoryPollInterval = null;
-                    const status = document.getElementById('memory-status');
-                    if (status) status.innerHTML = ' · Update failed: ' + (data.error || 'Unknown error');
-                    const btn = document.getElementById('update-memory-btn');
-                    if (btn) btn.disabled = false;
-                }
-            })
-            .catch(() => {
-                // Network error — keep polling
-            });
+        // Always re-check before acting on results
+        if (cancelled || !isStillViewing()) {
+            clearInterval(poll);
+            window._memoryPollInterval = null;
+            return;
+        }
+
+        if (data.state === 'completed') {
+            cancelled = true;
+            clearInterval(poll);
+            window._memoryPollInterval = null;
+            htmx.ajax('GET', memoryUrl + '?persona=' + encodeURIComponent(persona), {target: '#main-content', swap: 'innerHTML'});
+        } else if (data.state === 'failed') {
+            cancelled = true;
+            clearInterval(poll);
+            window._memoryPollInterval = null;
+            const status = document.getElementById('memory-status');
+            if (status) status.innerHTML = ' · Update failed: ' + (data.error || 'Unknown error');
+            const btn = document.getElementById('update-memory-btn');
+            if (btn) btn.disabled = false;
+        }
     }, interval);
 
     window._memoryPollInterval = poll;
@@ -1141,7 +1144,7 @@ function clearNewChatScenario() {
  * Copy message content to clipboard.
  * @param {HTMLElement} button - The button element with data-message attribute
  */
-function copyMessageToClipboard(button) {
+async function copyMessageToClipboard(button) {
     const message = button.dataset.message;
     if (!message) return;
 
@@ -1153,18 +1156,21 @@ function copyMessageToClipboard(button) {
         decodedMessage = message;
     }
 
-    navigator.clipboard.writeText(decodedMessage).then(() => {
-        // Brief visual feedback - swap icon temporarily
-        const icon = button.querySelector('svg');
-        if (icon) {
-            icon.style.opacity = '0.5';
-            setTimeout(() => {
-                icon.style.opacity = '1';
-            }, 200);
-        }
-    }).catch(err => {
+    try {
+        await navigator.clipboard.writeText(decodedMessage);
+    } catch (err) {
         console.error('Failed to copy message:', err);
-    });
+        return;
+    }
+
+    // Brief visual feedback - swap icon temporarily
+    const icon = button.querySelector('svg');
+    if (icon) {
+        icon.style.opacity = '0.5';
+        setTimeout(() => {
+            icon.style.opacity = '1';
+        }, 200);
+    }
 }
 
 /**
@@ -1254,7 +1260,7 @@ function editLastMessage(button) {
 /**
  * Save the edited user message.
  */
-function saveEditedMessage() {
+async function saveEditedMessage() {
     const textarea = document.getElementById('edit-message-textarea');
     if (!textarea) return;
 
@@ -1265,24 +1271,28 @@ function saveEditedMessage() {
     formData.append('content', newContent);
     formData.append('csrfmiddlewaretoken', getCsrfToken());
 
-    fetch(getAppUrl('editMessageUrl', '/chat/edit-message/'), {
-        method: 'POST',
-        body: formData
-    }).then(response => {
-        if (response.ok) {
-            // Reload the chat to show updated message
-            htmx.ajax('GET', getAppUrl('chatUrl', '/chat/'), {
-                target: '#main-content',
-                swap: 'innerHTML'
-            });
-        } else {
-            console.error('Failed to save edited message');
-            cancelEdit();
-        }
-    }).catch(err => {
+    let response;
+    try {
+        response = await fetch(getAppUrl('editMessageUrl', '/chat/edit-message/'), {
+            method: 'POST',
+            body: formData
+        });
+    } catch (err) {
         console.error('Failed to save edited message:', err);
         cancelEdit();
-    });
+        return;
+    }
+
+    if (response.ok) {
+        // Reload the chat to show updated message
+        htmx.ajax('GET', getAppUrl('chatUrl', '/chat/'), {
+            target: '#main-content',
+            swap: 'innerHTML'
+        });
+    } else {
+        console.error('Failed to save edited message');
+        cancelEdit();
+    }
 }
 
 /**
@@ -1334,7 +1344,7 @@ function cleanupMessageButtons() {
     const lastIsAssistant = lastContainer?.classList.contains('assistant');
 
     userContainers.forEach((container, index) => {
-        const editBtn = container.querySelector('button[onclick*="editLastMessage"]');
+        const editBtn = container.querySelector('button[data-action="edit-message"]');
         if (!editBtn) return;
 
         const isLastUser = index === userContainers.length - 1;

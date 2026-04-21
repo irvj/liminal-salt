@@ -19,7 +19,7 @@ from ..services import (
     list_context_local_directories,
 )
 from ..services.persona_manager import get_persona_preview
-from ..services.config_manager import is_app_ready
+from ..services.config_manager import is_app_ready, config_file_exists
 from ..utils import load_config, save_config, get_formatted_model_list
 
 logger = logging.getLogger(__name__)
@@ -209,7 +209,7 @@ def save_provider_model(request):
 
     # Safety check: if config is empty but we're keeping existing key, file may be corrupted
     if keep_existing_key and not config.get('OPENROUTER_API_KEY'):
-        if os.path.exists(django_settings.CONFIG_FILE):
+        if config_file_exists():
             logger.error("Config appears corrupted - load returned empty but file exists")
             return JsonResponse({'success': False, 'error': 'Configuration file may be corrupted. Please check config.json'})
 

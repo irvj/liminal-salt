@@ -48,6 +48,11 @@ def is_app_ready(config):
     )
 
 
+def config_file_exists():
+    """True iff data/config.json exists on disk."""
+    return Path(django_settings.CONFIG_FILE).exists()
+
+
 # Available API providers
 # Each provider has: id, name, api_key_url, api_key_placeholder
 PROVIDERS = [
