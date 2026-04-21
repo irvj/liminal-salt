@@ -1,0 +1,96 @@
+{% import "icons.html" as icons %}
+<!-- Data element for Alpine access -->
+<div id="home-data"
+     data-persona-models='{{ persona_models_json | default(value="{}") | safe }}'
+     data-persona-modes='{{ persona_modes_json | default(value="{}") | safe }}'
+     data-default-model="{{ default_model | default(value='') | escapejs }}"
+     class="hidden"></div>
+
+<!-- Centered content -->
+<div class="flex-1 flex flex-col items-center justify-center p-5">
+    <form method="POST"
+          hx-post="/chat/start/"
+          hx-target="#main-content"
+          hx-swap="innerHTML"
+          hx-on::before-request="clearNewChatDraft(); clearNewChatScenario()"
+          class="w-full max-w-xl"
+          x-data="homePersonaPicker"
+          data-default-persona="{{ default_persona }}"
+          data-personas='[{% for p in personas %}{ "id": "{{ p }}", "display": "{{ p | display_name | escapejs }}" }{% if not loop.last %}, {% endif %}{% endfor %}]'>
+        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+        <input type="hidden" name="timezone" id="timezone-input" value="">
+        <input type="hidden" name="scenario" :value="scenarioContent">
+
+        <!-- Scenario modal data source (empty session-id signals home mode) -->
+        <div id="scenario-data" class="hidden" data-session-id="" :data-scenario="scenarioContent"></div>
+
+        <!-- Title -->
+        <h1 class="text-4xl text-foreground mb-6">Liminal Salt</h1>
+
+        <!-- Chat input -->
+        <div class="flex gap-3 items-end mb-3">
+            <input type="text"
+                   name="message"
+                   id="message-input"
+                   placeholder="What's on your mind?"
+                   required
+                   autocomplete="off"
+                   autofocus
+                   @input="saveNewChatDraftDebounced()"
+                   class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-secondary">
+            <button type="submit" tabindex="0" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Send</button>
+        </div>
+
+        <!-- Persona picker, mode picker, and model display -->
+        <div class="flex items-center gap-4 flex-wrap">
+            <div @dropdown-select="onPersonaSelect($event.detail)">
+                <div x-data="selectDropdown" :data-items="JSON.stringify(personaItems)" :data-selected="selectedPersona">
+                    {% set placeholder = "Select persona..." %}
+                    {% set name = "persona" %}
+                    {% set trigger_class = "flex items-center gap-1 text-foreground-secondary hover:text-foreground text-sm cursor-pointer outline-none focus:ring-1 focus:ring-accent-secondary focus:text-foreground rounded px-1" %}
+                    {% set trigger_icon = "user_pen" %}
+                    {% include "components/select_dropdown.html" %}
+                </div>
+            </div>
+
+            <div @dropdown-select="onModeSelect($event.detail)">
+                <div x-data="selectDropdown" :data-items="JSON.stringify(modeItems)" :data-selected="selectedMode">
+                    {% set placeholder = "Select mode..." %}
+                    {% set name = "mode" %}
+                    {% set trigger_class = "flex items-center gap-1 text-foreground-secondary hover:text-foreground text-sm cursor-pointer outline-none focus:ring-1 focus:ring-accent-secondary focus:text-foreground rounded px-1" %}
+                    {% set trigger_icon = "drama" %}
+                    {% include "components/select_dropdown.html" %}
+                </div>
+            </div>
+
+            <!-- Scenario button — roleplay only -->
+            <button type="button"
+                    x-show="selectedMode === 'roleplay'"
+                    @click="window.dispatchEvent(new CustomEvent('open-scenario-modal'))"
+                    class="relative flex items-center gap-1 text-foreground-secondary hover:text-foreground text-sm cursor-pointer outline-none focus:ring-1 focus:ring-accent-secondary focus:text-foreground rounded px-1"
+                    title="Set thread scenario">
+                {{ icons::folder(class="w-4 h-4") }}
+                <span>Scenario</span>
+                <span x-show="scenarioContent" class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-accent rounded-full"></span>
+            </button>
+
+            <!-- Model display -->
+            <span class="text-foreground-secondary text-sm flex items-center gap-1">
+                {{ icons::cpu(class="w-4 h-4") }}
+                <span x-text="currentModelDisplay"></span>
+            </span>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Restore new chat draft if one exists
+    restoreNewChatDraft();
+</script>
+
+{% if is_htmx %}
+<!-- OOB: Update sidebar sessions -->
+<div id="sidebar-sessions" hx-swap-oob="true">
+{% include "chat/sidebar_sessions.html" %}
+</div>
+{% endif %}

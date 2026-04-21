@@ -2,7 +2,7 @@
 
 **Created:** April 14, 2026
 **Updated:** April 21, 2026
-**Status:** Rust migration in progress — Phases 0, 1, 2 complete; Phase 3 in progress (3a landed, 3b + 3c remaining)
+**Status:** Rust migration in progress — Phases 0, 1, 2 complete; Phase 3 in progress (3a + 3b landed, 3c remaining)
 **Scope:** Python/Django → Rust (Axum + Tera) → Tauri desktop app
 
 ---
@@ -327,7 +327,7 @@ These three have no intra-layer dependencies and block everything else.
 
 **In progress.** Split into three sub-commits so HTMX-shape-drift and CSRF bugs (known hard spots #2 and #4) can be iterated against a narrower blast radius:
 - **3a (done 2026-04-21):** infrastructure + services (CSRF middleware, tower-sessions, Tera filters, AppState expansion, `services/{chat,prompt,summarizer}.rs`, ChatLlm trait, default-persona seeding).
-- **3b (pending):** templates port (Django → Tera): `base.html`, `chat/*`, `components/*`, `icons/*`. Handlers still stub 501.
+- **3b (done 2026-04-21):** templates port (Django → Tera): `base.html`, `chat/*`, `components/*`, `icons/*` as Tera macros. Phase 4+ modals stripped from `chat.html` (threadMemory / editPersona* / contextFiles × 2) — they'll come back as their owning phases land. `escapejs` Tera filter added to match Django's behavior. 9 render-smoke tests exercise every Phase 3 template.
 - **3c (pending):** handlers + browser smoke: wire every chat endpoint, exercise in a real browser, fix anything the browser surfaces.
 
 **Deliverable:** The primary chat loop works end-to-end in a browser. Send a message, see a response, refresh, history persists.
@@ -357,6 +357,24 @@ These three have no intra-layer dependencies and block everything else.
 - Unit: `ChatCore::send` preserves `scenario`, `thread_memory`, `pinned`, `draft` through the RMW.
 
 **Done when:** manual smoke — open browser, send 3 messages, switch sessions, pin one, rename one, refresh; all persists. `chat_core.py` tests (if any) mirrored in Rust and green.
+
+**Phase 3b outcome:**
+
+- **Templates ported:** 8 Tera files under `crates/liminal-salt/templates/`:
+  - `base.html`, `chat/{chat,chat_main,chat_home,assistant_fragment,sidebar_sessions,new_chat_button}.html`, `components/select_dropdown.html`.
+  - `chat.html` is the only template with Phase-scope decisions baked in: retains `renameModal` (Phase 3: rename_chat) and `scenarioModal` (Phase 3: save_scenario); strips `threadMemoryModal` (Phase 5), `editPersonaModal` / `editPersonaModelModal` (Phase 4), and both `contextFilesModal` instances (Phase 4). Stripped modals will be re-added in their owning phase.
+- **Icons as Tera macros:** `templates/icons.html` defines 24 `{% macro %}` blocks, one per icon, each taking a `class` arg (defaults to `w-5 h-5`). Hyphens → underscores in names (`chevron_down`, `star_filled`, etc.) for Tera identifier rules. Every consumer template does `{% import "icons.html" as icons %}` at the top and calls `{{ icons::<name>(class="...") }}`.
+- **URL paths hardcoded everywhere** (per roadmap guidance): `/chat/*`, `/session/*`, `/memory/*`, `/persona/*`, `/settings/*`, `/api/*`. Frontend already expects these via `#app-urls` data attributes; nothing changes client-side.
+- **CSRF integration pattern:** base template's `<meta name="csrf-token" content="{{ csrf_token }}">` + per-form `<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">` — a plain context-variable interpolation, no custom Tera function needed. The existing `utils.js` listener wires HTMX to auto-send `X-CSRFToken` and form POSTs to send the field; the CSRF middleware from 3a accepts both.
+- **New Tera filter `escapejs`** (`src/tera_extra.rs`): port of Django's `|escapejs`. Escapes quotes, angle brackets, ampersands, `=`, `-`, `;`, backticks, U+2028/U+2029 line separators, and ASCII control chars as `\uXXXX`. Used wherever user-content crosses into JS-string or HTML-attribute contexts (`data-message="{{ msg | escapejs }}"`, modal `CustomEvent` `detail`).
+- **Tera gotchas encountered** (documented so Phase 4/5 template ports don't re-hit them):
+  1. `{% import %}` must be the first non-content line in a template — comments before it are tolerated but any other tag parses as content and breaks the import.
+  2. `loop.revindex` doesn't exist. To port Django's `{% if forloop.revcounter <= 2 %}`: `{% if loop.index >= items | length - 1 %}`.
+  3. Tera tests take positional args, not named: `is starting_with("ERROR:")`, not `is starting_with(pat="ERROR:")`.
+  4. `slice` filter is Vec-only. For string prefix-stripping, `{{ s | replace(from="PREFIX:", to="") }}` — not semantically "strip leading" but fine when the prefix is a distinctive marker.
+  5. Tera errors hard on undefined variables; use `{% set var = var | default(value="...") %}` at the top of includes that accept optional parameters (what Django's loose undefined-is-empty behavior gave us for free).
+- **9 render-smoke tests** (`tests/template_render.rs`): every Phase 3 template rendered with plausible context. Asserts key structural elements (CSRF meta, markdown filter applied, error-prefix path, scenario-button-on-roleplay, fork-button-on-chatbot, sidebar pinned/grouped layout, escapejs output in attribute values). Catches render-time errors that parse-time doesn't — like the three caught and fixed during the port.
+- **Frontend assets untouched:** HTMX 1.9.10, Alpine 3, Marked 15 CDN URLs preserved byte-for-byte. `{% static 'x' %}` → `/static/x` (one-to-one path swap). `utils.js` / `components.js` / `output.css` loaded from `/static/js/...` and `/static/css/...` — same URLs the 3a static mount serves from `chat/static/`.
 
 **Phase 3a outcome:**
 

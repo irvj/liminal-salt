@@ -1,0 +1,35 @@
+{% import "icons.html" as icons %}
+<div class="message-container assistant my-4 max-w-[80%] w-fit mr-auto">
+    <div class="message assistant message-tail-assistant p-3 px-4 rounded-lg bg-assistant-bubble text-foreground">
+        {% if assistant_message is starting_with("ERROR:") %}
+            <strong class="flex items-center gap-1">{{ icons::alert(class="w-4 h-4") }} Error:</strong><br>
+            <pre class="bg-surface p-2 rounded overflow-x-auto mt-2">{{ assistant_message | replace(from="ERROR:", to="") }}</pre>
+        {% else %}
+            <div class="prose prose-invert">{{ assistant_message | markdown | safe }}</div>
+        {% endif %}
+    </div>
+    <div class="flex items-center gap-2 mt-3.5 px-1">
+        {% if assistant_timestamp %}
+        <span class="timestamp text-xs text-foreground-muted text-left" data-utc="{{ assistant_timestamp }}"></span>
+        {% endif %}
+        <button type="button"
+                class="text-foreground-muted hover:text-foreground cursor-pointer"
+                @click="copyMessageToClipboard($el)"
+                data-message="{{ assistant_message | escapejs }}"
+                title="Copy to clipboard">
+            {{ icons::copy(class="w-4 h-4") }}
+        </button>
+        <button type="button"
+                class="text-foreground-muted hover:text-foreground cursor-pointer"
+                @click="retryLastMessage()"
+                title="Retry">
+            {{ icons::retry(class="w-4 h-4") }}
+        </button>
+    </div>
+</div>
+<script>
+    // Clean up old retry/edit buttons when new message arrives
+    if (typeof cleanupMessageButtons === 'function') {
+        cleanupMessageButtons();
+    }
+</script>

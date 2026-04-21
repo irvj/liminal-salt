@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% import "icons.html" as icons %}
+
+{% block body_class %}flex h-screen{% endblock %}
+
+{% block body %}
+<!-- Sidebar wrapper with mobile state (contents = invisible to flex layout) -->
+<div class="contents" x-data="sidebarState">
+
+    <!-- Mobile backdrop -->
+    <div x-show="isMobile && !collapsed"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-75"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @click="collapsed = true"
+         class="fixed inset-0 bg-black/50 z-sidebar-backdrop">
+    </div>
+
+    <!-- Sidebar -->
+    <nav :class="{
+               'w-sidebar-collapsed': collapsed,
+               'w-sidebar': !collapsed,
+               'fixed inset-y-0 left-0 z-sidebar': isMobile && !collapsed
+           }"
+           aria-label="Chat sessions"
+           class="h-full flex flex-col bg-surface-secondary border-r border-border transition-all duration-200">
+
+        <!-- Header with toggle (always visible) -->
+        <div class="p-5 pb-0">
+            <div class="flex items-center mb-4" :class="collapsed ? 'justify-center' : 'justify-between'">
+                <h2 x-show="!collapsed" class="text-foreground text-xl">Liminal Salt</h2>
+                <button @click="collapsed = !collapsed"
+                        class="text-foreground-secondary hover:text-foreground cursor-pointer text-xl"
+                        :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'">
+                    <span x-show="collapsed">{{ icons::menu(class="w-6 h-6") }}</span>
+                    <span x-show="!collapsed">{{ icons::chevrons_left(class="w-6 h-6") }}</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Scrollable content (hidden when collapsed) -->
+        <div x-show="!collapsed" x-transition class="flex-1 overflow-y-auto px-5">
+            <div id="new-chat-button">
+            {% include "chat/new_chat_button.html" %}
+            </div>
+
+            <!-- Sessions grouped by persona -->
+            <div id="sidebar-sessions">
+            {% include "chat/sidebar_sessions.html" %}
+            </div>
+        </div>
+
+        <!-- Footer (always visible) -->
+        <div class="p-3 border-t border-border">
+            <div class="flex justify-center gap-4" :class="collapsed ? 'flex-col items-center' : ''">
+                <!-- New Chat -->
+                <button hx-get="/chat/new/"
+                        hx-target="#main-content"
+                        hx-swap="innerHTML"
+                        @click="saveDraftNow(); clearSidebarHighlight(); if (isMobile) collapsed = true"
+                        class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+                        title="New Chat">
+                    {{ icons::circle_plus(class="w-6 h-6") }}
+                </button>
+                <!-- Memory -->
+                <button hx-get="/memory/"
+                        hx-target="#main-content"
+                        hx-swap="innerHTML"
+                        @click="saveDraftNow(); clearSidebarHighlight(); if (isMobile) collapsed = true"
+                        class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+                        title="User Memory">
+                    {{ icons::brain_cog(class="w-6 h-6") }}
+                </button>
+                <!-- Persona -->
+                <button hx-get="/persona/"
+                        hx-target="#main-content"
+                        hx-swap="innerHTML"
+                        @click="saveDraftNow(); clearSidebarHighlight(); if (isMobile) collapsed = true"
+                        class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+                        title="Persona Settings">
+                    {{ icons::user_pen(class="w-6 h-6") }}
+                </button>
+                <!-- Settings -->
+                <button hx-get="/settings/"
+                        hx-target="#main-content"
+                        hx-swap="innerHTML"
+                        @click="saveDraftNow(); clearSidebarHighlight(); if (isMobile) collapsed = true"
+                        class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+                        title="Settings">
+                    {{ icons::settings(class="w-6 h-6") }}
+                </button>
+                <!-- Theme Toggle -->
+                <button @click="toggleTheme()"
+                        class="p-2 text-xl text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+                        :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'">
+                    <span x-show="isDark">{{ icons::moon(class="w-6 h-6") }}</span>
+                    <span x-show="!isDark">{{ icons::sun(class="w-6 h-6") }}</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+</div>
+
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col" id="main-content">
+    {% if show_home %}
+        {% include "chat/chat_home.html" %}
+    {% else %}
+        {% include "chat/chat_main.html" %}
+    {% endif %}
+</main>
+
+<!-- Scenario modal (Phase 3 — save_scenario endpoint) -->
+<div x-data="scenarioModal" x-cloak data-save-url="/session/scenario/save/">
+    <div x-show="showModal"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal-xl w-[90%] border border-border">
+            <h3 class="text-foreground mb-2">Thread Scenario</h3>
+            <p class="text-foreground-secondary text-sm mb-4">
+                Setup text that is always included in the prompt for this thread — world, situation, characters,
+                or rules the LLM should treat as authoritative. Leave empty for a normal chat.
+            </p>
+
+            <textarea x-model="content"
+                      placeholder="Describe the scenario for this thread..."
+                      class="w-full h-[400px] bg-surface border border-border rounded text-foreground font-mono text-sm p-3 resize-y mb-4 focus:outline-none focus:border-accent-secondary"></textarea>
+
+            <div class="flex gap-3 justify-end">
+                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="save()" :disabled="saving" class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
+                    <span x-show="!saving">Save</span>
+                    <span x-show="saving">...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rename modal (Phase 3 — rename_chat endpoint) -->
+<div x-data="renameModal" x-cloak>
+    <div x-show="showModal"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
+            <h3 class="text-foreground mb-3">Rename Chat</h3>
+            <input type="text"
+                   x-model="newTitle"
+                   maxlength="50"
+                   @keydown.enter.prevent="$refs.renameForm.requestSubmit()"
+                   class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-sm mb-2 focus:outline-none focus:border-accent-secondary"
+                   placeholder="Enter new title...">
+            <p class="text-foreground-secondary text-xs mb-5">50 character limit</p>
+            <form x-ref="renameForm"
+                  hx-post="/chat/rename/"
+                  hx-target="#sidebar-sessions"
+                  hx-swap="innerHTML"
+                  @htmx:after-request="showModal = false; updateHeaderTitle(newTitle)">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <input type="hidden" name="session_id" x-bind:value="sessionId">
+                <input type="hidden" name="new_title" x-bind:value="newTitle">
+                <div class="flex gap-3 justify-end">
+                    <button type="button" @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Setup scroll button listener on page load and after HTMX swaps
+    setupScrollButtonListener();
+    document.body.addEventListener('htmx:afterSwap', setupScrollButtonListener);
+
+    // Listen for HTMX responses to update title when it changes
+    document.body.addEventListener('htmx:afterRequest', function(event) {
+        const xhr = event.detail.xhr;
+        if (!xhr) return;
+
+        const newTitle = xhr.getResponseHeader('X-Chat-Title');
+        const sessionId = xhr.getResponseHeader('X-Chat-Session-Id');
+
+        if (newTitle && sessionId) {
+            // Update sidebar item
+            const sidebarItem = document.querySelector(`.session-row[data-session-id="${sessionId}"] .session-item`);
+            if (sidebarItem) {
+                sidebarItem.textContent = newTitle;
+            }
+
+            // Update header title
+            updateHeaderTitle(newTitle);
+        }
+    });
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimezoneInput();
+        convertTimestamps();
+        insertDateSeparators();
+    });
+</script>
+{% endblock %}
