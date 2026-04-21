@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.9] - 2026-04-21
+
+### Changes
+- add pre-release beta notice to README, flesh out Rust migration roadmap
+
 ## [0.10.8] - 2026-04-20
 
 ### Changes
