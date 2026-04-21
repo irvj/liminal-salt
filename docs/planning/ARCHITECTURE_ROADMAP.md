@@ -189,6 +189,35 @@ Each phase has: **deliverable**, **files**, **gotchas**, **done-when**. Phases r
 
 **Done when:** `node --check chat/static/js/components.js`, `node --check chat/static/js/utils.js`, `.venv/bin/python3 manage.py check` all pass; manual smoke test of memory update, clipboard copy, message edit confirms nothing regressed.
 
+### After Phase 0 — Branch setup for the migration
+
+Once Phase 0 is merged into main, create the long-lived branches **before** adding the freeze notice to main, so `python-legacy` inherits a clean README (no freeze notice, which only belongs on `main`).
+
+```bash
+# From a clean tip of main with Phase 0 merged:
+git checkout main && git pull
+git branch python-legacy
+git branch rust-migration
+git push origin python-legacy rust-migration
+
+# Optional: tag the split point (e.g., last stable Python release)
+git tag v0.99.0 main && git push origin v0.99.0
+
+# Now add the freeze notice to main (only lands on main):
+# ... edit README.md ...
+git commit -am "freeze main for Rust migration; direct users to python-legacy"
+git push origin main
+```
+
+**Three branches, three meanings:**
+- `main` — transitional / frozen. No commits (feature or fix) until the Rust migration merges. README directs users to `python-legacy` for running the app and `rust-migration` for tracking progress.
+- `python-legacy` — last stable Python-only version. Frozen going forward. Optional: add a one-line banner to its README (in a single commit on that branch) noting "final Python version, no further updates."
+- `rust-migration` — active dev for Phases 1–7. Python stays intact here through Phase 6; Phase 7 deletes it. This is the only branch where day-to-day work happens during M1.
+
+**Freeze discipline:** do not land commits on `main` during the migration. If something genuinely urgent surfaces (e.g., a Python dep security issue), cherry-pick into `rust-migration` too so Phase 7's delete commit has visibility of anything new. Otherwise `main` stays exactly as it was at the split.
+
+**At cutover (end of Phase 7):** regular merge commit from `rust-migration` → `main`. No last-minute tagging scramble — `python-legacy` already exists and has been discoverable the whole time. Post-merge, bump the version on `main` to `v1.0.0` to signal the Rust/Tauri break.
+
 ---
 
 ### Phase 1 — Rust scaffold
