@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 from ..utils import load_config, aggregate_all_sessions_messages
 from .context_manager import get_persona_identity, get_available_personas, get_persona_config
 from .memory_manager import (
-    MemoryManager, get_memory_file, get_memory_model,
+    MemoryManager, get_memory_file, get_memory_model, get_memory_content,
 )
 from .session_manager import load_session, save_thread_memory, now_timestamp
 from .thread_memory_manager import (
@@ -680,11 +680,17 @@ def run_thread_memory_update(session_id, config, source="manual"):
         api_key = config.get("OPENROUTER_API_KEY")
         model = get_memory_model(config, persona_name, personas_dir)
 
+        # Seed the chatbot-variant merge with the persona's cross-thread memory
+        # so the summary is colored by what the assistant already knows about
+        # this person. Roleplay suppresses this to preserve scene immersion.
+        persona_memory = get_memory_content(persona_name) if mode != "roleplay" else ""
+
         manager = ThreadMemoryManager(api_key, model)
         updated_memory = manager.merge(
             persona_display, existing_memory, new_messages,
             size_limit=effective.get('size_limit', DEFAULT_THREAD_MEMORY_SIZE),
             mode=mode,
+            persona_memory=persona_memory,
         )
 
         finished = datetime.now(timezone.utc).isoformat()

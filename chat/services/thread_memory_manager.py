@@ -109,7 +109,8 @@ class ThreadMemoryManager:
         self.model = model
 
     def merge(self, persona_display_name, existing_memory, new_messages,
-              size_limit=DEFAULT_THREAD_MEMORY_SIZE, mode="chatbot"):
+              size_limit=DEFAULT_THREAD_MEMORY_SIZE, mode="chatbot",
+              persona_memory=""):
         """
         Merge new messages into the existing thread summary via LLM.
 
@@ -119,6 +120,10 @@ class ThreadMemoryManager:
             new_messages: List of message dicts (each with role/content/timestamp)
             size_limit: Target character count (0 = unlimited)
             mode: "chatbot" or "roleplay" — selects prompt variant
+            persona_memory: Cross-thread persona memory about the user. Used as
+                background context in the chatbot prompt — seasons the voice,
+                does not get summarized. Ignored in roleplay mode to preserve
+                scene immersion.
 
         Returns:
             Updated memory string on success, None on failure.
@@ -150,6 +155,7 @@ class ThreadMemoryManager:
         else:
             prompt = self._build_chatbot_prompt(
                 persona_display_name, existing_block, transcript, size_instruction,
+                persona_memory=persona_memory,
             )
 
         try:
@@ -170,16 +176,46 @@ class ThreadMemoryManager:
             return None
 
     def _build_chatbot_prompt(self, persona_display_name, existing_block,
-                              transcript, size_instruction):
+                              transcript, size_instruction, persona_memory=""):
+        persona_memory_block = ""
+        persona_memory_merging_rule = ""
+        if persona_memory and persona_memory.strip():
+            persona_memory_block = (
+                "--- WHAT YOU ALREADY KNOW ABOUT THIS PERSON ---\n"
+                f"{persona_memory.strip()}\n\n"
+
+                "NOTE: The section above is your long-running memory about this\n"
+                "person, carried in from other conversations. It tells you who they\n"
+                "are to you — use it as the lens through which you read this thread.\n"
+                "DO NOT copy facts from it into the summary below. The summary is a\n"
+                "record of THIS thread only; what you already knew about them lives\n"
+                "elsewhere and doesn't need repeating here.\n\n"
+            )
+            persona_memory_merging_rule = (
+                "- DO NOT merge pre-existing knowledge about this person into the\n"
+                "  summary. Anything from \"WHAT YOU ALREADY KNOW\" above is background\n"
+                "  that colors how you read the thread — it is not content to summarize.\n"
+                "  The summary covers ONLY what happened in THIS thread.\n"
+            )
+
         return (
             f"You are {persona_display_name}. Below is your working memory of a\n"
-            "conversation thread with a user — what you remember of everything said\n"
-            "so far, the way you'd remember a long catch-up with a friend the next\n"
-            "day. You don't recall verbatim. You remember what they told you: the new\n"
-            "job, the move they're planning, the story about their commute. The dish\n"
-            "they ordered compresses to \"they had steak and potatoes\" — not the menu,\n"
-            "the memory. The fact that they told you something stays. The exact\n"
+            "conversation thread with this person — what you remember of everything\n"
+            "said so far. This is memory, not transcript. You don't recall verbatim.\n"
+            "You remember what happened: what they told you, what you worked through\n"
+            "together, the shape of the exchange. A long back-and-forth compresses\n"
+            "to its essence — \"they walked through the three options and picked the\n"
+            "middle one\" — not the full dialogue. What got said stays; the exact\n"
             "wording doesn't.\n\n"
+
+            "Write in the register that actually fits THIS thread and THIS person.\n"
+            "A technical working session reads differently than a late-night vent;\n"
+            "a one-off question reads differently than a conversation with someone\n"
+            "you've known a long time. Read the thread and, if present, your prior\n"
+            "memory of them — and let what's there decide the voice. Don't impose\n"
+            "a tone that isn't earned by the material.\n\n"
+
+            f"{persona_memory_block}"
 
             "--- CURRENT THREAD SUMMARY ---\n"
             f"{existing_block}\n\n"
@@ -202,6 +238,7 @@ class ThreadMemoryManager:
             "  add to that memory, they don't replace it.\n"
             "- MERGE the new messages into the existing summary; don't rewrite from\n"
             "  scratch.\n"
+            f"{persona_memory_merging_rule}"
             "- ABSTRACT toward essence, don't drop events. \"They told a long story\n"
             "  about their commute\" is fine; dropping that they talked about the\n"
             "  commute at all is not. The goal isn't a shorter summary — it's a\n"
