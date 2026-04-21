@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.10] - 2026-04-21
+
+### Changes
+- seed thread-memory with persona memory and let thread decide the register
+- update roadmap with branch and pre-migration planning
+
 ## [0.10.9] - 2026-04-21
 
 ### Changes
