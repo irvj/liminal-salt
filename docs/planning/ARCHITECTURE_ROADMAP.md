@@ -2,7 +2,7 @@
 
 **Created:** April 14, 2026
 **Updated:** April 21, 2026
-**Status:** Rust migration in progress — Phase 0 and Phase 1 complete; Phase 2 up next
+**Status:** Rust migration in progress — Phases 0, 1, 2 complete; Phase 3 up next
 **Scope:** Python/Django → Rust (Axum + Tera) → Tauri desktop app
 
 ---
@@ -266,6 +266,8 @@ git push origin main
 
 ### Phase 2 — Foundation services (config, session, LLM)
 
+**Done 2026-04-21.** See "Outcome" block below for concrete choices.
+
 These three have no intra-layer dependencies and block everything else.
 
 **2a. `services/config.rs`**
@@ -300,6 +302,24 @@ These three have no intra-layer dependencies and block everything else.
 - `fork_to_roleplay` copies the thread, switches mode, leaves origin untouched.
 
 **Done when:** `cargo test -p liminal-salt --test session` green; manual: write a session via a REPL binary and diff the JSON structure against a Python-generated one (shape check only, not byte-equal).
+
+**Phase 2 outcome (what was actually settled):**
+
+- **Library layout.** Added `src/lib.rs` exposing `services`, `routes`, `AppState`. `main.rs` is now thin — just boot wiring — so integration tests under `tests/` can import the crate. `[lib]` + `[[bin]]` sections coexist in the member Cargo.toml.
+- **Per-session lock map** uses `std::sync::LazyLock<StdMutex<HashMap<String, Arc<TokioMutex<()>>>>>` — **no `dashmap` dep**. The outer `StdMutex` is held briefly for registry insert/lookup (never across `.await`); the inner `TokioMutex` guards each session's I/O and is async-safe across awaits.
+- **Timestamp format:** `chrono::Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true)` → `2026-04-21T12:34:56.123456Z`. Diverges from Python's `+00:00` suffix — accepted per project constraints.
+- **Session ID generation uses UTC** (not Python's local time). Still matches the validation regex; just keeps filenames monotonic across timezones.
+- **Session struct** — optional fields (`title_locked`, `draft`, `pinned`, `scenario`, `thread_memory_settings`) are `Option<_>` with `skip_serializing_if = "Option::is_none"`. `thread_memory` / `thread_memory_updated_at` are plain `String` with `skip_if_empty`. On-disk shape matches Python's "absent until first set" semantics.
+- **`AppConfig`** uses `#[serde(rename_all = "SCREAMING_SNAKE_CASE")]` to match Python's config.json key style, plus `#[serde(flatten)] extras: BTreeMap<String, serde_json::Value>` so unknown keys round-trip through load → save without loss. Phase 6 will grow the typed fields as the setup wizard / settings UI is ported.
+- **`AGREEMENT.md` parsing** is single-shot at startup via `LazyLock<Agreement { version, body }>`. Accessor `current_agreement_version() -> &'static str` returns a zero-copy ref for comparisons in `is_app_ready()`.
+- **`data_dir()` Tauri seam** returns `CARGO_MANIFEST_DIR/../../data`. Sibling helpers `sessions_dir(&Path)` / `config_file(&Path)` take a base path so services don't hardcode the resolver (tests inject `TempDir::path()`).
+- **LLM headers** match Python exactly: `HTTP-Referer`, `X-OpenRouter-Title`, `X-OpenRouter-Categories` (not the roadmap's `X-Title`). App attribution constants (`https://liminalsalt.app`, `Liminal Salt`, `general-chat,roleplay`) ported verbatim.
+- **`LlmMessage { role, content }`** is a dedicated struct distinct from `session::Message` — stripping the `timestamp` field before dispatch so the API doesn't see it. ChatCore in Phase 3 will convert.
+- **`LlmError`** variants: `NoApiKey`, `Network(reqwest::Error)`, `BadStatus { status, body }`, `BadResponse(String)`. `Network` uses `#[from]` so `?` on reqwest calls works.
+- **Return conventions match Python semantics:** `Option<T>` for reads (invalid id / missing file both → `None`), `bool` for writes (false on any failure), errors logged via `tracing::error!` but not propagated. Trades Rust-idiomatic `Result<_, E>` for cleaner caller ergonomics at the view layer — fine since every call site would otherwise log-and-ignore the same way.
+- **`tokio::fs` throughout** for file I/O. Writes use `OpenOptions::truncate(true) + write_all + sync_all` (matches Python's `open('w') + flush + fsync`).
+- **Integration tests** live at `tests/session.rs` — 16 cases covering id validation (positive + traversal rejection), create/load round-trip, optional-field absence on disk, RMW preservation across `save_chat_history`, rename / pin / delete / remove-last-assistant / update-last-user, thread-memory-settings merge + clear, `fork_to_roleplay` (new has roleplay mode + copied thread memory + reset pinned/draft/scenario; origin untouched), `update_persona_across_sessions` matching-only rewrite, 10-task concurrent `save_chat_history` produces valid JSON. Uses `tempfile::TempDir` per test.
+- **`AppState` unchanged in Phase 2.** No handlers yet use `config`/`session`/`llm`. Wiring (data_dir, config, LlmClient, Tera) happens in Phase 3 when the first handler (`POST /chat/send/`) needs them all.
 
 ---
 

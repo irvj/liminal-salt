@@ -2,15 +2,9 @@ use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 use tera::Tera;
 use tower_http::{services::ServeDir, trace::TraceLayer};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-mod routes;
-mod services;
-
-#[derive(Clone)]
-pub struct AppState {
-    pub tera: Arc<Tera>,
-}
+use liminal_salt::{AppState, routes};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
