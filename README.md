@@ -4,7 +4,7 @@
 
 A self-hosted LLM chatbot with persistent per-persona memory, customizable personas, and a roleplay mode. Runs locally; state lives in plain JSON and Markdown files under `data/`.
 
-> **Pre-release beta.** Currently a Python + Django webapp you run locally in your browser. A migration to a Rust backend (Axum) and a standalone desktop app (Tauri) is planned. Internals and on-disk data formats will change during this transition with no migration paths — expect breakage and back up anything you care about. If you want a stable install-and-forget app, wait for the desktop build.
+> **Final Python-only version. No further updates.** Active development has moved to [`main`](https://github.com/irvj/liminal-salt) for the Rust migration.
 
 ![Liminal Salt](docs/images/main-screenshot.png)
 
