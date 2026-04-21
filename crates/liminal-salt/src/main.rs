@@ -1,10 +1,18 @@
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
+use axum::middleware as axum_mw;
 use tera::Tera;
 use tower_http::{services::ServeDir, trace::TraceLayer};
+use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer, cookie::time::Duration as CookieDuration};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-use liminal_salt::{AppState, routes};
+use liminal_salt::{
+    AppState,
+    middleware::csrf,
+    routes,
+    services::{config, prompt},
+    tera_extra,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -17,7 +25,8 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let tera = Tera::new(
+
+    let mut tera = Tera::new(
         manifest_dir
             .join("templates")
             .join("**")
@@ -25,16 +34,42 @@ async fn main() -> anyhow::Result<()> {
             .to_str()
             .expect("template glob is utf-8"),
     )?;
+    tera_extra::register(&mut tera);
+
+    let data_dir = config::data_dir();
+    tokio::fs::create_dir_all(&data_dir).await?;
+    let sessions_dir = config::sessions_dir(&data_dir);
+    tokio::fs::create_dir_all(&sessions_dir).await?;
+
+    // Bundled default personas still ship from the Django app directory in
+    // Phase 3 (the Django code is on this branch until Phase 7 deletes it).
+    let bundled_personas = manifest_dir.join("../../chat/default_personas");
+    prompt::seed_default_personas(&data_dir, &bundled_personas).await;
+
     let state = AppState {
         tera: Arc::new(tera),
+        data_dir,
+        sessions_dir,
+        http: reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()?,
     };
 
     // Static assets still live at the repo-root chat/static/ path (unchanged from Django).
-    // crates/liminal-salt/ → ../../chat/static
     let static_dir = manifest_dir.join("../../chat/static");
+
+    // Session state (current session id, user timezone, CSRF token) lives in a
+    // process-local memory store. Two-week cookie expiry matches Django's
+    // SESSION_COOKIE_AGE.
+    let session_store = MemoryStore::default();
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_name("liminal_salt_session")
+        .with_expiry(Expiry::OnInactivity(CookieDuration::weeks(2)));
 
     let app = routes::build_router(state)
         .nest_service("/static", ServeDir::new(&static_dir))
+        .layer(axum_mw::from_fn(csrf::require_csrf))
+        .layer(session_layer)
         .layer(TraceLayer::new_for_http());
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8420));

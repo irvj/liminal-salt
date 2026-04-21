@@ -2,7 +2,7 @@
 
 **Created:** April 14, 2026
 **Updated:** April 21, 2026
-**Status:** Rust migration in progress — Phases 0, 1, 2 complete; Phase 3 up next
+**Status:** Rust migration in progress — Phases 0, 1, 2 complete; Phase 3 in progress (3a landed, 3b + 3c remaining)
 **Scope:** Python/Django → Rust (Axum + Tera) → Tauri desktop app
 
 ---
@@ -325,6 +325,11 @@ These three have no intra-layer dependencies and block everything else.
 
 ### Phase 3 — Chat flow
 
+**In progress.** Split into three sub-commits so HTMX-shape-drift and CSRF bugs (known hard spots #2 and #4) can be iterated against a narrower blast radius:
+- **3a (done 2026-04-21):** infrastructure + services (CSRF middleware, tower-sessions, Tera filters, AppState expansion, `services/{chat,prompt,summarizer}.rs`, ChatLlm trait, default-persona seeding).
+- **3b (pending):** templates port (Django → Tera): `base.html`, `chat/*`, `components/*`, `icons/*`. Handlers still stub 501.
+- **3c (pending):** handlers + browser smoke: wire every chat endpoint, exercise in a real browser, fix anything the browser surfaces.
+
 **Deliverable:** The primary chat loop works end-to-end in a browser. Send a message, see a response, refresh, history persists.
 
 **Services:**
@@ -352,6 +357,20 @@ These three have no intra-layer dependencies and block everything else.
 - Unit: `ChatCore::send` preserves `scenario`, `thread_memory`, `pinned`, `draft` through the RMW.
 
 **Done when:** manual smoke — open browser, send 3 messages, switch sessions, pin one, rename one, refresh; all persists. `chat_core.py` tests (if any) mirrored in Rust and green.
+
+**Phase 3a outcome:**
+
+- **Session middleware:** `tower-sessions` 0.15 with `MemoryStore`, cookie name `liminal_salt_session` (matches Django), two-week inactivity expiry. State is process-local — server restart invalidates old session cookies; the browser gets a fresh one on the next GET. Three typed keys layered on top: `csrf_token`, `current_session`, `user_timezone`. No signing key needed since `MemoryStore` keys by server-side UUID.
+- **CSRF middleware** (`src/middleware/csrf.rs`): mints a 32-byte hex token into the session on every request (so GET `/chat/` can embed it in `<meta name="csrf-token">`); on POST/PUT/PATCH/DELETE, compares the request's token to the session's using constant-time equality. Accepts `X-CSRFToken` header (fast path, every HTMX request + most `fetch()` calls) or the `csrfmiddlewaretoken` field in a `application/x-www-form-urlencoded` body (needed by the `saveEditedMessage` and persona-form submit paths). Multipart bodies aren't inspected — Phase 4+ file-upload endpoints will need to send the header.
+- **Tera filters** (`src/tera_extra.rs`): `markdown` wraps `pulldown-cmark` with GFM options (tables, strikethrough, tasklists, footnotes). `display_name` does `snake_or-kebab` → `Title Case`.
+- **`AppState` expanded** with `data_dir`, `sessions_dir`, `http: reqwest::Client` (single shared pool, 30s timeout). Config reloads from disk per-request — matches Python's read-every-time semantics; cost is trivial at localhost scale. Per-request `LlmClient` is constructed from the fresh config.
+- **`ChatLlm` trait** (`services/llm.rs`): `fn complete(...) -> impl Future<Output=Result<_,_>> + Send`. `LlmClient` is the production impl; tests use a `FakeLlm` / `FailingLlm`. Generic bound `L: ChatLlm` avoids the async-dyn-trait footgun.
+- **`services/chat.rs`:** stateless `send_message(ctx, llm, user_input, skip_user_save)` — loads session, optionally appends user message, builds payload (system prompt with prepended time-context block + per-user-message `[user's time | assistant's time]` prefixes using `chrono-tz`), runs LLM with 2 retries + 2s backoff + 120s per-call timeout, appends assistant message, saves via `session::save_chat_history`. Returns `SendOutcome { response, is_error }`. Title generation is deliberately **not** inside `send_message` — it's a separate summarizer call the handler will orchestrate in 3c.
+- **`services/prompt.rs` (Phase 3 stub scope):** emits persona identity `.md` files (alphabetical, headered with `--- SYSTEM INSTRUCTION: filename ---`), plus scenario (roleplay threads only) and thread_memory when present. Persona memory and uploaded/local context files deferred to Phase 4/5. Also owns `seed_default_personas` — on startup copies `chat/default_personas/*` into `<data_dir>/personas/` if absent.
+- **`services/summarizer.rs`:** `generate_title(llm, user_msg, assistant_msg)` ported verbatim from Python (artifact stripping, length validation, truncated-user-prompt fallback).
+- **Return conventions preserved** from Phase 2: chat/summarizer return plain `String` (error path encoded as `"ERROR: ..."`), middleware returns `StatusCode` on rejection, everything else logs errors via `tracing`.
+- **Tests added (13 new):** `csrf::tests` (form_field parsing, constant_time_eq), `tera_extra::tests` (markdown, display_name), `summarizer::tests` (clean_title, has_artifacts, fallback truncation, char-boundary-safe truncate), plus `tests/chat_core.rs` (4 integration tests: scenario/memory/pin/draft survive RMW, `skip_user_save` doesn't duplicate, LLM failure doesn't partial-save, missing session returns error). Total suite: 29 tests.
+- **Smoke confirmed on `cargo run`:** session cookie sets correctly, unauthenticated POST returns 403, default personas seed into `data/personas/` on startup.
 
 ---
 

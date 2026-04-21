@@ -49,11 +49,27 @@ impl LlmMessage {
     }
 }
 
+/// Abstraction for "something that can complete an LLM chat turn." `LlmClient`
+/// is the production impl; tests use a fake that returns a canned response
+/// without hitting the network.
+pub trait ChatLlm: Send + Sync {
+    fn complete(
+        &self,
+        messages: &[LlmMessage],
+    ) -> impl std::future::Future<Output = Result<String, LlmError>> + Send;
+}
+
 pub struct LlmClient {
     api_key: String,
     model: String,
     client: Client,
     timeout: Duration,
+}
+
+impl ChatLlm for LlmClient {
+    async fn complete(&self, messages: &[LlmMessage]) -> Result<String, LlmError> {
+        self.call_llm(messages).await
+    }
 }
 
 impl LlmClient {
