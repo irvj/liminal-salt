@@ -53,7 +53,7 @@ Browser access       tokio async                  Single binary
 These shape every decision in the plan.
 
 - **No external users.** The app is public but pre-adoption. The author is the only user.
-- **No backward-compatibility tax.** On-disk formats (session JSON shape, timestamp format, persona config layout, memory file layout) are **not** locked in. They can change. `data/` can be wiped between experiments. This removes the single hardest class of migration bug (silent format drift).
+- **No backward-compatibility tax.** On-disk formats (session JSON shape, timestamp format, persona config layout, memory file layout) are **not** locked in. They can change — one-off migrations are acceptable when a shape shift is worth it. This removes the single hardest class of migration bug (silent format drift).
 - **Correctness over format parity.** Goal is "the Rust app works correctly," not "the Rust app writes byte-identical files to the Python app." Build against Rust-native idioms (e.g., `chrono::to_rfc3339`), not Python-compat helpers.
 - **The frontend is a fixed target.** HTMX + Alpine + Tailwind + all JS is unchanged by M1. This is enforced architecture: the server language must not leak into the browser.
 
@@ -306,7 +306,7 @@ These three have no intra-layer dependencies and block everything else.
 **2c. `services/session.rs`** — the big one
 - `Session` struct with all fields from CLAUDE.md schema table. Use `#[serde(skip_serializing_if = "Option::is_none")]` on optional fields (`title_locked`, `draft`, `pinned`, `scenario`, `thread_memory_settings`) so the on-disk shape is clean.
 - `Message { role, content, timestamp }`.
-- `now_timestamp() -> String` — decide format now. Proposal: `chrono::Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true)` which yields `2026-04-21T12:34:56.123456Z`. Still fixed-width, still lexicographic-sortable. Fine to differ from Python's output — `data/` will be wiped.
+- `now_timestamp() -> String` — decide format now. Proposal: `chrono::Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true)` which yields `2026-04-21T12:34:56.123456Z`. Still fixed-width, still lexicographic-sortable. Fine to differ from Python's output — existing data gets a one-off migration if needed.
 - `valid_session_id(&str) -> bool` — regex ported verbatim (`^session_\d{8}_\d{6}(?:_\d+)?\.json$`).
 - Per-session locks: `static SESSION_LOCKS: Lazy<DashMap<String, Arc<Mutex<()>>>>`.
 - Public async functions: `load_session`, `save_chat_history`, `create_session`, `delete_session`, `rename_session`, `pin_session`, `save_draft`, `save_scenario`, `save_thread_memory`, `save_thread_memory_settings_override`, `clear_thread_memory_settings_override`, `fork_to_roleplay`, `list_sessions`.
