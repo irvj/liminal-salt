@@ -2,7 +2,7 @@
 
 **Created:** April 14, 2026
 **Updated:** April 21, 2026
-**Status:** Rust migration in progress — Phases 0, 1, 2, 3 complete; Phase 4 in progress (4a + 4b + 4c landed, browser smoke owed)
+**Status:** Rust migration in progress — Phases 0, 1, 2, 3, 4 complete; Phase 5 (memory system) up next
 **Scope:** Python/Django → Rust (Axum + Tera) → Tauri desktop app
 
 ---
@@ -423,7 +423,7 @@ These three have no intra-layer dependencies and block everything else.
 **In progress.** Split into three sub-commits following the Phase 3 pattern:
 - **4a (done 2026-04-22):** service layer — `services/{persona,context_files,local_context}.rs` + expanded `services/prompt.rs`. Ownership audit: moved persona `config.json` from `context_manager` into `persona.rs` (fixed the historical Python split). 24 new integration tests; 69 tests total across the crate.
 - **4b (done 2026-04-22):** template port for `persona/persona_main.html`, `memory/memory_main.html`, `chat/context_files_modal.html`, `chat/dir_browser_modal.html`, `chat/local_dir_tab.html`; restored the 4 modals in `chat.html` (`editPersonaModal`, `editPersonaModelModal`, global + per-persona `contextFilesModal`); added a `page` routing variable so chat.html acts as a shared shell for persona/memory/chat page variants. 4 new render tests; 73 tests total.
-- **4c (done 2026-04-22 — browser smoke owed):** handlers for `/persona/*`, `/memory/` view, context files (global + per-persona) and local directories. Debug log added to `chat::send` so the assembled system prompt prints on every send for easy verification.
+- **4c (done 2026-04-22):** handlers for `/persona/*`, `/memory/` view, context files (global + per-persona) and local directories. Debug log added to `chat::send` so the assembled system prompt prints on every send for easy verification. Browser smoke passed end-to-end: persona CRUD, context file upload/toggle/delete, local directory add + toggle, thread defaults save, memory page renders, system prompt in logs shows context file body.
 
 **Ownership audit (2026-04-22):** CLAUDE.md's table had `data/personas/{name}/config.json` owned by `context_manager.save_persona_config` — a historical Python artifact where persona-scoped state was split across two services for no architectural reason. In the Rust port this moves to `persona.rs` alongside the directory it lives in. CLAUDE.md is not edited now because it still describes current Python reality; Phase 7's rewrite will capture the Rust convention from the actual code.
 
@@ -457,6 +457,7 @@ These three have no intra-layer dependencies and block everything else.
 - **No-op detection for thread defaults:** if the submitted values match the global defaults and `default_mode` isn't "roleplay," no override is persisted. Matches Python's "clear if it would be a no-op" behavior.
 - **`chat::send` now debug-logs the assembled system prompt** (persona, mode, byte count, full text) so the Phase 4 done-when verification is a single glance at the `cargo run` terminal.
 - **Known gap:** `/settings/available-models/` still stubbed 501 — "Edit Model" modal shows a load error until Phase 6 wires up OpenRouter model listing.
+- **Smoke fix caught during browser testing:** `LocalFileEntry::exists_on_disk` was renaming to JSON as `exists_on_disk`, but the JS frontend reads `file.exists` (matching Python's field name). Added `#[serde(rename = "exists")]` — local directory files now show correct presence state.
 
 **Phase 4b outcome:**
 
