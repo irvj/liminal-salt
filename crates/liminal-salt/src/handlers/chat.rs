@@ -18,7 +18,8 @@ use crate::{
     AppState,
     middleware::session_state,
     services::{
-        chat as chat_svc, config, llm::LlmClient, prompt, session as session_svc, summarizer,
+        chat as chat_svc, config, llm::LlmClient, persona as persona_svc, prompt,
+        session as session_svc, summarizer, thread_memory,
     },
 };
 use crate::services::session::{Mode, SessionSummary};
@@ -127,12 +128,15 @@ async fn render_view(state: &AppState, session: &Session, headers: &HeaderMap) -
     ctx.insert("show_home", &show_home);
 
     if show_home {
-        // Home page: persona picker + first-message form.
+        // Home page: persona picker + first-message form. The JSON maps let
+        // the JS snap the model dropdown + chatbot/roleplay radio to each
+        // persona's configured values when the user picks a persona.
         let personas = prompt::available_personas(&state.data_dir).await;
+        let (models_json, modes_json) =
+            build_persona_maps(&state.data_dir, &personas, &cfg.model).await;
         ctx.insert("personas", &personas);
-        // Phase 4 will fill in real persona → model / persona → mode maps.
-        ctx.insert("persona_models_json", "{}");
-        ctx.insert("persona_modes_json", "{}");
+        ctx.insert("persona_models_json", &models_json);
+        ctx.insert("persona_modes_json", &modes_json);
     } else if let Some(data) = session_data {
         let id = current_id.unwrap_or_default();
         ctx.insert("session_id", &id);
@@ -149,10 +153,20 @@ async fn render_view(state: &AppState, session: &Session, headers: &HeaderMap) -
         ctx.insert("scenario", &data.scenario.clone().unwrap_or_default());
         ctx.insert("thread_memory", &data.thread_memory);
         ctx.insert("thread_memory_updated_at", &data.thread_memory_updated_at);
-        ctx.insert("thread_memory_interval_minutes", &0u32);
-        ctx.insert("thread_memory_message_floor", &4u32);
-        ctx.insert("thread_memory_size_limit", &4000u32);
-        ctx.insert("thread_memory_has_override", &false);
+        // Resolve thread-memory settings (per-thread override → persona
+        // default → global fallback) so the modal shows the right initial
+        // values on page load. Without this, users see 0/4/4000 until they
+        // save/reset once to re-sync the DOM data attributes.
+        let persona_cfg =
+            persona_svc::load_persona_config(&state.data_dir, &data.persona).await;
+        let effective = thread_memory::resolve_settings(Some(&data), &persona_cfg);
+        ctx.insert("thread_memory_interval_minutes", &effective.interval_minutes);
+        ctx.insert("thread_memory_message_floor", &effective.message_floor);
+        ctx.insert("thread_memory_size_limit", &effective.size_limit);
+        ctx.insert(
+            "thread_memory_has_override",
+            &data.thread_memory_settings.is_some(),
+        );
     }
 
     let htmx = is_htmx(headers);
@@ -175,6 +189,41 @@ async fn render_view(state: &AppState, session: &Session, headers: &HeaderMap) -
             (StatusCode::INTERNAL_SERVER_ERROR, format!("template render failed: {err:?}")).into_response()
         }
     }
+}
+
+/// Build the two JSON maps the home page's JS reads to snap model + mode to
+/// a persona's configured values on picker-select.
+///
+/// - `persona_models_json`: `{persona: model}` for every persona. Empty
+///   persona `model` falls back to the app default so the JS always has a
+///   value to set.
+/// - `persona_modes_json`: only contains entries for personas that explicitly
+///   set `default_mode: "roleplay"`. Chatbot is the unwritten baseline;
+///   putting `"chatbot"` in the map would force the home picker to reset even
+///   when the user had roleplay selected.
+async fn build_persona_maps(
+    data_dir: &std::path::Path,
+    personas: &[String],
+    default_model: &str,
+) -> (String, String) {
+    let mut models: BTreeMap<&str, String> = BTreeMap::new();
+    let mut modes: BTreeMap<&str, String> = BTreeMap::new();
+    for name in personas {
+        let cfg = persona_svc::load_persona_config(data_dir, name).await;
+        let model = cfg
+            .model
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .unwrap_or(default_model);
+        models.insert(name.as_str(), model.to_string());
+        if cfg.default_mode.as_deref() == Some("roleplay") {
+            modes.insert(name.as_str(), "roleplay".to_string());
+        }
+    }
+    (
+        serde_json::to_string(&models).unwrap_or_else(|_| "{}".to_string()),
+        serde_json::to_string(&modes).unwrap_or_else(|_| "{}".to_string()),
+    )
 }
 
 async fn render_sidebar_fragment(state: &AppState, session: &Session) -> Response {

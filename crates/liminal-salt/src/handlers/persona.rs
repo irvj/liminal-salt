@@ -15,14 +15,13 @@ use crate::{
     services::{
         context_files::ContextScope,
         persona::{self, PersonaConfig, PersonaError, ThreadMemoryDefaults},
+        thread_memory::{
+            DEFAULT_THREAD_MEMORY_INTERVAL_MINUTES as DEFAULT_INTERVAL_MINUTES,
+            DEFAULT_THREAD_MEMORY_MESSAGE_FLOOR as DEFAULT_MESSAGE_FLOOR,
+            DEFAULT_THREAD_MEMORY_SIZE as DEFAULT_SIZE_LIMIT,
+        },
     },
 };
-
-// Hardcoded global defaults for thread memory (no app-level config key exists
-// yet; Phase 5 / 6 may pull these from `AppConfig`).
-const DEFAULT_INTERVAL_MINUTES: u32 = 0;
-const DEFAULT_MESSAGE_FLOOR: u32 = 4;
-const DEFAULT_SIZE_LIMIT: u32 = 4000;
 
 // =============================================================================
 // GET /persona/

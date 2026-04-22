@@ -11,33 +11,20 @@
 //! Persona memory writes are still the responsibility of a Phase 5 service
 //! (`memory_manager.rs`); this module only reads the resulting markdown file.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::services::{
     context_files::ContextScope,
-    persona,
+    memory, persona,
     session::{Mode, Session},
 };
-
-/// Location of a persona's identity directory under the data root. Kept for
-/// backward compatibility with callers that existed before Phase 4 moved
-/// persona CRUD into `services::persona`.
-pub fn persona_dir(data_dir: &Path, persona_name: &str) -> PathBuf {
-    persona::persona_dir(data_dir, persona_name)
-}
-
-/// Path to the persona memory markdown file. Writes go through Phase 5's
-/// `memory_manager`; reads happen here during prompt assembly.
-fn persona_memory_file(data_dir: &Path, persona_name: &str) -> PathBuf {
-    data_dir.join("memory").join(format!("{persona_name}.md"))
-}
 
 /// Build the full system prompt for a chat turn.
 pub async fn build_system_prompt(data_dir: &Path, session: &Session) -> String {
     let mut out = String::new();
 
     // 1. Persona identity.
-    let identity_path = persona_dir(data_dir, &session.persona);
+    let identity_path = persona::persona_dir(data_dir, &session.persona);
     match collect_identity_files(&identity_path).await {
         Ok(files) if !files.is_empty() => {
             for (filename, body) in files {
@@ -100,7 +87,7 @@ pub async fn build_system_prompt(data_dir: &Path, session: &Session) -> String {
     //    preserve immersion; a fictional persona shouldn't know real-user
     //    biographical facts mid-scene).
     if session.mode == Mode::Chatbot {
-        let memory_path = persona_memory_file(data_dir, &session.persona);
+        let memory_path = memory::memory_file(data_dir, &session.persona);
         if let Ok(body) = tokio::fs::read_to_string(&memory_path).await {
             let trimmed = body.trim();
             if !trimmed.is_empty() {
