@@ -1487,7 +1487,7 @@ async function deletePersonaWithConfirm(persona) {
         confirmText: 'Delete',
     })) return;
     try {
-        const response = await fetch(getAppUrl('deletePersonaUrl', '/settings/delete-persona/'), {
+        const response = await fetch(getAppUrl('deletePersonaUrl', '/persona/delete/'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',

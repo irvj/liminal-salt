@@ -238,7 +238,7 @@
 </div>
 
 <!-- Edit Persona modal (Phase 4) -->
-<div x-data="editPersonaModal" x-cloak data-create-url="/settings/create-persona/" data-save-url="/settings/save-persona/">
+<div x-data="editPersonaModal" x-cloak data-create-url="/persona/create/" data-save-url="/persona/save/">
     <div x-show="showModal"
          class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
          @click.self="showModal = false">
@@ -266,7 +266,7 @@
 <!-- Edit Persona Model modal (Phase 4 — model-override picker) -->
 <div x-data="editPersonaModelModal" x-cloak
      data-models-url="/settings/available-models/"
-     data-save-url="/settings/save-persona-model/"
+     data-save-url="/persona/save-model/"
      data-persona-settings-url="/persona/">
     <div x-show="showModal"
          class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"

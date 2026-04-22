@@ -662,8 +662,8 @@ function editPersonaModal() {
         saveUrl: '',
 
         init() {
-            this.createUrl = this.$el.dataset.createUrl || '/settings/create-persona/';
-            this.saveUrl = this.$el.dataset.saveUrl || '/settings/save-persona/';
+            this.createUrl = this.$el.dataset.createUrl || '/persona/create/';
+            this.saveUrl = this.$el.dataset.saveUrl || '/persona/save/';
 
             window.addEventListener('open-new-persona-modal', () => {
                 this.openNew();
@@ -763,7 +763,7 @@ function editPersonaModelModal() {
 
         init() {
             this.modelsUrl = this.$el.dataset.modelsUrl || '/settings/available-models/';
-            this.saveUrl = this.$el.dataset.saveUrl || '/settings/save-persona-model/';
+            this.saveUrl = this.$el.dataset.saveUrl || '/persona/save-model/';
 
             window.addEventListener('open-edit-model-modal', () => {
                 const personaData = document.getElementById('persona-data');

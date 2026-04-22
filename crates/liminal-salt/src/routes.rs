@@ -32,16 +32,16 @@ pub fn build_router(state: AppState) -> Router {
         .route("/session/fork-to-roleplay/", post(handlers::session::fork_to_roleplay))
         // Persona page + CRUD
         .route("/persona/", get(handlers::persona::view))
-        .route("/settings/create-persona/", post(handlers::persona::create_persona))
-        .route("/settings/save-persona/", post(handlers::persona::save_persona))
-        .route("/settings/delete-persona/", post(handlers::persona::delete_persona))
-        .route("/settings/save-persona-model/", post(handlers::persona::save_persona_model))
+        .route("/persona/create/", post(handlers::persona::create_persona))
+        .route("/persona/save/", post(handlers::persona::save_persona))
+        .route("/persona/delete/", post(handlers::persona::delete_persona))
+        .route("/persona/save-model/", post(handlers::persona::save_persona_model))
         .route(
-            "/settings/save-persona-thread-defaults/",
+            "/persona/save-thread-defaults/",
             post(handlers::persona::save_persona_thread_defaults),
         )
         .route(
-            "/settings/clear-persona-thread-defaults/",
+            "/persona/clear-thread-defaults/",
             post(handlers::persona::clear_persona_thread_defaults),
         )
         .route("/settings/save/", post(handlers::settings::save))
