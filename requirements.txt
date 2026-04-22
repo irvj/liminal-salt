@@ -1,5 +1,0 @@
-django~=6.0
-requests
-markdown
-waitress
-whitenoise

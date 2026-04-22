@@ -1,15 +1,12 @@
 {
   "name": "liminal-salt",
   "version": "0.10.10",
-  "description": "Tailwind CSS build tooling for Liminal Salt. Version follows Python package.",
+  "description": "Tailwind CSS build tooling for Liminal Salt.",
   "main": "index.js",
   "scripts": {
-    "dev": "concurrently -n tailwind,django -c blue,green \"npm run watch:css\" \"python3 manage.py runserver\"",
+    "dev": "concurrently -n tailwind,server -c blue,green \"npm run watch:css\" \"cargo run -p liminal-salt\"",
     "watch:css": "npx @tailwindcss/cli -i ./crates/liminal-salt/static/css/input.css -o ./crates/liminal-salt/static/css/output.css --watch --minify",
-    "build:css": "npx @tailwindcss/cli -i ./crates/liminal-salt/static/css/input.css -o ./crates/liminal-salt/static/css/output.css --minify",
-    "version:patch": "python3 scripts/bump_version.py patch",
-    "version:minor": "python3 scripts/bump_version.py minor",
-    "version:major": "python3 scripts/bump_version.py major"
+    "build:css": "npx @tailwindcss/cli -i ./crates/liminal-salt/static/css/input.css -o ./crates/liminal-salt/static/css/output.css --minify"
   },
   "repository": {
     "type": "git",
