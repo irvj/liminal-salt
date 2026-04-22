@@ -552,12 +552,24 @@ impl MemoryWorker {
             Err(_) => return false,
         };
 
+        // Wall-clock stamp captured BEFORE the session load. Used as both:
+        //   (a) the display "Last updated: ..." value in the modal
+        //   (b) the `thread_memory_updated_at` cutoff for `filter_new_messages`
+        //       on the next run.
+        // Stamping here (not at write time) keeps the concurrent-write
+        // correctness property: any message that lands during the LLM call
+        // has a timestamp strictly greater than `started_stamp`, so the next
+        // run's `ts > updated_at` filter catches it. Python used the
+        // last-message timestamp for this value; that was correct but showed
+        // the user "Last updated: whenever I last spoke" — misleading.
+        let started_stamp = session::now_timestamp();
+
         self.set_thread_status(
             session_id,
             Status {
                 state: State::Running,
                 source: Some(source.as_str().to_string()),
-                started_at: Some(session::now_timestamp()),
+                started_at: Some(started_stamp.clone()),
                 ..Default::default()
             },
         );
@@ -619,21 +631,6 @@ impl MemoryWorker {
             return true;
         }
 
-        // The summary covers through the last NEW message's timestamp — not
-        // "now" — so messages written during the LLM call aren't silently
-        // skipped on the next run.
-        let summarized_through = new_messages
-            .last()
-            .map(|m| m.timestamp.clone())
-            .filter(|t| !t.is_empty())
-            .unwrap_or_else(|| {
-                if updated_at.is_empty() {
-                    session::now_timestamp()
-                } else {
-                    updated_at.clone()
-                }
-            });
-
         let persona_name = session_data.persona.clone();
         let persona_display = display_persona_name(&persona_name);
         let mode = session_data.mode;
@@ -678,7 +675,7 @@ impl MemoryWorker {
             &state.sessions_dir,
             session_id,
             &merged_text,
-            &summarized_through,
+            &started_stamp,
         )
         .await;
 

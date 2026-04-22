@@ -285,8 +285,61 @@ async fn run_thread_memory_update_writes_session_fields() {
 
     let loaded = session::load_session(&state.sessions_dir, sid).await.unwrap();
     assert_eq!(loaded.thread_memory, "They said hello.");
-    // updated_at is pinned to the last NEW message's timestamp, not "now".
-    assert_eq!(loaded.thread_memory_updated_at, "2026-04-22T10:00:01.000000Z");
+    // updated_at is wall-clock stamped at update start — strictly later than
+    // any message already in the thread, so the next run's `filter_new_messages
+    // > updated_at` correctly catches messages written during the LLM call.
+    assert!(
+        loaded.thread_memory_updated_at.as_str() > "2026-04-22T10:00:01.000000Z",
+        "expected updated_at to be stamped after the last message timestamp, got {:?}",
+        loaded.thread_memory_updated_at,
+    );
+}
+
+#[tokio::test]
+async fn thread_memory_update_survives_concurrent_message_write() {
+    // Regression guard: a user message written during the LLM call must be
+    // caught by the next run's filter. Our cutoff is wall-clock at update
+    // start; any concurrent message has a strictly-later timestamp, so it
+    // passes `filter_new_messages > updated_at` on the next invocation.
+    use liminal_salt::services::thread_memory;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let state = make_state(tmp.path());
+    seed_persona(&state, "assistant").await;
+    let sid = "session_20260422_121001.json";
+    seed_chatbot_session(
+        &state,
+        sid,
+        "assistant",
+        vec![msg(Role::User, "first", "2026-04-22T10:00:00.000000Z")],
+    )
+    .await;
+
+    let worker = state.memory.clone();
+    let llm = FakeLlm::new("First summary.");
+    worker
+        .run_thread_memory_update(&state, &llm, sid, UpdateSource::Manual)
+        .await;
+
+    let after_first = session::load_session(&state.sessions_dir, sid).await.unwrap();
+    let cutoff = after_first.thread_memory_updated_at.clone();
+
+    // Simulate a concurrent message landing *after* the update's stamp —
+    // what would happen if the user chat wrote during the LLM call.
+    let concurrent_ts = session::now_timestamp();
+    let next_messages = vec![
+        msg(Role::User, "first", "2026-04-22T10:00:00.000000Z"),
+        msg(Role::Assistant, "first summary", "2026-04-22T10:00:01.000000Z"),
+        msg(Role::User, "concurrent", &concurrent_ts),
+    ];
+    // filter_new_messages(next_messages, cutoff) must include the concurrent one.
+    let new_msgs = thread_memory::filter_new_messages(&next_messages, &cutoff);
+    assert_eq!(
+        new_msgs.len(),
+        1,
+        "concurrent message must be counted as new on the next run (cutoff was {cutoff:?}, concurrent ts was {concurrent_ts:?})"
+    );
+    assert_eq!(new_msgs[0].content, "concurrent");
 }
 
 #[tokio::test]
