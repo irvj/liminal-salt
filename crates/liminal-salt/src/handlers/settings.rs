@@ -7,7 +7,7 @@
 
 use axum::{
     Form, Json,
-    extract::State,
+    extract::{Multipart, State},
     http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Response},
 };
@@ -93,22 +93,27 @@ pub async fn save(
 }
 
 // =============================================================================
-// POST /settings/save-context-history-limit/  — JSON AJAX
+// POST /settings/save-context-history-limit/  — JSON AJAX (multipart)
+//
+// JS sends `new FormData()` which is always `multipart/form-data`, not
+// urlencoded. `axum::Form<T>` only handles urlencoded, so we parse
+// multipart manually here (matches the pattern in `memory::save_settings`).
 // =============================================================================
-
-#[derive(Deserialize)]
-pub struct HistoryLimitForm {
-    #[serde(default)]
-    pub context_history_limit: String,
-}
 
 pub async fn save_context_history_limit(
     State(state): State<AppState>,
-    Form(form): Form<HistoryLimitForm>,
+    mut multipart: Multipart,
 ) -> Response {
+    let mut raw = String::new();
+    while let Ok(Some(field)) = multipart.next_field().await {
+        if field.name() == Some("context_history_limit") {
+            raw = field.text().await.unwrap_or_default();
+            break;
+        }
+    }
+
     // 10..=500 with 50 fallback — matches Python's clamp.
-    let value: u32 = form
-        .context_history_limit
+    let value: u32 = raw
         .parse::<i64>()
         .map(|v| v.clamp(10, 500) as u32)
         .unwrap_or(50);
@@ -127,29 +132,31 @@ pub async fn save_context_history_limit(
 }
 
 // =============================================================================
-// POST /settings/validate-api-key/  — JSON AJAX
+// POST /settings/validate-api-key/  — JSON AJAX (multipart)
 // =============================================================================
-
-#[derive(Deserialize)]
-pub struct ValidateApiKeyForm {
-    #[serde(default)]
-    pub provider: String,
-    #[serde(default)]
-    pub api_key: String,
-    #[serde(default)]
-    pub use_existing: String,
-}
 
 pub async fn validate_provider_api_key(
     State(state): State<AppState>,
-    Form(form): Form<ValidateApiKeyForm>,
+    mut multipart: Multipart,
 ) -> Response {
-    let provider = if form.provider.is_empty() {
+    let mut provider = String::new();
+    let mut api_key = String::new();
+    let mut use_existing_raw = String::new();
+    while let Ok(Some(field)) = multipart.next_field().await {
+        match field.name() {
+            Some("provider") => provider = field.text().await.unwrap_or_default(),
+            Some("api_key") => api_key = field.text().await.unwrap_or_default(),
+            Some("use_existing") => use_existing_raw = field.text().await.unwrap_or_default(),
+            _ => {}
+        }
+    }
+
+    let provider = if provider.is_empty() {
         "openrouter".to_string()
     } else {
-        form.provider
+        provider
     };
-    let use_existing = form.use_existing == "true";
+    let use_existing = use_existing_raw == "true";
 
     // If using the existing key, pull it from config; otherwise use the one
     // the user just typed.
@@ -160,7 +167,7 @@ pub async fn validate_provider_api_key(
             _ => String::new(),
         }
     } else {
-        form.api_key.trim().to_string()
+        api_key.trim().to_string()
     };
 
     if api_key.is_empty() {
@@ -205,29 +212,33 @@ pub async fn validate_provider_api_key(
 }
 
 // =============================================================================
-// POST /settings/save-provider-model/  — JSON AJAX
+// POST /settings/save-provider-model/  — JSON AJAX (multipart)
 // =============================================================================
-
-#[derive(Deserialize)]
-pub struct SaveProviderModelForm {
-    #[serde(default)]
-    pub provider: String,
-    #[serde(default)]
-    pub api_key: String,
-    #[serde(default)]
-    pub model: String,
-    #[serde(default)]
-    pub keep_existing_key: String,
-}
 
 pub async fn save_provider_model(
     State(state): State<AppState>,
-    Form(form): Form<SaveProviderModelForm>,
+    mut multipart: Multipart,
 ) -> Response {
-    let provider = form.provider.trim().to_string();
-    let api_key = form.api_key.trim().to_string();
-    let model = form.model.trim().to_string();
-    let keep_existing_key = form.keep_existing_key == "true";
+    let mut provider_raw = String::new();
+    let mut api_key_raw = String::new();
+    let mut model_raw = String::new();
+    let mut keep_existing_key_raw = String::new();
+    while let Ok(Some(field)) = multipart.next_field().await {
+        match field.name() {
+            Some("provider") => provider_raw = field.text().await.unwrap_or_default(),
+            Some("api_key") => api_key_raw = field.text().await.unwrap_or_default(),
+            Some("model") => model_raw = field.text().await.unwrap_or_default(),
+            Some("keep_existing_key") => {
+                keep_existing_key_raw = field.text().await.unwrap_or_default();
+            }
+            _ => {}
+        }
+    }
+
+    let provider = provider_raw.trim().to_string();
+    let api_key = api_key_raw.trim().to_string();
+    let model = model_raw.trim().to_string();
+    let keep_existing_key = keep_existing_key_raw == "true";
 
     if provider.is_empty() || model.is_empty() {
         return Json(serde_json::json!({
