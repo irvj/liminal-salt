@@ -404,10 +404,24 @@ pub async fn get_local_file_content(
     State(state): State<AppState>,
     Query(q): Query<LocalContentQuery>,
 ) -> Response {
+    use crate::services::{
+        context_files::LocalContentError,
+        local_context::ReadError,
+    };
     let scope = scope_for(&state, &q.persona);
     match scope.get_local_file_content(&q.dir_path, &q.filename).await {
-        Some(content) => Json(ContentResponse { content }).into_response(),
-        None => (StatusCode::NOT_FOUND, "not found").into_response(),
+        Ok(content) => Json(ContentResponse { content }).into_response(),
+        Err(LocalContentError::InvalidFilename | LocalContentError::DirMissing) => {
+            (StatusCode::NOT_FOUND, "not found").into_response()
+        }
+        Err(LocalContentError::Read(ReadError::Io(_))) => {
+            (StatusCode::NOT_FOUND, "not found").into_response()
+        }
+        Err(LocalContentError::Read(ReadError::InvalidUtf8)) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "file is not valid UTF-8",
+        )
+            .into_response(),
     }
 }
 

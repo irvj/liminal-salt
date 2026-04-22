@@ -20,6 +20,16 @@ use crate::services::local_context;
 
 const CONFIG_FILE: &str = "config.json";
 
+/// Why `get_local_file_content` couldn't return a string. The handler maps these
+/// to distinct HTTP responses so the UI can tell the user *why* a preview failed
+/// (missing vs unreadable vs wrong encoding).
+#[derive(Debug)]
+pub enum LocalContentError {
+    InvalidFilename,
+    DirMissing,
+    Read(local_context::ReadError),
+}
+
 // =============================================================================
 // On-disk shape
 // =============================================================================
@@ -342,10 +352,12 @@ impl ContextScope {
         &self,
         dir_path: &str,
         filename: &str,
-    ) -> Option<String> {
-        let safe = sanitize_filename(filename)?;
-        let resolved = local_context::resolve(dir_path)?;
-        local_context::read_file(&resolved.join(&safe)).await
+    ) -> Result<String, LocalContentError> {
+        let safe = sanitize_filename(filename).ok_or(LocalContentError::InvalidFilename)?;
+        let resolved = local_context::resolve(dir_path).ok_or(LocalContentError::DirMissing)?;
+        local_context::read_file(&resolved.join(&safe))
+            .await
+            .map_err(LocalContentError::Read)
     }
 
     // ---------------------------------------------------------------------
@@ -449,7 +461,7 @@ async fn render_local_context(cfg: &ScopeConfig) -> String {
                 continue;
             };
             let full = resolved.join(&safe);
-            let Some(body) = local_context::read_file(&full).await else {
+            let Ok(body) = local_context::read_file(&full).await else {
                 continue;
             };
             parts.push(format!("--- {safe} (from {dir_path}) ---"));

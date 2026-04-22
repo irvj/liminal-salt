@@ -131,17 +131,38 @@ fn has_allowed_extension(name: &str) -> bool {
 // File read
 // =============================================================================
 
-/// Read a single local-context file. `None` if it's missing or unreadable —
-/// logs a warning but never panics. UTF-8 errors replace invalid bytes (same
-/// policy as Python's `errors='replace'`).
-pub async fn read_file(path: &Path) -> Option<String> {
-    match tokio::fs::read(path).await {
-        Ok(bytes) => Some(String::from_utf8_lossy(&bytes).into_owned()),
-        Err(err) => {
-            tracing::warn!(?path, error = %err, "local context file read failed");
-            None
+/// Failure modes for reading a local-context file. Split apart so the UI can
+/// say "invalid UTF-8" specifically (invisible replacement chars in a prompt
+/// degrade LLM output; silent acceptance is worse than surfacing the mismatch).
+#[derive(Debug)]
+pub enum ReadError {
+    Io(std::io::Error),
+    InvalidUtf8,
+}
+
+impl std::fmt::Display for ReadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Io(err) => write!(f, "{err}"),
+            Self::InvalidUtf8 => write!(f, "file is not valid UTF-8"),
         }
     }
+}
+
+/// Read a single local-context file. Logs a warning on every failure path so
+/// scheduler + prompt-assembly callers don't have to.
+pub async fn read_file(path: &Path) -> Result<String, ReadError> {
+    let bytes = match tokio::fs::read(path).await {
+        Ok(b) => b,
+        Err(err) => {
+            tracing::warn!(?path, error = %err, "local context file read failed");
+            return Err(ReadError::Io(err));
+        }
+    };
+    String::from_utf8(bytes).map_err(|_| {
+        tracing::warn!(?path, "local context file is not valid UTF-8; skipping");
+        ReadError::InvalidUtf8
+    })
 }
 
 // =============================================================================
@@ -207,6 +228,8 @@ pub async fn browse_directory(path: &Path, show_hidden: bool) -> Option<BrowseRe
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
+    use tokio::io::AsyncWriteExt;
 
     #[test]
     fn allowed_extensions() {
@@ -214,5 +237,28 @@ mod tests {
         assert!(has_allowed_extension("README.TXT"));
         assert!(!has_allowed_extension("script.py"));
         assert!(!has_allowed_extension("no_extension"));
+    }
+
+    #[tokio::test]
+    async fn read_file_surfaces_invalid_utf8() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("bad.md");
+        let mut f = tokio::fs::File::create(&path).await.unwrap();
+        // Latin-1 "caf\xe9" — valid in ISO-8859-1, invalid as UTF-8.
+        f.write_all(&[b'c', b'a', b'f', 0xE9]).await.unwrap();
+        f.sync_all().await.unwrap();
+
+        match read_file(&path).await {
+            Err(ReadError::InvalidUtf8) => {}
+            other => panic!("expected InvalidUtf8, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn read_file_round_trips_valid_utf8() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("good.md");
+        tokio::fs::write(&path, "café 😀").await.unwrap();
+        assert_eq!(read_file(&path).await.unwrap(), "café 😀");
     }
 }
