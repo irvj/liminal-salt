@@ -22,7 +22,7 @@ use crate::{
         session as session_svc, summarizer, thread_memory,
     },
 };
-use crate::services::session::{Mode, SessionSummary};
+use crate::services::session::{Mode, SessionError, SessionSummary};
 
 // =============================================================================
 // Helpers
@@ -120,7 +120,7 @@ async fn render_view(state: &AppState, session: &Session, headers: &HeaderMap) -
 
     // Load the current session if present & valid, else render home.
     let session_data = match &current_id {
-        Some(id) => session_svc::load_session(&state.sessions_dir, id).await,
+        Some(id) => session_svc::load_session(&state.sessions_dir, id).await.ok(),
         None => None,
     };
 
@@ -332,7 +332,7 @@ pub async fn start_chat(
         content: form.message.clone(),
         timestamp: session_svc::now_timestamp(),
     }];
-    let created = session_svc::create_session(
+    if let Err(err) = session_svc::create_session(
         &state.sessions_dir,
         &id,
         &form.persona,
@@ -340,15 +340,18 @@ pub async fn start_chat(
         mode,
         initial_messages.clone(),
     )
-    .await;
-
-    if created.is_none() {
+    .await
+    {
+        tracing::error!(session_id = %id, error = %err, "session create failed");
         return (StatusCode::INTERNAL_SERVER_ERROR, "session create failed").into_response();
     }
 
     // Save scenario if provided (roleplay only).
-    if matches!(mode, Mode::Roleplay) && !form.scenario.is_empty() {
-        session_svc::save_scenario(&state.sessions_dir, &id, &form.scenario).await;
+    if matches!(mode, Mode::Roleplay)
+        && !form.scenario.is_empty()
+        && let Err(err) = session_svc::save_scenario(&state.sessions_dir, &id, &form.scenario).await
+    {
+        tracing::warn!(session_id = %id, error = %err, "save_scenario failed");
     }
 
     session_state::set_current_session_id(&session, Some(&id)).await;
@@ -413,8 +416,15 @@ pub async fn send(
         return (StatusCode::BAD_REQUEST, "no current session").into_response();
     };
 
-    let Some(existing) = session_svc::load_session(&state.sessions_dir, &session_id).await else {
-        return (StatusCode::NOT_FOUND, "session not found").into_response();
+    let existing = match session_svc::load_session(&state.sessions_dir, &session_id).await {
+        Ok(s) => s,
+        Err(SessionError::NotFound(_) | SessionError::InvalidId(_)) => {
+            return (StatusCode::NOT_FOUND, "session not found").into_response();
+        }
+        Err(err) => {
+            tracing::error!(session_id = %session_id, error = %err, "send: load_session failed");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "session load failed").into_response();
+        }
     };
 
     let cfg = config::load_config(&state.data_dir).await;
@@ -452,7 +462,7 @@ pub async fn send(
     // just-persisted messages.
     let mut title_changed: Option<String> = None;
     if outcome.is_ok()
-        && let Some(post) = session_svc::load_session(&state.sessions_dir, &session_id).await
+        && let Ok(post) = session_svc::load_session(&state.sessions_dir, &session_id).await
         && !post.title_locked.unwrap_or(false)
     {
         // Use the first user + first assistant message for the summary prompt.
@@ -472,7 +482,7 @@ pub async fn send(
         if !first_user.is_empty() && !first_assistant.is_empty() {
             let title = summarizer::generate_title(&llm, &first_user, &first_assistant).await;
             // Persist with title_locked=true so this runs exactly once.
-            session_svc::save_chat_history(
+            if let Err(err) = session_svc::save_chat_history(
                 &state.sessions_dir,
                 &session_id,
                 &title,
@@ -480,7 +490,10 @@ pub async fn send(
                 post.messages,
                 Some(true),
             )
-            .await;
+            .await
+            {
+                tracing::warn!(session_id = %session_id, error = %err, "title save failed");
+            }
             title_changed = Some(title);
         }
     }
@@ -536,7 +549,9 @@ pub async fn delete(
         form.session_id
     };
     if !target.is_empty() {
-        session_svc::delete_session(&state.sessions_dir, &target).await;
+        if let Err(err) = session_svc::delete_session(&state.sessions_dir, &target).await {
+            tracing::warn!(session_id = %target, error = %err, "delete_session failed");
+        }
         // Clear current_session if we just deleted it.
         if session_state::current_session_id(&session).await.as_deref() == Some(target.as_str()) {
             session_state::set_current_session_id(&session, None).await;
@@ -555,7 +570,9 @@ pub async fn pin(
     session: Session,
     Form(form): Form<PinForm>,
 ) -> Response {
-    session_svc::toggle_pin(&state.sessions_dir, &form.session_id).await;
+    if let Err(err) = session_svc::toggle_pin(&state.sessions_dir, &form.session_id).await {
+        tracing::warn!(session_id = %form.session_id, error = %err, "toggle_pin failed");
+    }
     render_sidebar_fragment(&state, &session).await
 }
 
@@ -570,7 +587,11 @@ pub async fn rename(
     session: Session,
     Form(form): Form<RenameForm>,
 ) -> Response {
-    session_svc::rename_session(&state.sessions_dir, &form.session_id, &form.new_title).await;
+    if let Err(err) =
+        session_svc::rename_session(&state.sessions_dir, &form.session_id, &form.new_title).await
+    {
+        tracing::warn!(session_id = %form.session_id, error = %err, "rename_session failed");
+    }
     render_sidebar_fragment(&state, &session).await
 }
 
@@ -585,7 +606,11 @@ pub async fn save_draft(
     State(state): State<AppState>,
     Form(form): Form<DraftForm>,
 ) -> Response {
-    session_svc::save_draft(&state.sessions_dir, &form.session_id, &form.draft).await;
+    if let Err(err) =
+        session_svc::save_draft(&state.sessions_dir, &form.session_id, &form.draft).await
+    {
+        tracing::warn!(session_id = %form.session_id, error = %err, "save_draft failed");
+    }
     StatusCode::NO_CONTENT.into_response()
 }
 
@@ -594,11 +619,20 @@ pub async fn retry(State(state): State<AppState>, session: Session) -> Response 
         return (StatusCode::BAD_REQUEST, "no current session").into_response();
     };
 
-    let Some((last_user_content, _)) =
-        session_svc::remove_last_assistant_message(&state.sessions_dir, &id).await
-    else {
-        return (StatusCode::BAD_REQUEST, "nothing to retry").into_response();
-    };
+    let last_user_content =
+        match session_svc::remove_last_assistant_message(&state.sessions_dir, &id).await {
+            Ok((content, _)) => content,
+            Err(SessionError::InvalidState(_)) => {
+                return (StatusCode::BAD_REQUEST, "nothing to retry").into_response();
+            }
+            Err(SessionError::NotFound(_) | SessionError::InvalidId(_)) => {
+                return (StatusCode::NOT_FOUND, "session not found").into_response();
+            }
+            Err(err) => {
+                tracing::error!(session_id = %id, error = %err, "retry: remove_last failed");
+                return (StatusCode::INTERNAL_SERVER_ERROR, "retry failed").into_response();
+            }
+        };
 
     // Dispatch through `send` logic with skip_user_save=true so we don't
     // double-append the user message.
@@ -636,7 +670,9 @@ pub async fn edit_message(
         return (StatusCode::BAD_REQUEST, "content required").into_response();
     };
 
-    let ok = session_svc::update_last_user_message(&state.sessions_dir, &id, &content).await;
+    let ok = session_svc::update_last_user_message(&state.sessions_dir, &id, &content)
+        .await
+        .is_ok();
     if ok {
         StatusCode::OK.into_response()
     } else {

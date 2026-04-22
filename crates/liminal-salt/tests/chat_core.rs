@@ -48,16 +48,21 @@ async fn send_preserves_scenario_memory_pinned_draft() {
         .unwrap();
 
     // Non-chat state that must survive the RMW.
-    session::save_scenario(tmp.path(), id, "ominous clearing at dusk").await;
+    session::save_scenario(tmp.path(), id, "ominous clearing at dusk")
+        .await
+        .unwrap();
     session::save_thread_memory(
         tmp.path(),
         id,
         "they discovered a locked gate",
         "2026-04-21T12:00:00.000000Z",
     )
-    .await;
-    session::toggle_pin(tmp.path(), id).await;
-    session::save_draft(tmp.path(), id, "partially typed").await;
+    .await
+    .unwrap();
+    session::toggle_pin(tmp.path(), id).await.unwrap();
+    session::save_draft(tmp.path(), id, "partially typed")
+        .await
+        .unwrap();
 
     let llm = FakeLlm {
         response: "The gate creaks open.".to_string(),

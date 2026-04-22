@@ -13,7 +13,7 @@ use chrono::{DateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 
 use crate::services::llm::{ChatLlm, LlmError, LlmMessage};
-use crate::services::session::{self, Message, Role};
+use crate::services::session::{self, Message, Role, SessionError};
 
 const SEND_TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_RETRIES: u32 = 2;
@@ -32,28 +32,14 @@ pub struct SendContext<'a> {
 
 /// Why a chat turn failed. `Display` renders the user-facing error body; the
 /// handler passes `to_string()` into the template as `error_message`.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ChatError {
+    #[error("session not found: {0}")]
     SessionNotFound(String),
-    LlmFailed(LlmError),
-}
-
-impl std::fmt::Display for ChatError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::SessionNotFound(id) => write!(f, "session not found: {id}"),
-            Self::LlmFailed(err) => write!(f, "{err}"),
-        }
-    }
-}
-
-impl std::error::Error for ChatError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::SessionNotFound(_) => None,
-            Self::LlmFailed(err) => Some(err),
-        }
-    }
+    #[error("{0}")]
+    LlmFailed(#[from] LlmError),
+    #[error("session error: {0}")]
+    Session(#[from] SessionError),
 }
 
 /// Append a user message, run the LLM, append the assistant response, save
@@ -68,11 +54,15 @@ pub async fn send_message<L: ChatLlm>(
     user_input: &str,
     skip_user_save: bool,
 ) -> Result<String, ChatError> {
-    // 1. Load the session. No-session is a hard error — without it we can't
-    //    persist the exchange.
-    let mut session = session::load_session(ctx.sessions_dir, ctx.session_id)
-        .await
-        .ok_or_else(|| ChatError::SessionNotFound(ctx.session_id.to_string()))?;
+    // 1. Load the session. Missing / invalid-id surface distinctly so the
+    //    handler can shape a response (404 vs 400 vs 500).
+    let mut session = match session::load_session(ctx.sessions_dir, ctx.session_id).await {
+        Ok(s) => s,
+        Err(SessionError::NotFound(id) | SessionError::InvalidId(id)) => {
+            return Err(ChatError::SessionNotFound(id));
+        }
+        Err(err) => return Err(ChatError::Session(err)),
+    };
 
     if !skip_user_save {
         session.messages.push(Message {
@@ -109,7 +99,7 @@ pub async fn send_message<L: ChatLlm>(
         timestamp: session::now_timestamp(),
     });
 
-    let saved = session::save_chat_history(
+    if let Err(err) = session::save_chat_history(
         ctx.sessions_dir,
         ctx.session_id,
         &session.title,
@@ -117,9 +107,13 @@ pub async fn send_message<L: ChatLlm>(
         session.messages,
         None, // don't touch title_locked here — title generation is a separate step
     )
-    .await;
-    if !saved {
-        tracing::warn!(session_id = ctx.session_id, "save_chat_history returned false");
+    .await
+    {
+        tracing::warn!(
+            session_id = ctx.session_id,
+            error = %err,
+            "save_chat_history failed",
+        );
     }
 
     Ok(assistant_text)

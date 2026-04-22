@@ -128,6 +128,29 @@ pub struct ThreadSnapshot {
 }
 
 // =============================================================================
+// Errors
+// =============================================================================
+
+/// Every distinct failure mode that can arise from a session operation. The
+/// handler layer maps variants to HTTP status codes; internal callers (chat,
+/// memory worker) propagate via their own error types.
+#[derive(Debug, thiserror::Error)]
+pub enum SessionError {
+    #[error("invalid session id: {0}")]
+    InvalidId(String),
+    #[error("session not found: {0}")]
+    NotFound(String),
+    /// Operation violates a session-state invariant the caller should have
+    /// upheld (e.g. "remove last assistant" when there isn't one).
+    #[error("session state invalid: {0}")]
+    InvalidState(&'static str),
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("session json corrupt: {0}")]
+    Corrupt(#[from] serde_json::Error),
+}
+
+// =============================================================================
 // Timestamps & IDs
 // =============================================================================
 
@@ -180,22 +203,19 @@ fn session_path(sessions_dir: &Path, session_id: &str) -> PathBuf {
     sessions_dir.join(session_id)
 }
 
-async fn read_session(path: &Path) -> Option<Session> {
+/// Low-level read. Errors:
+/// - `NotFound(session_id)` — missing file (caller supplies the id for context)
+/// - `Io(...)` — any other read failure
+/// - `Corrupt(...)` — JSON didn't deserialize into `Session`
+async fn read_session(path: &Path, session_id: &str) -> Result<Session, SessionError> {
     let bytes = match tokio::fs::read(path).await {
         Ok(b) => b,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return None,
-        Err(err) => {
-            tracing::error!(?path, error = %err, "session read failed");
-            return None;
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Err(SessionError::NotFound(session_id.to_string()));
         }
+        Err(err) => return Err(SessionError::Io(err)),
     };
-    match serde_json::from_slice::<Session>(&bytes) {
-        Ok(s) => Some(s),
-        Err(err) => {
-            tracing::error!(?path, error = %err, "session parse failed");
-            None
-        }
-    }
+    Ok(serde_json::from_slice::<Session>(&bytes)?)
 }
 
 async fn write_session(path: &Path, session: &Session) -> std::io::Result<()> {
@@ -219,13 +239,16 @@ async fn write_session(path: &Path, session: &Session) -> std::io::Result<()> {
 // Public reads
 // =============================================================================
 
-pub async fn load_session(sessions_dir: &Path, session_id: &str) -> Option<Session> {
+pub async fn load_session(
+    sessions_dir: &Path,
+    session_id: &str,
+) -> Result<Session, SessionError> {
     if !valid_session_id(session_id) {
-        return None;
+        return Err(SessionError::InvalidId(session_id.to_string()));
     }
     let lock = get_session_lock(session_id);
     let _guard = lock.lock().await;
-    read_session(&session_path(sessions_dir, session_id)).await
+    read_session(&session_path(sessions_dir, session_id), session_id).await
 }
 
 /// List all sessions in the directory. Doesn't acquire per-session locks —
@@ -248,21 +271,24 @@ pub async fn list_sessions(sessions_dir: &Path) -> Vec<SessionSummary> {
             continue;
         }
         let path = entry.path();
-        match read_session(&path).await {
-            Some(s) => summaries.push(SessionSummary {
+        match read_session(&path, &filename).await {
+            Ok(s) => summaries.push(SessionSummary {
                 id: filename,
                 title: s.title,
                 persona: s.persona,
                 pinned: s.pinned.unwrap_or(false),
                 mode: s.mode,
             }),
-            None => summaries.push(SessionSummary {
-                id: filename,
-                title: "Error Loading".to_string(),
-                persona: "assistant".to_string(),
-                pinned: false,
-                mode: Mode::Chatbot,
-            }),
+            Err(err) => {
+                tracing::error!(id = %filename, error = %err, "list_sessions: read failed");
+                summaries.push(SessionSummary {
+                    id: filename,
+                    title: "Error Loading".to_string(),
+                    persona: "assistant".to_string(),
+                    pinned: false,
+                    mode: Mode::Chatbot,
+                });
+            }
         }
     }
 
@@ -314,7 +340,14 @@ pub async fn list_persona_threads(
 
     let mut threads = Vec::new();
     for (path, _) in files {
-        let Some(session) = read_session(&path).await else { continue };
+        let filename = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        let Ok(session) = read_session(&path, &filename).await else {
+            continue;
+        };
         if session.persona != persona {
             continue;
         }
@@ -351,9 +384,9 @@ pub async fn create_session(
     title: &str,
     mode: Mode,
     messages: Vec<Message>,
-) -> Option<Session> {
+) -> Result<Session, SessionError> {
     if !valid_session_id(session_id) {
-        return None;
+        return Err(SessionError::InvalidId(session_id.to_string()));
     }
     let session = Session {
         title: title.to_string(),
@@ -370,42 +403,37 @@ pub async fn create_session(
     };
     let lock = get_session_lock(session_id);
     let _guard = lock.lock().await;
-    match write_session(&session_path(sessions_dir, session_id), &session).await {
-        Ok(()) => Some(session),
-        Err(err) => {
-            tracing::error!(session_id, error = %err, "create_session write failed");
-            None
-        }
-    }
+    write_session(&session_path(sessions_dir, session_id), &session).await?;
+    Ok(session)
 }
 
-pub async fn delete_session(sessions_dir: &Path, session_id: &str) -> bool {
+pub async fn delete_session(sessions_dir: &Path, session_id: &str) -> Result<(), SessionError> {
     if !valid_session_id(session_id) {
-        return false;
+        return Err(SessionError::InvalidId(session_id.to_string()));
     }
-    let deleted = {
+    let outcome = {
         let lock = get_session_lock(session_id);
         let _guard = lock.lock().await;
         let path = session_path(sessions_dir, session_id);
         match tokio::fs::remove_file(&path).await {
-            Ok(()) => true,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => false,
-            Err(err) => {
-                tracing::error!(session_id, error = %err, "delete_session failed");
-                false
+            Ok(()) => Ok(()),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                Err(SessionError::NotFound(session_id.to_string()))
             }
+            Err(err) => Err(SessionError::Io(err)),
         }
     };
-    if deleted {
+    if outcome.is_ok() {
         drop_session_lock(session_id);
     }
-    deleted
+    outcome
 }
 
 /// Write chat-owned fields (title, persona, messages) while preserving every
-/// other field. Mirrors Python's `save_chat_history` — the RMW keeps mode,
-/// scenario, thread_memory, thread_memory_updated_at, thread_memory_settings,
-/// pinned, draft, and title_locked intact unless explicitly overwritten.
+/// other field. The RMW keeps mode, scenario, thread_memory,
+/// thread_memory_updated_at, thread_memory_settings, pinned, draft, and
+/// title_locked intact unless explicitly overwritten. If the session file is
+/// missing, a fresh one is written.
 pub async fn save_chat_history(
     sessions_dir: &Path,
     session_id: &str,
@@ -413,115 +441,99 @@ pub async fn save_chat_history(
     persona: &str,
     messages: Vec<Message>,
     title_locked: Option<bool>,
-) -> bool {
+) -> Result<(), SessionError> {
     if !valid_session_id(session_id) {
-        return false;
+        return Err(SessionError::InvalidId(session_id.to_string()));
     }
     let lock = get_session_lock(session_id);
     let _guard = lock.lock().await;
     let path = session_path(sessions_dir, session_id);
-    let mut session = read_session(&path).await.unwrap_or_else(Session::blank);
+    let mut session = match read_session(&path, session_id).await {
+        Ok(s) => s,
+        Err(SessionError::NotFound(_)) => Session::blank(),
+        Err(err) => return Err(err),
+    };
     session.title = title.to_string();
     session.persona = persona.to_string();
     session.messages = messages;
     if let Some(locked) = title_locked {
         session.title_locked = Some(locked);
     }
-    match write_session(&path, &session).await {
-        Ok(()) => true,
-        Err(err) => {
-            tracing::error!(session_id, error = %err, "save_chat_history write failed");
-            false
-        }
-    }
+    write_session(&path, &session).await?;
+    Ok(())
 }
 
-/// Toggle pinned status. Returns the new state, or `None` if the session is
-/// invalid or missing.
-pub async fn toggle_pin(sessions_dir: &Path, session_id: &str) -> Option<bool> {
+/// Toggle pinned status. Returns the new state on success.
+pub async fn toggle_pin(sessions_dir: &Path, session_id: &str) -> Result<bool, SessionError> {
     if !valid_session_id(session_id) {
-        return None;
+        return Err(SessionError::InvalidId(session_id.to_string()));
     }
     let lock = get_session_lock(session_id);
     let _guard = lock.lock().await;
     let path = session_path(sessions_dir, session_id);
-    let mut session = read_session(&path).await?;
+    let mut session = read_session(&path, session_id).await?;
     let new_state = !session.pinned.unwrap_or(false);
     session.pinned = Some(new_state);
-    match write_session(&path, &session).await {
-        Ok(()) => Some(new_state),
-        Err(err) => {
-            tracing::error!(session_id, error = %err, "toggle_pin write failed");
-            None
-        }
-    }
+    write_session(&path, &session).await?;
+    Ok(new_state)
 }
 
 /// Update the title. Flags the title as user-set so auto-generation won't
 /// overwrite it on subsequent sends — even when renamed to the literal "New Chat".
-pub async fn rename_session(sessions_dir: &Path, session_id: &str, new_title: &str) -> bool {
+pub async fn rename_session(
+    sessions_dir: &Path,
+    session_id: &str,
+    new_title: &str,
+) -> Result<(), SessionError> {
     if !valid_session_id(session_id) {
-        return false;
+        return Err(SessionError::InvalidId(session_id.to_string()));
     }
     let lock = get_session_lock(session_id);
     let _guard = lock.lock().await;
     let path = session_path(sessions_dir, session_id);
-    let Some(mut session) = read_session(&path).await else {
-        return false;
-    };
+    let mut session = read_session(&path, session_id).await?;
     session.title = new_title.to_string();
     session.title_locked = Some(true);
-    match write_session(&path, &session).await {
-        Ok(()) => true,
-        Err(err) => {
-            tracing::error!(session_id, error = %err, "rename_session write failed");
-            false
-        }
-    }
+    write_session(&path, &session).await?;
+    Ok(())
 }
 
-pub async fn save_draft(sessions_dir: &Path, session_id: &str, draft: &str) -> bool {
+pub async fn save_draft(
+    sessions_dir: &Path,
+    session_id: &str,
+    draft: &str,
+) -> Result<(), SessionError> {
     if !valid_session_id(session_id) {
-        return false;
+        return Err(SessionError::InvalidId(session_id.to_string()));
     }
     let lock = get_session_lock(session_id);
     let _guard = lock.lock().await;
     let path = session_path(sessions_dir, session_id);
-    let Some(mut session) = read_session(&path).await else {
-        return false;
-    };
+    let mut session = read_session(&path, session_id).await?;
     session.draft = Some(draft.to_string());
-    match write_session(&path, &session).await {
-        Ok(()) => true,
-        Err(err) => {
-            tracing::error!(session_id, error = %err, "save_draft write failed");
-            false
-        }
-    }
+    write_session(&path, &session).await?;
+    Ok(())
 }
 
-pub async fn clear_draft(sessions_dir: &Path, session_id: &str) -> bool {
+pub async fn clear_draft(sessions_dir: &Path, session_id: &str) -> Result<(), SessionError> {
     save_draft(sessions_dir, session_id, "").await
 }
 
-pub async fn save_scenario(sessions_dir: &Path, session_id: &str, content: &str) -> bool {
+pub async fn save_scenario(
+    sessions_dir: &Path,
+    session_id: &str,
+    content: &str,
+) -> Result<(), SessionError> {
     if !valid_session_id(session_id) {
-        return false;
+        return Err(SessionError::InvalidId(session_id.to_string()));
     }
     let lock = get_session_lock(session_id);
     let _guard = lock.lock().await;
     let path = session_path(sessions_dir, session_id);
-    let Some(mut session) = read_session(&path).await else {
-        return false;
-    };
+    let mut session = read_session(&path, session_id).await?;
     session.scenario = Some(content.to_string());
-    match write_session(&path, &session).await {
-        Ok(()) => true,
-        Err(err) => {
-            tracing::error!(session_id, error = %err, "save_scenario write failed");
-            false
-        }
-    }
+    write_session(&path, &session).await?;
+    Ok(())
 }
 
 /// Save thread memory + stamp it with the timestamp of the last message
@@ -533,25 +545,18 @@ pub async fn save_thread_memory(
     session_id: &str,
     content: &str,
     summarized_through: &str,
-) -> bool {
+) -> Result<(), SessionError> {
     if !valid_session_id(session_id) {
-        return false;
+        return Err(SessionError::InvalidId(session_id.to_string()));
     }
     let lock = get_session_lock(session_id);
     let _guard = lock.lock().await;
     let path = session_path(sessions_dir, session_id);
-    let Some(mut session) = read_session(&path).await else {
-        return false;
-    };
+    let mut session = read_session(&path, session_id).await?;
     session.thread_memory = content.to_string();
     session.thread_memory_updated_at = summarized_through.to_string();
-    match write_session(&path, &session).await {
-        Ok(()) => true,
-        Err(err) => {
-            tracing::error!(session_id, error = %err, "save_thread_memory write failed");
-            false
-        }
-    }
+    write_session(&path, &session).await?;
+    Ok(())
 }
 
 /// Merge-save a per-thread override for thread-memory settings. Only fields set
@@ -561,16 +566,14 @@ pub async fn save_thread_memory_settings_override(
     sessions_dir: &Path,
     session_id: &str,
     patch: ThreadMemorySettings,
-) -> bool {
+) -> Result<(), SessionError> {
     if !valid_session_id(session_id) {
-        return false;
+        return Err(SessionError::InvalidId(session_id.to_string()));
     }
     let lock = get_session_lock(session_id);
     let _guard = lock.lock().await;
     let path = session_path(sessions_dir, session_id);
-    let Some(mut session) = read_session(&path).await else {
-        return false;
-    };
+    let mut session = read_session(&path, session_id).await?;
     let mut merged = session.thread_memory_settings.unwrap_or_default();
     if patch.interval_minutes.is_some() {
         merged.interval_minutes = patch.interval_minutes;
@@ -582,76 +585,68 @@ pub async fn save_thread_memory_settings_override(
         merged.size_limit = patch.size_limit;
     }
     session.thread_memory_settings = Some(merged);
-    match write_session(&path, &session).await {
-        Ok(()) => true,
-        Err(err) => {
-            tracing::error!(session_id, error = %err, "save_thread_memory_settings_override write failed");
-            false
-        }
-    }
+    write_session(&path, &session).await?;
+    Ok(())
 }
 
 /// Remove the per-thread override, reverting to persona/global defaults.
 pub async fn clear_thread_memory_settings_override(
     sessions_dir: &Path,
     session_id: &str,
-) -> bool {
+) -> Result<(), SessionError> {
     if !valid_session_id(session_id) {
-        return false;
+        return Err(SessionError::InvalidId(session_id.to_string()));
     }
     let lock = get_session_lock(session_id);
     let _guard = lock.lock().await;
     let path = session_path(sessions_dir, session_id);
-    let Some(mut session) = read_session(&path).await else {
-        return false;
-    };
+    let mut session = read_session(&path, session_id).await?;
     if session.thread_memory_settings.is_none() {
-        return true;
+        return Ok(());
     }
     session.thread_memory_settings = None;
-    match write_session(&path, &session).await {
-        Ok(()) => true,
-        Err(err) => {
-            tracing::error!(session_id, error = %err, "clear_thread_memory_settings_override write failed");
-            false
-        }
-    }
+    write_session(&path, &session).await?;
+    Ok(())
 }
 
 /// Remove the last assistant message in preparation for a retry. Returns the
 /// last user message content + the session data after modification.
+///
+/// `InvalidState` covers the cases where there's nothing meaningful to remove:
+/// fewer than 2 messages, last message isn't an assistant, or no preceding user.
 pub async fn remove_last_assistant_message(
     sessions_dir: &Path,
     session_id: &str,
-) -> Option<(String, Session)> {
+) -> Result<(String, Session), SessionError> {
     if !valid_session_id(session_id) {
-        return None;
+        return Err(SessionError::InvalidId(session_id.to_string()));
     }
     let lock = get_session_lock(session_id);
     let _guard = lock.lock().await;
     let path = session_path(sessions_dir, session_id);
-    let mut session = read_session(&path).await?;
+    let mut session = read_session(&path, session_id).await?;
 
     if session.messages.len() < 2 {
-        return None;
+        return Err(SessionError::InvalidState("fewer than two messages"));
     }
-    if session.messages.last()?.role != Role::Assistant {
-        return None;
+    if session.messages.last().map(|m| m.role) != Some(Role::Assistant) {
+        return Err(SessionError::InvalidState("last message is not assistant"));
     }
     session.messages.pop();
-    let last = session.messages.last()?;
-    if last.role != Role::User {
-        return None;
+    let last_role = session.messages.last().map(|m| m.role);
+    if last_role != Some(Role::User) {
+        return Err(SessionError::InvalidState(
+            "no preceding user message after pop",
+        ));
     }
-    let user_content = last.content.clone();
+    let user_content = session
+        .messages
+        .last()
+        .map(|m| m.content.clone())
+        .unwrap_or_default();
 
-    match write_session(&path, &session).await {
-        Ok(()) => Some((user_content, session)),
-        Err(err) => {
-            tracing::error!(session_id, error = %err, "remove_last_assistant_message write failed");
-            None
-        }
-    }
+    write_session(&path, &session).await?;
+    Ok((user_content, session))
 }
 
 /// Replace the content of the last user message.
@@ -659,31 +654,24 @@ pub async fn update_last_user_message(
     sessions_dir: &Path,
     session_id: &str,
     new_content: &str,
-) -> bool {
+) -> Result<(), SessionError> {
     if !valid_session_id(session_id) {
-        return false;
+        return Err(SessionError::InvalidId(session_id.to_string()));
     }
     let lock = get_session_lock(session_id);
     let _guard = lock.lock().await;
     let path = session_path(sessions_dir, session_id);
-    let Some(mut session) = read_session(&path).await else {
-        return false;
-    };
+    let mut session = read_session(&path, session_id).await?;
     let Some(idx) = session
         .messages
         .iter()
         .rposition(|m| m.role == Role::User)
     else {
-        return false;
+        return Err(SessionError::InvalidState("no user message to update"));
     };
     session.messages[idx].content = new_content.to_string();
-    match write_session(&path, &session).await {
-        Ok(()) => true,
-        Err(err) => {
-            tracing::error!(session_id, error = %err, "update_last_user_message write failed");
-            false
-        }
-    }
+    write_session(&path, &session).await?;
+    Ok(())
 }
 
 /// Rewrite the `persona` field of every session that references `old_name` to
@@ -711,8 +699,12 @@ pub async fn update_persona_across_sessions(
         let path = entry.path();
         let lock = get_session_lock(&filename);
         let _guard = lock.lock().await;
-        let Some(mut session) = read_session(&path).await else {
-            continue;
+        let mut session = match read_session(&path, &filename).await {
+            Ok(s) => s,
+            Err(err) => {
+                tracing::warn!(session_id = %filename, error = %err, "update_persona_across_sessions: read failed, skipping");
+                continue;
+            }
         };
         if session.persona != old_name {
             continue;
@@ -730,15 +722,19 @@ pub async fn update_persona_across_sessions(
 pub async fn fork_to_roleplay(
     sessions_dir: &Path,
     source_session_id: &str,
-) -> Option<String> {
+) -> Result<String, SessionError> {
     if !valid_session_id(source_session_id) {
-        return None;
+        return Err(SessionError::InvalidId(source_session_id.to_string()));
     }
 
     let source = {
         let lock = get_session_lock(source_session_id);
         let _guard = lock.lock().await;
-        read_session(&session_path(sessions_dir, source_session_id)).await?
+        read_session(
+            &session_path(sessions_dir, source_session_id),
+            source_session_id,
+        )
+        .await?
     };
 
     // Generate a collision-free id. Second-precision timestamps can collide if
@@ -764,11 +760,9 @@ pub async fn fork_to_roleplay(
                 break;
             }
         }
-        let Some(f) = found else {
-            tracing::error!(source_session_id, "fork_to_roleplay: no collision-free id");
-            return None;
-        };
-        new_id = f;
+        new_id = found.ok_or(SessionError::InvalidState(
+            "no collision-free id in 100 attempts",
+        ))?;
     }
 
     let new_session = Session {
@@ -787,11 +781,6 @@ pub async fn fork_to_roleplay(
 
     let lock = get_session_lock(&new_id);
     let _guard = lock.lock().await;
-    match write_session(&session_path(sessions_dir, &new_id), &new_session).await {
-        Ok(()) => Some(new_id),
-        Err(err) => {
-            tracing::error!(source_session_id, error = %err, "fork_to_roleplay write failed");
-            None
-        }
-    }
+    write_session(&session_path(sessions_dir, &new_id), &new_session).await?;
+    Ok(new_id)
 }

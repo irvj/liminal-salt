@@ -597,18 +597,25 @@ impl MemoryWorker {
         // session::save_thread_memory (ditto). Between those two calls we
         // hold nothing that would block session writes.
 
-        let Some(session_data) = session::load_session(&state.sessions_dir, session_id).await
-        else {
-            self.set_thread_status(
-                session_id,
-                Status {
-                    state: State::Failed,
-                    finished_at: Some(session::now_timestamp()),
-                    error: Some("Session not found.".into()),
-                    ..Default::default()
-                },
-            );
-            return true;
+        let session_data = match session::load_session(&state.sessions_dir, session_id).await {
+            Ok(s) => s,
+            Err(err) => {
+                let msg = match err {
+                    session::SessionError::NotFound(_)
+                    | session::SessionError::InvalidId(_) => "Session not found.".to_string(),
+                    other => format!("Session load failed: {other}"),
+                };
+                self.set_thread_status(
+                    session_id,
+                    Status {
+                        state: State::Failed,
+                        finished_at: Some(session::now_timestamp()),
+                        error: Some(msg),
+                        ..Default::default()
+                    },
+                );
+                return true;
+            }
         };
 
         let existing_memory = session_data.thread_memory.clone();
@@ -682,13 +689,16 @@ impl MemoryWorker {
         };
 
         // save_thread_memory briefly re-acquires the session-JSON lock internally.
-        session::save_thread_memory(
+        if let Err(err) = session::save_thread_memory(
             &state.sessions_dir,
             session_id,
             &merged_text,
             &started_stamp,
         )
-        .await;
+        .await
+        {
+            tracing::warn!(session_id, error = %err, "save_thread_memory failed");
+        }
 
         self.set_thread_status(
             session_id,
@@ -1170,10 +1180,10 @@ async fn build_memory_llm(state: &AppState, persona: &str) -> LlmClient {
 
 async fn build_thread_memory_llm(state: &AppState, session_id: &str) -> LlmClient {
     let cfg = config::load_config(&state.data_dir).await;
-    let persona_name = match session::load_session(&state.sessions_dir, session_id).await {
-        Some(s) => s.persona,
-        None => cfg.default_persona.clone(),
-    };
+    let persona_name = session::load_session(&state.sessions_dir, session_id)
+        .await
+        .map(|s| s.persona)
+        .unwrap_or_else(|_| cfg.default_persona.clone());
     let persona_cfg = persona::load_persona_config(&state.data_dir, &persona_name).await;
     let override_model = cfg.extras.get("MEMORY_MODEL").and_then(|v| v.as_str());
     let model = memory::get_memory_model(override_model, &persona_cfg, &cfg.model);

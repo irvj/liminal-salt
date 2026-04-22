@@ -18,7 +18,7 @@ use crate::{
         config,
         memory_worker::UpdateSource,
         persona,
-        session as session_svc,
+        session::{self as session_svc, SessionError},
         thread_memory::{
             EffectiveThreadMemorySettings, resolve_persona_defaults, resolve_settings,
         },
@@ -90,12 +90,10 @@ pub async fn status(
     }
 
     let status = state.memory.get_thread_update_status(&session_id);
-    let (memory, updated_at) = match session_svc::load_session(&state.sessions_dir, &session_id)
+    let (memory, updated_at) = session_svc::load_session(&state.sessions_dir, &session_id)
         .await
-    {
-        Some(s) => (s.thread_memory, s.thread_memory_updated_at),
-        None => (String::new(), String::new()),
-    };
+        .map(|s| (s.thread_memory, s.thread_memory_updated_at))
+        .unwrap_or_default();
 
     // Extend the status struct's JSON with the memory/updated_at fields so
     // the frontend can refresh its view after a background update completes.
@@ -138,9 +136,15 @@ pub async fn settings_save(
         return json_error(StatusCode::BAD_REQUEST, "No active session.");
     }
 
-    let Some(session_data) = session_svc::load_session(&state.sessions_dir, &session_id).await
-    else {
-        return json_error(StatusCode::NOT_FOUND, "Session not found.");
+    let session_data = match session_svc::load_session(&state.sessions_dir, &session_id).await {
+        Ok(s) => s,
+        Err(SessionError::NotFound(_) | SessionError::InvalidId(_)) => {
+            return json_error(StatusCode::NOT_FOUND, "Session not found.");
+        }
+        Err(err) => {
+            tracing::error!(session_id, error = %err, "settings_save: load failed");
+            return json_error(StatusCode::INTERNAL_SERVER_ERROR, "Session load failed.");
+        }
     };
 
     // Parse + validate what the caller actually submitted.
@@ -190,15 +194,24 @@ pub async fn settings_save(
     };
 
     if effective_if_saved == defaults {
-        session_svc::clear_thread_memory_settings_override(&state.sessions_dir, &session_id).await;
-    } else if !session_svc::save_thread_memory_settings_override(
+        if let Err(err) =
+            session_svc::clear_thread_memory_settings_override(&state.sessions_dir, &session_id)
+                .await
+        {
+            tracing::warn!(session_id, error = %err, "clear override failed");
+        }
+    } else if let Err(err) = session_svc::save_thread_memory_settings_override(
         &state.sessions_dir,
         &session_id,
         patch,
     )
     .await
     {
-        return json_error(StatusCode::NOT_FOUND, "Session not found.");
+        let status = match err {
+            SessionError::NotFound(_) | SessionError::InvalidId(_) => StatusCode::NOT_FOUND,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+        return json_error(status, "Session not found.");
     }
 
     finish_with_resolved(&state, &session_id).await
@@ -218,9 +231,17 @@ pub async fn settings_reset(
         return json_error(StatusCode::BAD_REQUEST, "No active session.");
     }
 
-    if !session_svc::clear_thread_memory_settings_override(&state.sessions_dir, &session_id).await
+    match session_svc::clear_thread_memory_settings_override(&state.sessions_dir, &session_id)
+        .await
     {
-        return json_error(StatusCode::NOT_FOUND, "Session not found.");
+        Ok(()) => {}
+        Err(SessionError::NotFound(_) | SessionError::InvalidId(_)) => {
+            return json_error(StatusCode::NOT_FOUND, "Session not found.");
+        }
+        Err(err) => {
+            tracing::error!(session_id, error = %err, "settings_reset: clear failed");
+            return json_error(StatusCode::INTERNAL_SERVER_ERROR, "Clear failed.");
+        }
     }
 
     finish_with_resolved(&state, &session_id).await
@@ -279,9 +300,15 @@ fn parse_u32_override(
 /// After a save or reset, load the session fresh + build the resolved-settings
 /// JSON response + tell the scheduler about the new effective interval.
 async fn finish_with_resolved(state: &AppState, session_id: &str) -> Response {
-    let Some(session_data) = session_svc::load_session(&state.sessions_dir, session_id).await
-    else {
-        return json_error(StatusCode::NOT_FOUND, "Session not found.");
+    let session_data = match session_svc::load_session(&state.sessions_dir, session_id).await {
+        Ok(s) => s,
+        Err(SessionError::NotFound(_) | SessionError::InvalidId(_)) => {
+            return json_error(StatusCode::NOT_FOUND, "Session not found.");
+        }
+        Err(err) => {
+            tracing::error!(session_id, error = %err, "finish_with_resolved: load failed");
+            return json_error(StatusCode::INTERNAL_SERVER_ERROR, "Session load failed.");
+        }
     };
     let persona_cfg = persona::load_persona_config(&state.data_dir, &session_data.persona).await;
     let effective = resolve_settings(Some(&session_data), &persona_cfg);

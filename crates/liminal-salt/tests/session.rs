@@ -3,7 +3,7 @@
 //! doesn't cause incidental serialization between parallel tests.
 
 use liminal_salt::services::session::{
-    self, Message, Mode, Role, ThreadMemorySettings, valid_session_id,
+    self, Message, Mode, Role, SessionError, ThreadMemorySettings, valid_session_id,
 };
 
 fn msg(role: Role, content: &str) -> Message {
@@ -91,34 +91,33 @@ async fn save_chat_history_preserves_non_chat_fields() {
         .unwrap();
 
     // Side-channel state that save_chat_history must preserve.
-    assert!(session::save_scenario(tmp.path(), id, "dim tavern").await);
-    assert!(
-        session::save_thread_memory(
-            tmp.path(),
-            id,
-            "they spoke of stars",
-            "2026-04-21T12:00:01.000000Z",
-        )
+    session::save_scenario(tmp.path(), id, "dim tavern")
         .await
-    );
-    assert_eq!(session::toggle_pin(tmp.path(), id).await, Some(true));
-    assert!(session::save_draft(tmp.path(), id, "half-written").await);
+        .unwrap();
+    session::save_thread_memory(
+        tmp.path(),
+        id,
+        "they spoke of stars",
+        "2026-04-21T12:00:01.000000Z",
+    )
+    .await
+    .unwrap();
+    assert!(session::toggle_pin(tmp.path(), id).await.unwrap());
+    session::save_draft(tmp.path(), id, "half-written")
+        .await
+        .unwrap();
 
-    let messages = vec![
-        msg(Role::User, "hello"),
-        msg(Role::Assistant, "hi"),
-    ];
-    assert!(
-        session::save_chat_history(
-            tmp.path(),
-            id,
-            "Tavern tales",
-            "assistant",
-            messages.clone(),
-            Some(true),
-        )
-        .await
-    );
+    let messages = vec![msg(Role::User, "hello"), msg(Role::Assistant, "hi")];
+    session::save_chat_history(
+        tmp.path(),
+        id,
+        "Tavern tales",
+        "assistant",
+        messages.clone(),
+        Some(true),
+    )
+    .await
+    .unwrap();
 
     let loaded = session::load_session(tmp.path(), id).await.unwrap();
     assert_eq!(loaded.title, "Tavern tales");
@@ -136,31 +135,31 @@ async fn save_chat_history_preserves_non_chat_fields() {
 async fn invalid_session_id_short_circuits_every_writer() {
     let tmp = tempfile::tempdir().unwrap();
     let bogus = "../etc/passwd";
-    assert!(
-        session::create_session(tmp.path(), bogus, "x", "x", Mode::Chatbot, vec![])
-            .await
-            .is_none()
+
+    // Every public entry point must reject the invalid id with InvalidId.
+    fn assert_invalid<T: std::fmt::Debug>(result: Result<T, SessionError>) {
+        match result {
+            Err(SessionError::InvalidId(_)) => {}
+            other => panic!("expected InvalidId, got {other:?}"),
+        }
+    }
+
+    assert_invalid(
+        session::create_session(tmp.path(), bogus, "x", "x", Mode::Chatbot, vec![]).await,
     );
-    assert!(!session::delete_session(tmp.path(), bogus).await);
-    assert!(
-        !session::save_chat_history(tmp.path(), bogus, "t", "p", vec![], None).await
+    assert_invalid(session::delete_session(tmp.path(), bogus).await);
+    assert_invalid(session::save_chat_history(tmp.path(), bogus, "t", "p", vec![], None).await);
+    assert_invalid(session::toggle_pin(tmp.path(), bogus).await);
+    assert_invalid(session::rename_session(tmp.path(), bogus, "new").await);
+    assert_invalid(session::save_draft(tmp.path(), bogus, "x").await);
+    assert_invalid(session::save_scenario(tmp.path(), bogus, "x").await);
+    assert_invalid(
+        session::save_thread_memory(tmp.path(), bogus, "x", "2026-04-21T00:00:00.000000Z").await,
     );
-    assert!(session::toggle_pin(tmp.path(), bogus).await.is_none());
-    assert!(!session::rename_session(tmp.path(), bogus, "new").await);
-    assert!(!session::save_draft(tmp.path(), bogus, "x").await);
-    assert!(!session::save_scenario(tmp.path(), bogus, "x").await);
-    assert!(
-        !session::save_thread_memory(tmp.path(), bogus, "x", "2026-04-21T00:00:00.000000Z")
-            .await
-    );
-    assert!(session::fork_to_roleplay(tmp.path(), bogus).await.is_none());
-    assert!(session::load_session(tmp.path(), bogus).await.is_none());
-    assert!(
-        session::remove_last_assistant_message(tmp.path(), bogus)
-            .await
-            .is_none()
-    );
-    assert!(!session::update_last_user_message(tmp.path(), bogus, "x").await);
+    assert_invalid(session::fork_to_roleplay(tmp.path(), bogus).await);
+    assert_invalid(session::load_session(tmp.path(), bogus).await);
+    assert_invalid(session::remove_last_assistant_message(tmp.path(), bogus).await);
+    assert_invalid(session::update_last_user_message(tmp.path(), bogus, "x").await);
 }
 
 #[tokio::test]
@@ -171,7 +170,9 @@ async fn rename_session_locks_title() {
         .await
         .unwrap();
 
-    assert!(session::rename_session(tmp.path(), id, "My Thread").await);
+    session::rename_session(tmp.path(), id, "My Thread")
+        .await
+        .unwrap();
     let loaded = session::load_session(tmp.path(), id).await.unwrap();
     assert_eq!(loaded.title, "My Thread");
     assert_eq!(loaded.title_locked, Some(true));
@@ -185,8 +186,8 @@ async fn toggle_pin_flips_and_returns_new_state() {
         .await
         .unwrap();
 
-    assert_eq!(session::toggle_pin(tmp.path(), id).await, Some(true));
-    assert_eq!(session::toggle_pin(tmp.path(), id).await, Some(false));
+    assert!(session::toggle_pin(tmp.path(), id).await.unwrap());
+    assert!(!session::toggle_pin(tmp.path(), id).await.unwrap());
 }
 
 #[tokio::test]
@@ -197,10 +198,16 @@ async fn delete_session_removes_file_and_drops_lock() {
         .await
         .unwrap();
 
-    assert!(session::delete_session(tmp.path(), id).await);
-    assert!(session::load_session(tmp.path(), id).await.is_none());
-    // Second delete: file already gone, returns false without panicking.
-    assert!(!session::delete_session(tmp.path(), id).await);
+    session::delete_session(tmp.path(), id).await.unwrap();
+    assert!(matches!(
+        session::load_session(tmp.path(), id).await,
+        Err(SessionError::NotFound(_))
+    ));
+    // Second delete: file already gone, returns NotFound without panicking.
+    assert!(matches!(
+        session::delete_session(tmp.path(), id).await,
+        Err(SessionError::NotFound(_))
+    ));
 }
 
 #[tokio::test]
@@ -241,7 +248,9 @@ async fn update_last_user_rewrites_final_user_message() {
     .await
     .unwrap();
 
-    assert!(session::update_last_user_message(tmp.path(), id, "draft v2").await);
+    session::update_last_user_message(tmp.path(), id, "draft v2")
+        .await
+        .unwrap();
     let loaded = session::load_session(tmp.path(), id).await.unwrap();
     assert_eq!(loaded.messages[0].content, "draft v2");
 }
@@ -260,9 +269,9 @@ async fn thread_memory_settings_override_merges_and_clears() {
         message_floor: None,
         size_limit: None,
     };
-    assert!(
-        session::save_thread_memory_settings_override(tmp.path(), id, patch1).await
-    );
+    session::save_thread_memory_settings_override(tmp.path(), id, patch1)
+        .await
+        .unwrap();
 
     // Second partial: only message_floor. interval_minutes should persist.
     let patch2 = ThreadMemorySettings {
@@ -270,9 +279,9 @@ async fn thread_memory_settings_override_merges_and_clears() {
         message_floor: Some(3),
         size_limit: None,
     };
-    assert!(
-        session::save_thread_memory_settings_override(tmp.path(), id, patch2).await
-    );
+    session::save_thread_memory_settings_override(tmp.path(), id, patch2)
+        .await
+        .unwrap();
 
     let loaded = session::load_session(tmp.path(), id).await.unwrap();
     let settings = loaded.thread_memory_settings.expect("merged settings");
@@ -281,7 +290,9 @@ async fn thread_memory_settings_override_merges_and_clears() {
     assert_eq!(settings.size_limit, None);
 
     // Clear: override disappears entirely.
-    assert!(session::clear_thread_memory_settings_override(tmp.path(), id).await);
+    session::clear_thread_memory_settings_override(tmp.path(), id)
+        .await
+        .unwrap();
     let loaded = session::load_session(tmp.path(), id).await.unwrap();
     assert!(loaded.thread_memory_settings.is_none());
 }
@@ -307,8 +318,9 @@ async fn fork_to_roleplay_copies_thread_and_resets_mode() {
         "brief exchange of greetings",
         "2026-04-21T12:00:10.000000Z",
     )
-    .await;
-    session::toggle_pin(tmp.path(), source).await;
+    .await
+    .unwrap();
+    session::toggle_pin(tmp.path(), source).await.unwrap();
 
     let new_id = session::fork_to_roleplay(tmp.path(), source)
         .await
@@ -396,7 +408,7 @@ async fn concurrent_save_chat_history_produces_valid_json() {
         });
     }
     while let Some(res) = set.join_next().await {
-        assert!(res.expect("task panicked"));
+        res.expect("task panicked").expect("save ok");
     }
 
     // The final file must be valid JSON with exactly 5 messages (the

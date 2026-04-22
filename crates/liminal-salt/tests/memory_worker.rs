@@ -383,7 +383,8 @@ async fn thread_memory_manual_rerun_reprocesses_when_no_new_messages() {
         "prior summary",
         "2026-04-22T11:00:00.000000Z",
     )
-    .await;
+    .await
+    .unwrap();
 
     let worker = state.memory.clone();
     let llm = FakeLlm::new("refreshed summary");
@@ -412,7 +413,7 @@ async fn thread_memory_auto_skips_when_no_new_messages() {
         vec![msg(Role::User, "hi", "2026-04-22T10:00:00.000000Z")],
     )
     .await;
-    session::save_thread_memory(
+    let _ = session::save_thread_memory(
         &state.sessions_dir,
         sid,
         "prior",
@@ -534,13 +535,13 @@ async fn session_lock_not_held_across_llm_call() {
     // the LLM sleep to expire. Budget an arbitrary small timeout; if the
     // lock is held across the LLM call, we'll deadlock until the 30s
     // advance below.
-    let save_ok = tokio::time::timeout(
+    tokio::time::timeout(
         Duration::from_millis(500),
         session::save_draft(&state.sessions_dir, sid, "typed while merging"),
     )
     .await
-    .expect("save_draft blocked on session lock across LLM call");
-    assert!(save_ok);
+    .expect("save_draft blocked on session lock across LLM call")
+    .expect("save_draft ok");
 
     // Drain the thread-memory update.
     tokio::time::advance(Duration::from_secs(60)).await;
