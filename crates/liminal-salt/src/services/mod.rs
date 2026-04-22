@@ -4,6 +4,7 @@ pub mod context_files;
 pub mod llm;
 pub mod local_context;
 pub mod memory;
+pub mod memory_worker;
 pub mod persona;
 pub mod prompt;
 pub mod session;

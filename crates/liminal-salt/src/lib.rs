@@ -8,6 +8,8 @@ use std::{path::PathBuf, sync::Arc};
 
 use tera::Tera;
 
+use crate::services::memory_worker::MemoryWorker;
+
 /// Shared state every Axum handler needs access to. Constructed once in
 /// `main`; `reqwest::Client` internally uses `Arc`, so cheap clones keep one
 /// HTTP connection pool alive for the whole process.
@@ -17,4 +19,8 @@ pub struct AppState {
     pub data_dir: PathBuf,
     pub sessions_dir: PathBuf,
     pub http: reqwest::Client,
+    /// Shared memory worker — owns per-persona + per-session "already running"
+    /// mutexes and the status map for `/memory/status/` polling. Cheap to
+    /// clone (`Arc<Inner>` under the hood).
+    pub memory: MemoryWorker,
 }

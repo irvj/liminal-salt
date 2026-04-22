@@ -375,12 +375,14 @@ mod tests {
         );
 
         // Persona default overrides interval only.
-        let mut cfg = PersonaConfig::default();
-        cfg.default_thread_memory_settings = Some(ThreadMemoryDefaults {
-            interval_minutes: Some(60),
-            message_floor: None,
-            size_limit: None,
-        });
+        let cfg = PersonaConfig {
+            default_thread_memory_settings: Some(ThreadMemoryDefaults {
+                interval_minutes: Some(60),
+                message_floor: None,
+                size_limit: None,
+            }),
+            ..Default::default()
+        };
         let resolved = resolve_settings(None, &cfg);
         assert_eq!(resolved.interval_minutes, 60);
         assert_eq!(resolved.message_floor, DEFAULT_THREAD_MEMORY_MESSAGE_FLOOR);

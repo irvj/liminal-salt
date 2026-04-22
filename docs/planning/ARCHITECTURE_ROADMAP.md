@@ -2,7 +2,7 @@
 
 **Created:** April 14, 2026
 **Updated:** April 22, 2026
-**Status:** Rust migration in progress — Phases 0–4 complete; Phase 5 (memory system) in progress (5a done)
+**Status:** Rust migration in progress — Phases 0–4 complete; Phase 5 (memory system) in progress (5a + 5b done)
 **Scope:** Python/Django → Rust (Axum + Tera) → Tauri desktop app
 
 ---
@@ -489,8 +489,8 @@ This is the single highest-risk phase. Allocate the most time. Review concurrenc
 
 **In progress.** Split into three sub-commits following the Phase 3/4 pattern:
 - **5a (done 2026-04-22):** service layer — `services/{memory,thread_memory}.rs`, plus `session::list_persona_threads` (ported from `chat/utils.py`). No handlers, no scheduler. 38 new integration + unit tests; 111 tests total across the crate.
-- **5b:** memory worker — two `tokio::spawn`ed scheduler tasks, per-persona + per-session "already running" mutex registries distinct from the session-JSON lock, manual dispatch helpers, status tracking. Invariant-sensitive.
-- **5c:** handlers + wire-up — `/memory/*` (update/wipe/modify/seed/save-settings/status), `/session/thread-memory/*` (update/status/settings save+reset), scheduler startup in `main.rs`.
+- **5b (done 2026-04-22):** memory worker — `services/memory_worker.rs` + two `tokio::spawn`ed scheduler tasks. Per-persona + per-session "already running" mutex registries distinct from the session-JSON lock. Manual dispatch (`start_manual_update`, `start_modify_update`, `start_seed_update`, `start_thread_memory_update`), status tracking, `reschedule_thread_next_fire` hook, scheduler lifecycle via `watch` channel. `MemoryWorker` wired into `AppState`; schedulers spawn in `main.rs`. 16 new integration tests; 127 total.
+- **5c:** handlers + wire-up — `/memory/*` (update/wipe/modify/seed/save-settings/status), `/session/thread-memory/*` (update/status/settings save+reset), ctrl_c → graceful scheduler shutdown.
 
 **Services:**
 - `services/memory.rs` — per-persona memory file I/O + LLM merge/seed/modify. Owns `data/memory/{name}.md`.
@@ -552,6 +552,26 @@ This is the single highest-risk phase. Allocate the most time. Review concurrenc
   - Module-level unit tests in `thread_memory.rs` (+5): settings resolver three-tier walk with all-None override no-op, filter_new_messages cutoff + empty + missing-timestamp, transcript role labeling, chatbot prompt persona-memory presence/absence, roleplay prompt omits perspective rules.
   - Module-level unit tests in `memory.rs` (+2): display name formatting, model fallback chain (including "empty string is not set" Python-or semantics).
 - **No handler or worker wiring yet.** `AppState` unchanged. 5b adds the worker + its scheduler tasks, then 5c replaces the existing `stubs::not_implemented` routes for `/memory/*` and `/session/thread-memory/*`.
+
+**Phase 5b outcome:**
+
+- **`services/memory_worker.rs`** owns coordination for both memory pipelines. One `MemoryWorker` struct wrapping `Arc<Inner>` — cloneable, lives on `AppState::memory`. Inner holds four scheduler-state maps plus four lock/status maps, all `StdMutex<HashMap>` with guard scopes that never cross `.await`.
+- **Two lock namespaces, deliberately separate:**
+  - `persona_locks` — per-persona `TokioMutex` "already running" coordination for cross-thread persona memory. Held across the LLM call; this lock IS the coordination mechanism (not a file lock).
+  - `session_locks` — per-session `TokioMutex` "already running" coordination for thread memory. **Distinct from** `session::SESSION_LOCKS`. Held across the LLM call; the session-JSON lock is never ours to hold.
+- **The invariant from CLAUDE.md / known hard spot #1 is preserved structurally.** In `run_thread_memory_update`: we acquire the thread-memory mutex, call `session::load_session` (which acquires + drops the session-JSON lock internally), call the LLM (session-JSON lock free), then call `session::save_thread_memory` (ditto). We never hold the session-JSON lock across an `.await` that touches the LLM. A regression test (`session_lock_not_held_across_llm_call`) starts a thread-memory update with a slow fake LLM and proves `session::save_draft` on the same session completes within 500ms while the LLM is in flight.
+- **Public API mirrors Python names:** `start_{manual,modify,seed}_update(state, persona, …)`, `start_thread_memory_update(state, session_id, source)`, `get_{update,thread_update}_status`, `reschedule_thread_next_fire`, `start_schedulers` / `stop_schedulers`. Dispatch returns `bool` (false when an update is already running — fast 409 path for handlers).
+- **Core work functions are generic over `ChatLlm`** so tests inject a `FakeLlm` and run the full pipeline without a network: `run_memory_update<L>`, `run_modify_memory<L>`, `run_seed_memory<L>`, `run_thread_memory_update<L>`. The public `start_*` methods build an `LlmClient` from config and spawn these.
+- **Manual vs auto fallback preserved:** `run_thread_memory_update` with `UpdateSource::Manual` and no new messages reprocesses the whole thread so the user can refresh after changing `size_limit` / prompts; `UpdateSource::Auto` in the same state short-circuits with a "no new messages" completed status (matches Python's `memory_worker.py:657`).
+- **Schedulers** run as two `tokio::spawn` tasks. Loop: tick → compute next-due → `tokio::select!` on `sleep(next)` vs. `watch::Receiver::changed()`. Shutdown is cooperative: `watch::Sender::send(true)` tells both loops to exit at their next select; `stop_schedulers` awaits the handles (a scheduler mid-LLM-call completes before returning — matches Python's `join(timeout=15)` semantics without the timeout fallback).
+- **Persona scheduler fires synchronously** (awaits `run_memory_update`); **thread-memory scheduler dispatches asynchronously** (calls `start_thread_memory_update` which spawns). Asymmetry matches Python: thread memory can have many concurrent sessions due for updates; persona memory is rate-limited per-persona so serializing across personas is acceptable.
+- **Caches match Python's mtime-keyed pattern:** `persona_count_cache` (for the persona scheduler's message-floor counter) and `thread_scheduler_cache` (for the thread-memory scheduler's per-session view). Each sweep prunes entries whose session files are gone. Never reparse JSON when mtime is unchanged.
+- **Interval clamping at `[5, 1440]` minutes** lives in `interval_clamp()` and applies at every fire site (persona scheduler, thread scheduler, `reschedule_thread_next_fire`).
+- **AppState + main wiring:** `AppState` gains a `memory: MemoryWorker` field. `main.rs` constructs `MemoryWorker::new()` alongside the HTTP client and calls `state.memory.start_schedulers(state.clone())` before `axum::serve`. Scheduler handles stored in a `let _scheduler_handles = …` for now — 5c wires a `tokio::signal::ctrl_c` handler that calls `stop_schedulers`.
+- **`tokio` test-util dev-dep added** so tests can use `tokio::time::pause()` + `advance()`. Lets the scheduler + concurrent-update tests run in simulated time deterministically.
+- **Tests (+16, 127 total):** persona-memory status transitions, empty-threads completed-with-message path, concurrent-manual-update rejection, modify refuses without existing memory, seed writes+completes, thread-memory writes session fields with correct `updated_at` cutoff, missing-session failed status, manual reprocess fallback, auto "no new messages" path, roleplay excludes persona memory from prompt (capturing-LLM verifies), **session-JSON-lock-not-held-across-LLM regression guard**, `start_manual_update` pre-check rejection, scheduler defer-when-floor-unmet, scheduler graceful shutdown, `reschedule_thread_next_fire` no-panic round trip, thread-memory settings resolve through persona default + override.
+
+**Note (flagged to user, not blocking):** Scheduler ticks reload `config::load_config` + `persona::load_persona_config` per persona. Matches Python's "no-restart-needed" semantics for settings changes. Cheap at localhost scale (2+N JSON reads every ≥10s), so preserved as-is.
 
 ---
 

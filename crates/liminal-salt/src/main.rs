@@ -10,7 +10,7 @@ use liminal_salt::{
     AppState,
     middleware::csrf,
     routes,
-    services::{config, prompt},
+    services::{config, memory_worker::MemoryWorker, prompt},
     tera_extra,
 };
 
@@ -53,7 +53,12 @@ async fn main() -> anyhow::Result<()> {
         http: reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .build()?,
+        memory: MemoryWorker::new(),
     };
+
+    // Kick off the two memory schedulers. They run until the process exits.
+    // (5c will wire tokio::signal::ctrl_c for graceful shutdown.)
+    let _scheduler_handles = state.memory.start_schedulers(state.clone());
 
     // Static assets still live at the repo-root chat/static/ path (unchanged from Django).
     let static_dir = manifest_dir.join("../../chat/static");
