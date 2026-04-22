@@ -1,0 +1,157 @@
+{% import "icons.html" as icons %}
+<!-- Header -->
+<header class="bg-surface-secondary px-5 py-4 border-b border-border flex items-center justify-between">
+    <div>
+        <h1 class="text-2xl text-foreground">Persona Settings</h1>
+        <div class="text-xs text-foreground-secondary mt-1">Default: <span id="default-persona-display">{{ default_persona | display_name }}</span></div>
+    </div>
+    <button type="button" tabindex="0" class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover text-sm" @click="window.dispatchEvent(new CustomEvent('open-new-persona-modal'))">New Persona</button>
+</header>
+
+<!-- Persona Settings Content -->
+<div class="flex-1 overflow-y-auto p-5">
+    {% if success %}<script>showToast("{{ success | escapejs }}", 'success');</script>{% endif %}
+
+    {% if not personas %}
+    <div class="p-3 px-4 rounded mb-4 bg-danger text-white">
+        No personas found in 'personas/' directory.
+        Create persona folders with .md files to define chatbot personas.
+    </div>
+    {% else %}
+
+    <form hx-post="/settings/save/"
+          hx-target="#main-content"
+          hx-swap="innerHTML">
+        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+        <input type="hidden" name="redirect_to" value="persona">
+        <div class="mb-4"
+             x-data="personaSettingsPicker"
+             data-selected-persona="{{ selected_persona }}"
+             data-settings-url="/persona/"
+             data-personas='[{% for p in personas %}{ "id": "{{ p }}", "display": "{{ p | display_name | escapejs }}" }{% if not loop.last %}, {% endif %}{% endfor %}]'
+             @dropdown-select="onPersonaSelect($event.detail)">
+            <label class="block mb-2 font-medium">Select a persona:</label>
+            <div class="flex flex-col md:flex-row gap-3 md:items-end">
+                <div class="w-full md:max-w-md">
+                    <div x-data="selectDropdown" :data-items="JSON.stringify(personaItems)" :data-selected="selectedPersona">
+                        {% set searchable = "true" %}
+                        {% set placeholder = "Search personas..." %}
+                        {% set name = "persona" %}
+                        {% include "components/select_dropdown.html" %}
+                    </div>
+                </div>
+                <button type="submit" tabindex="0" class="w-full md:w-auto px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover">Set as Default</button>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-3 md:flex-wrap mt-4">
+                <button type="button" tabindex="0" class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" @click="window.dispatchEvent(new CustomEvent('open-edit-persona-modal'))">Edit Persona</button>
+                <button type="button" tabindex="0" class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" @click="window.dispatchEvent(new CustomEvent('open-edit-model-modal'))">Edit Model</button>
+                <button type="button" tabindex="0" class="w-full md:w-auto persona-context-files-btn px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent" @click="window.dispatchEvent(new CustomEvent('open-persona-context-files-modal'))">Context Files <span class="badge bg-accent text-foreground-on-accent text-xs px-1.5 py-0.5 rounded-full ml-1" {% if not persona_context_badge_count %}hidden{% endif %}>{{ persona_context_badge_count | default(value=0) }}</span></button>
+                <button type="button" tabindex="0"
+                        class="w-full md:w-auto px-6 py-3 bg-border rounded font-medium"
+                        :class="selectedPersona === 'assistant' ? 'text-foreground-secondary cursor-not-allowed opacity-50' : 'text-foreground cursor-pointer hover:bg-danger hover:text-foreground-on-accent'"
+                        :disabled="selectedPersona === 'assistant'"
+                        :title="selectedPersona === 'assistant' ? 'Cannot delete the default Assistant persona' : 'Delete Persona'"
+                        @click="selectedPersona !== 'assistant' && deletePersonaWithConfirm(selectedPersona)">Delete Persona</button>
+            </div>
+        </div>
+    </form>
+
+    <!-- Data element for modal access (survives HTMX swaps) -->
+    <div id="persona-data"
+         data-selected-id="{{ selected_persona }}"
+         data-persona-model="{{ persona_model | default(value='') }}"
+         data-default-model="{{ model | default(value='') }}"
+         class="hidden">
+        <template id="persona-raw-content">{{ persona_preview | default(value='') }}</template>
+    </div>
+
+    {% if persona_model %}
+    <div class="text-sm text-foreground-secondary mt-4 mb-2">
+        <strong>Model override:</strong> <span class="text-accent-secondary">{{ persona_model }}</span>
+    </div>
+    {% endif %}
+
+    <!-- Thread Defaults for this persona -->
+    <div class="mt-6 pt-5 border-t border-border"
+         x-data="personaThreadDefaults"
+         data-persona="{{ selected_persona }}"
+         data-default-mode="{{ persona_default_mode_raw | default(value='') }}"
+         data-interval-minutes="{{ persona_default_interval_minutes | default(value=0) }}"
+         data-message-floor="{{ persona_default_message_floor | default(value=4) }}"
+         data-size-limit="{{ persona_default_size_limit | default(value=4000) }}"
+         data-has-thread-defaults="{{ persona_has_thread_defaults | default(value=false) }}"
+         data-save-url="/settings/save-persona-thread-defaults/"
+         data-clear-url="/settings/clear-persona-thread-defaults/">
+
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-lg text-foreground">Thread Defaults</h3>
+            <span class="text-xs text-foreground-muted"
+                  x-text="hasDefaults ? 'Custom defaults for this persona' : 'Standard settings'"></span>
+        </div>
+        <p class="text-xs text-foreground-muted mb-4">
+            Applied when a new thread is created with <span class="text-accent-secondary">{{ selected_persona | display_name }}</span>. Individual threads can override these from the thread memory modal. Chatbot is the baseline; switch to Roleplay only if you want this persona to open as roleplay by default.
+        </p>
+
+        <div class="flex flex-wrap items-end gap-4 mb-2"
+             @dropdown-select="onModeSelect($event.detail)">
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Default Mode</label>
+                <div x-data="selectDropdown" :data-items="JSON.stringify(modeItems)" :data-selected="defaultMode">
+                    {% set placeholder = "Use app default" %}
+                    {% set trigger_class = "flex items-center gap-2 text-foreground text-sm cursor-pointer outline-none focus:ring-1 focus:ring-accent-secondary rounded p-2 border border-border bg-surface w-48 justify-between" %}
+                    {% set name = "" %}
+                    {% set searchable = "" %}
+                    {% include "components/select_dropdown.html" %}
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Interval (min)</label>
+                <input type="number" x-model.number="intervalMinutes" @input="dirty = true"
+                       @change="intervalMinutes = clampInterval(intervalMinutes)"
+                       min="0" max="1440" placeholder="0"
+                       class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Message Floor</label>
+                <input type="number" x-model.number="messageFloor" @input="dirty = true"
+                       @change="messageFloor = clampMessageFloor(messageFloor)"
+                       min="1" max="1000" placeholder="4"
+                       class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Size Limit</label>
+                <input type="number" x-model.number="sizeLimit" @input="dirty = true"
+                       @change="sizeLimit = clampSizeLimit(sizeLimit)"
+                       min="0" max="100000" step="500" placeholder="4000"
+                       class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
+            <button @click="save()" x-show="dirty" :disabled="saving"
+                    class="px-3 py-2 bg-accent text-foreground-on-accent rounded text-sm font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
+                <span x-show="!saving">Save</span>
+                <span x-show="saving">...</span>
+            </button>
+            <button @click="clear()" x-show="hasDefaults && !dirty" :disabled="saving"
+                    class="px-3 py-2 bg-border text-foreground rounded text-sm font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent disabled:opacity-50">
+                Clear persona defaults
+            </button>
+        </div>
+        <p class="text-xs text-foreground-muted mt-2">
+            Interval 0 = auto-update disabled. Size Limit 0 = unlimited.
+        </p>
+    </div>
+
+    {% if persona_preview %}
+    <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent mt-6 prose prose-invert max-w-none !text-foreground-secondary prose-headings:!text-foreground-secondary prose-strong:!text-foreground-secondary marker:!text-foreground-secondary">
+        {{ persona_preview | markdown | safe }}
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+
+<!-- Persona context files data for Alpine modal -->
+<div id="persona-context-files-data" class="hidden"
+     data-files='{{ persona_context_files_json | default(value="[]") | safe }}'
+     data-persona="{{ selected_persona | escapejs }}"
+     data-local-dirs='{{ persona_context_local_dirs_json | default(value="[]") | safe }}'></div>

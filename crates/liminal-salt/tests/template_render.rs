@@ -218,3 +218,96 @@ fn new_chat_button_renders_standalone() {
     assert!(out.contains("New Chat"));
     assert!(out.contains("/chat/new/"));
 }
+
+#[test]
+fn persona_page_renders_with_personas() {
+    let tera = build_tera();
+    let mut ctx = base_context();
+    ctx.insert("page", "persona");
+    ctx.insert("show_home", &false);
+    ctx.insert(
+        "personas",
+        &vec!["assistant".to_string(), "riddler".to_string()],
+    );
+    ctx.insert("default_persona", "assistant");
+    ctx.insert("selected_persona", "assistant");
+    ctx.insert("persona_preview", "# Assistant\n\nYou help with tasks.");
+    ctx.insert("model", "anthropic/claude-opus-4-7");
+    ctx.insert("persona_model", "");
+    ctx.insert("pinned_sessions", &Vec::<serde_json::Value>::new());
+    ctx.insert("grouped_sessions", &Vec::<serde_json::Value>::new());
+
+    let out = tera.render("chat/chat.html", &ctx).expect("render persona");
+    assert!(out.contains("Persona Settings"));
+    assert!(out.contains("Set as Default"));
+    assert!(out.contains("assistant"));
+    // Persona modals present.
+    assert!(out.contains("editPersonaModal"));
+    assert!(out.contains("editPersonaModelModal"));
+    assert!(out.contains("open-persona-context-files-modal"));
+}
+
+#[test]
+fn memory_page_renders_with_empty_memory() {
+    let tera = build_tera();
+    let mut ctx = base_context();
+    ctx.insert("page", "memory");
+    ctx.insert("show_home", &false);
+    ctx.insert("selected_persona", "assistant");
+    ctx.insert(
+        "available_personas",
+        &vec!["assistant".to_string(), "riddler".to_string()],
+    );
+    ctx.insert("model", "anthropic/claude-opus-4-7");
+    ctx.insert("memory_content", "");
+    ctx.insert("pinned_sessions", &Vec::<serde_json::Value>::new());
+    ctx.insert("grouped_sessions", &Vec::<serde_json::Value>::new());
+
+    let out = tera.render("chat/chat.html", &ctx).expect("render memory");
+    assert!(out.contains("Assistant's Memory"));
+    assert!(out.contains("Update Memory"));
+    assert!(out.contains("Seed Memory"));
+    assert!(out.contains("Wipe Memory"));
+    assert!(out.contains("No memory yet for Assistant"));
+    // Context file modals reachable.
+    assert!(out.contains("context-files-data") || out.contains("persona-context-files-data"));
+}
+
+#[test]
+fn memory_page_renders_with_content() {
+    let tera = build_tera();
+    let mut ctx = base_context();
+    ctx.insert("page", "memory");
+    ctx.insert("show_home", &false);
+    ctx.insert("selected_persona", "assistant");
+    ctx.insert("available_personas", &vec!["assistant".to_string()]);
+    ctx.insert("model", "m/id");
+    ctx.insert("memory_content", "- prefers pineapple on pizza");
+    ctx.insert("pinned_sessions", &Vec::<serde_json::Value>::new());
+    ctx.insert("grouped_sessions", &Vec::<serde_json::Value>::new());
+
+    let out = tera.render("chat/chat.html", &ctx).expect("render memory");
+    assert!(out.contains("pineapple on pizza"));
+    // Body rendered via markdown filter — should contain a list item.
+    assert!(out.contains("<li>"));
+}
+
+#[test]
+fn context_files_modal_renders_title_and_description() {
+    let tera = build_tera();
+    let mut ctx = base_context();
+    ctx.insert("title", "Global context");
+    ctx.insert("description", "test description");
+    ctx.insert("empty_text", "nothing here");
+    let out = tera
+        .render("chat/context_files_modal.html", &ctx)
+        .expect("modal render");
+    assert!(out.contains("Global context"));
+    assert!(out.contains("test description"));
+    assert!(out.contains("nothing here"));
+    assert!(out.contains("Drag & drop"));
+    assert!(out.contains("Uploaded Files"));
+    assert!(out.contains("Local Directory"));
+    // Nested modals present.
+    assert!(out.contains("Browse Directories"));
+}

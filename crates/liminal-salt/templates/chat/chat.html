@@ -105,11 +105,18 @@
 </div>
 
 <!-- Main Content Area. x-data creates an empty Alpine scope so @click / @input -->
-<!-- directives inside chat_main.html (folder, retry, edit, etc.) get bound -->
-<!-- during Alpine's initial DOM walk on fresh page load. Without it, they only -->
-<!-- bind after an HTMX swap via Alpine's MutationObserver. -->
+<!-- directives inside nested partials get bound during Alpine's initial DOM walk -->
+<!-- on fresh page load. Without it, they only bind after an HTMX swap via -->
+<!-- Alpine's MutationObserver. -->
+<!-- `page` picks which partial renders. Handlers set it to "persona" or "memory" -->
+<!-- for their respective full-page loads; defaults to chat. -->
 <main class="flex-1 flex flex-col" id="main-content" x-data>
-    {% if show_home %}
+    {% set page = page | default(value="chat") %}
+    {% if page == "persona" %}
+        {% include "persona/persona_main.html" %}
+    {% elif page == "memory" %}
+        {% include "memory/memory_main.html" %}
+    {% elif show_home %}
         {% include "chat/chat_home.html" %}
     {% else %}
         {% include "chat/chat_main.html" %}
@@ -141,6 +148,112 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Edit Persona modal (Phase 4) -->
+<div x-data="editPersonaModal" x-cloak data-create-url="/settings/create-persona/" data-save-url="/settings/save-persona/">
+    <div x-show="showModal"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal-xl w-[90%] border border-border">
+            <h3 class="text-foreground mb-3" x-text="isNew ? 'New Persona' : 'Edit Persona'"></h3>
+            <div class="mb-4">
+                <label for="persona-name" class="block mb-2 font-medium text-foreground-secondary">Display Name:</label>
+                <input type="text" id="persona-name" x-model="displayName"
+                       :disabled="isAssistant"
+                       :class="isAssistant ? 'opacity-50 cursor-not-allowed' : ''"
+                       class="w-full p-2.5 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary"
+                       @input="displayName = displayName.replace(/[^a-zA-Z0-9 ]/g, '')">
+                <p x-show="isAssistant" class="text-foreground-secondary text-xs mt-1">The default persona cannot be renamed.</p>
+            </div>
+            <label class="block mb-2 font-medium text-foreground-secondary">Persona File:</label>
+            <textarea x-model="content" class="w-full h-[400px] bg-surface border border-border rounded text-foreground font-mono text-sm p-3 resize-y mb-4 focus:outline-none focus:border-accent-secondary"></textarea>
+            <div class="flex gap-3 justify-end">
+                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="savePersona()" class="px-4 py-2 bg-success text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-success/80">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Persona Model modal (Phase 4 — model-override picker) -->
+<div x-data="editPersonaModelModal" x-cloak
+     data-models-url="/settings/available-models/"
+     data-save-url="/settings/save-persona-model/"
+     data-persona-settings-url="/persona/">
+    <div x-show="showModal"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-[500px] w-[90%] border border-border">
+            <h3 class="text-foreground mb-2">Edit Model for <span class="text-accent-secondary" x-text="displayName"></span></h3>
+            <p class="text-foreground-secondary text-sm mb-4">Select a model for this persona, or clear to use the default.</p>
+
+            <div x-show="loading" class="text-center py-4 text-foreground-secondary">
+                Loading models...
+            </div>
+
+            <div x-show="loadError && !loading" class="p-3 px-4 rounded mb-4 bg-danger text-white text-sm">
+                <span x-text="loadError"></span>
+                <button @click="loadModels()" class="ml-2 underline">Retry</button>
+            </div>
+
+            <div class="mb-4" x-show="!loading && !loadError" @dropdown-select="onModelSelect($event.detail)">
+                <label class="block mb-2 font-medium text-foreground-secondary">Model:</label>
+                <div x-data="selectDropdown" :data-items="JSON.stringify(modelItems)" :data-selected="selectedModel">
+                    {% set searchable = "true" %}
+                    {% set placeholder = "Search models..." %}
+                    {% set dropdown_class = "z-modal-nested" %}
+                    {% include "components/select_dropdown.html" %}
+                </div>
+            </div>
+
+            <div class="text-sm text-foreground-secondary mb-4">
+                <strong>Current:</strong>
+                <span x-text="currentModel || 'Using default (' + defaultModel + ')'"></span>
+            </div>
+
+            <div class="flex gap-3 justify-end">
+                <button @click="clearModel()" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Use Default</button>
+                <button @click="showModal = false" class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Cancel</button>
+                <button @click="saveModel()" :disabled="saving" class="px-4 py-2 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
+                    <span x-show="!saving">Save</span>
+                    <span x-show="saving">...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Global context files modal (Phase 4) -->
+<div x-data="contextFilesModal" x-cloak
+     data-upload-url="/settings/context/upload/"
+     data-toggle-url="/settings/context/toggle/"
+     data-delete-url="/settings/context/delete/"
+     data-content-url="/settings/context/content/"
+     data-save-url="/settings/context/save/"
+     data-files-source="context-files-data"
+     data-badge-selector=".context-files-btn .badge"
+     data-open-event="open-context-files-modal">
+    {% set title = "Context Files" %}
+    {% set description = "Upload files to provide additional context to the assistant. These are included in every conversation but not used for memory generation." %}
+    {% set empty_text = "No context files uploaded." %}
+    {% include "chat/context_files_modal.html" %}
+</div>
+
+<!-- Per-persona context files modal (Phase 4) -->
+<div x-data="contextFilesModal" x-cloak
+     data-upload-url="/persona/context/upload/"
+     data-toggle-url="/persona/context/toggle/"
+     data-delete-url="/persona/context/delete/"
+     data-content-url="/persona/context/content/"
+     data-save-url="/persona/context/save/"
+     data-files-source="persona-context-files-data"
+     data-badge-selector=".persona-context-files-btn .badge"
+     data-open-event="open-persona-context-files-modal">
+    {% set title = "Persona Context Files" %}
+    {% set description = "Upload files to provide additional context for this persona only. These are included in conversations using this persona." %}
+    {% set empty_text = "No context files uploaded for this persona." %}
+    {% include "chat/context_files_modal.html" %}
 </div>
 
 <!-- Rename modal (Phase 3 — rename_chat endpoint) -->

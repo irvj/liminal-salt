@@ -422,7 +422,7 @@ These three have no intra-layer dependencies and block everything else.
 
 **In progress.** Split into three sub-commits following the Phase 3 pattern:
 - **4a (done 2026-04-22):** service layer — `services/{persona,context_files,local_context}.rs` + expanded `services/prompt.rs`. Ownership audit: moved persona `config.json` from `context_manager` into `persona.rs` (fixed the historical Python split). 24 new integration tests; 69 tests total across the crate.
-- **4b (pending):** template port for `persona/*.html`, `memory/*.html`, `chat/context_files_modal.html`, `chat/dir_browser_modal.html`, `chat/local_dir_tab.html`; restore the 4 modals in `chat.html` that were stripped in Phase 3b.
+- **4b (done 2026-04-22):** template port for `persona/persona_main.html`, `memory/memory_main.html`, `chat/context_files_modal.html`, `chat/dir_browser_modal.html`, `chat/local_dir_tab.html`; restored the 4 modals in `chat.html` (`editPersonaModal`, `editPersonaModelModal`, global + per-persona `contextFilesModal`); added a `page` routing variable so chat.html acts as a shared shell for persona/memory/chat page variants. 4 new render tests; 73 tests total.
 - **4c (pending):** handlers (`/persona/*`, `/memory/` view, `/context/local/*`) and browser smoke of full flow (create persona → upload context file → switch session → send → verify prompt in logs).
 
 **Ownership audit (2026-04-22):** CLAUDE.md's table had `data/personas/{name}/config.json` owned by `context_manager.save_persona_config` — a historical Python artifact where persona-scoped state was split across two services for no architectural reason. In the Rust port this moves to `persona.rs` alongside the directory it lives in. CLAUDE.md is not edited now because it still describes current Python reality; Phase 7's rewrite will capture the Rust convention from the actual code.
@@ -445,6 +445,15 @@ These three have no intra-layer dependencies and block everything else.
 - Sessions reference personas by folder name. A rename updates every session's `persona` field. This is a write-amplifier; `SessionManager::rename_persona_in_all_sessions` should exist and be called by `PersonaManager::rename_persona`.
 
 **Done when:** create a persona, upload a context file, switch a session to it, send a message; verify the system prompt (log it) includes the expected sections in the expected order.
+
+**Phase 4b outcome:**
+
+- **Templates ported:** `persona/persona_main.html`, `memory/memory_main.html`, `chat/context_files_modal.html`, `chat/dir_browser_modal.html`, `chat/local_dir_tab.html`.
+- **`chat.html` shared shell:** added a `page` context variable so the same top-level template renders 4 variants — `"chat"` (default, branches on `show_home`), `"persona"`, `"memory"`. Handlers set it; template dispatches to the right main-content partial. Keeps sidebar + modals + script blocks shared across all pages without duplication.
+- **Restored 4 modals** stripped in Phase 3b: `editPersonaModal`, `editPersonaModelModal`, global `contextFilesModal`, per-persona `contextFilesModal`. Their `x-data` and event listeners are scoped per-modal; presence on non-hosting pages is harmless (they listen for window events and stay closed).
+- **URLs hardcoded from Python's `urls.py`:** `/settings/save-persona/`, `/settings/create-persona/`, `/settings/save-persona-model/`, `/settings/save-persona-thread-defaults/`, `/settings/clear-persona-thread-defaults/`, `/settings/available-models/`, `/persona/context/*`, `/memory/*` (update/seed/wipe/modify/save-settings/update-status), `/settings/context/*`. Handlers for these land in 4c (persona + context) and 5/6 (memory + settings save); the stubs registered in Phase 3c keep 4xx-free until real handlers ship.
+- **Tera gotchas (same lessons as 3b):** `{% include %}` can't take a variable path, so the shell uses explicit `{% if %}` branches. `{% set %}` + include passes component params to `select_dropdown.html` (no `with` clause in Tera). Optional values normalized at the top of each partial to avoid undefined-variable errors (Tera is stricter than Django).
+- **Render tests (4 new, 13 total for `template_render.rs`):** persona page with personas + modals, memory page with empty memory, memory page with content (markdown renders `<li>`), context files modal renders title/description/tabs/nested browser.
 
 **Phase 4a outcome:**
 

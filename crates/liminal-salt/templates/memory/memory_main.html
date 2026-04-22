@@ -1,0 +1,149 @@
+{% import "icons.html" as icons %}
+<!-- Header -->
+<header class="bg-surface-secondary px-5 py-4 border-b border-border">
+    <h1 class="text-2xl text-foreground">{{ selected_persona | display_name }}'s Memory</h1>
+    <div class="text-xs text-foreground-secondary mt-1">Model: {{ model | default(value='') }}</div>
+</header>
+
+<!-- Memory Content -->
+<div class="flex-1 overflow-y-auto p-5">
+    {% if error %}<script>showToast("{{ error | escapejs }}", 'error');</script>{% endif %}
+
+    <!-- Persona Selector -->
+    <div class="mb-5"
+         x-data="memoryPersonaPicker"
+         data-selected-persona="{{ selected_persona }}"
+         data-memory-url="/memory/"
+         data-personas='[{% for p in available_personas %}{ "id": "{{ p }}", "display": "{{ p | display_name | escapejs }}" }{% if not loop.last %}, {% endif %}{% endfor %}]'
+         @dropdown-select="onPersonaSelect($event.detail)">
+        <label class="block mb-2 font-medium text-foreground">Persona:</label>
+        <div class="w-full md:max-w-md">
+            <div x-data="selectDropdown" :data-items="JSON.stringify(personaItems)" :data-selected="selectedPersona">
+                {% set searchable = "true" %}
+                {% set placeholder = "Search personas..." %}
+                {% include "components/select_dropdown.html" %}
+            </div>
+        </div>
+    </div>
+
+    <div class="flex flex-col md:flex-row gap-3 my-5">
+        <form hx-post="/memory/update/"
+              hx-target="#main-content"
+              hx-swap="innerHTML"
+              hx-on::before-request="showMemoryUpdating()"
+              class="w-full md:w-auto">
+            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+            <input type="hidden" name="persona" value="{{ selected_persona }}">
+            <button type="submit" tabindex="0" class="w-full md:w-auto px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover" id="update-memory-btn">Update Memory</button>
+        </form>
+
+        <form hx-post="/memory/seed/"
+              hx-target="#main-content"
+              hx-swap="innerHTML"
+              hx-on::before-request="showMemoryUpdating()"
+              hx-encoding="multipart/form-data"
+              class="w-full md:w-auto">
+            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+            <input type="hidden" name="persona" value="{{ selected_persona }}">
+            <input type="file" name="file" accept=".md,.txt" class="hidden" id="seed-file-input"
+                   @change="$el.closest('form').requestSubmit()">
+            <button type="button" tabindex="0"
+                    @click="document.getElementById('seed-file-input').click()"
+                    class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Seed Memory</button>
+        </form>
+
+        <button tabindex="0" @click="wipeMemoryWithConfirm()" class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent">Wipe Memory</button>
+    </div>
+
+    <!-- Memory Generation Settings -->
+    <h2 class="text-foreground text-xl mb-4">Memory Generation Settings</h2>
+    <div class="mb-5"
+         x-data="memorySettings"
+         data-persona="{{ selected_persona }}"
+         data-save-url="/memory/save-settings/"
+         data-max-threads="{{ user_history_max_threads | default(value=0) }}"
+         data-messages-per-thread="{{ user_history_messages_per_thread | default(value=0) }}"
+         data-size-limit="{{ memory_size_limit | default(value=8000) }}"
+         data-auto-interval="{{ auto_memory_interval | default(value=0) }}"
+         data-message-floor="{{ auto_memory_message_floor | default(value=10) }}">
+        <div class="flex flex-wrap gap-4 items-end">
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Recent Threads</label>
+                <input type="number" x-model="userHistoryMaxThreads" @input="saved = false"
+                       min="0" max="100" placeholder="0"
+                       class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Messages Per Thread</label>
+                <input type="number" x-model="userHistoryMessagesPerThread" @input="saved = false"
+                       min="0" max="10000" step="100" placeholder="0"
+                       class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Memory Size Limit</label>
+                <input type="number" x-model="memorySizeLimit" @input="saved = false"
+                       min="0" max="100000" step="1000" placeholder="8000"
+                       class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Auto-Update (min)</label>
+                <input type="number" x-model="autoMemoryInterval" @input="saved = false"
+                       min="0" max="1440" placeholder="0"
+                       class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
+            <div>
+                <label class="block text-xs text-foreground-secondary mb-1">Message Floor</label>
+                <input type="number" x-model="autoMemoryMessageFloor" @input="saved = false"
+                       min="1" max="1000" placeholder="10"
+                       class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+            </div>
+            <button type="button" tabindex="0" @click="save()" x-show="!saved" :disabled="saving"
+                    class="px-3 py-2 bg-accent text-foreground-on-accent rounded text-sm font-medium cursor-pointer hover:bg-accent-hover">
+                <span x-show="!saving">Save</span>
+                <span x-show="saving">...</span>
+            </button>
+        </div>
+        <p class="text-xs text-foreground-muted mt-2">Auto-update fires only when both conditions are met: <strong>interval elapsed</strong> AND <strong>at least Message Floor new messages</strong> since last update. Set Auto-Update to 0 to disable. Minimum 5 minutes when enabled.</p>
+    </div>
+
+    <div class="text-xs text-foreground-secondary mb-4"
+         id="memory-status-bar"
+         data-status-url="/memory/update-status/"
+         data-memory-url="/memory/"
+         data-persona="{{ selected_persona }}"
+         data-updating="{{ memory_updating | default(value=false) }}">
+        {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update }}"></span>{% else %}No memory yet for {{ selected_persona | display_name }}{% endif %}<span id="memory-status" class="{% if not just_updated and not memory_updating %}hidden{% endif %}"> · {% if just_updated %}{{ icons::check_circle(class="w-4 h-4 inline") }} {{ success | default(value='') }}{% else %}Updating memory<span class="updating-dots"><span class="animate-blink">.</span><span class="animate-blink blink-2">.</span><span class="animate-blink blink-3">.</span></span>{% endif %}</span>
+    </div>
+    <script>initMemoryView();</script>
+
+    <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent">
+        {% if memory_content %}
+        <div class="prose prose-invert max-w-none !text-foreground-secondary prose-headings:!text-foreground-secondary">{{ memory_content | markdown | safe }}</div>
+        {% else %}
+            <div class="text-center text-foreground-secondary py-10 px-5">
+                <strong>No memory yet for {{ selected_persona | display_name }}.</strong><br>
+                Memory will be created after your first update.
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Memory Modification Input -->
+    <div class="bg-surface-secondary p-5 border-t border-border mt-5">
+        <form hx-post="/memory/modify/"
+              hx-target="#main-content"
+              hx-swap="innerHTML"
+              hx-on::before-request="showMemoryModifying(event)"
+              class="flex gap-3 items-end">
+            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+            <input type="hidden" name="persona" value="{{ selected_persona }}">
+            <input type="text"
+                   name="command"
+                   id="memory-command-input"
+                   placeholder="Tell {{ selected_persona | display_name }} to remember or forget something..."
+                   required
+                   autocomplete="off"
+                   class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-secondary">
+            <button type="submit" tabindex="0" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Update</button>
+        </form>
+    </div>
+</div>
