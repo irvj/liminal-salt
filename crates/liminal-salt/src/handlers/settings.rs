@@ -322,6 +322,7 @@ async fn render_settings(
     ctx.insert("context_files", &ctx_files);
     ctx.insert("context_local_dirs_json", &local_dirs_json);
     ctx.insert("context_badge_count", &context_badge);
+    ctx.insert("app_version", env!("CARGO_PKG_VERSION"));
     ctx.insert("success", &success);
     ctx.insert("error", &error);
 

@@ -469,6 +469,7 @@ fn settings_main_renders_provider_model_and_context_sections() {
     );
     ctx.insert("context_local_dirs_json", "[]");
     ctx.insert("context_badge_count", &1);
+    ctx.insert("app_version", "0.20.0");
     let none: Option<&str> = None;
     ctx.insert("success", &none);
     ctx.insert("error", &none);
@@ -486,6 +487,8 @@ fn settings_main_renders_provider_model_and_context_sections() {
     assert!(out.contains(r#"data-save-url="/settings/save-context-history-limit/""#));
     // Badge count rendered.
     assert!(out.contains(r#">1</span>"#));
+    // Version footer rendered from the app_version context key.
+    assert!(out.contains("Liminal Salt v0.20.0"));
 }
 
 #[test]
