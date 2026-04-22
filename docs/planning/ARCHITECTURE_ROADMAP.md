@@ -7,6 +7,26 @@
 
 ---
 
+## Current State (for a new session)
+
+- **Branch:** `rust-migration`. All work happens here until Phase 7's merge to `main`. `main` is frozen; `python-legacy` holds the last stable Python release.
+- **Tests:** 153 tests across the crate, all green. Run with `cargo test -p liminal-salt`. Clippy clean with `cargo clippy -p liminal-salt --all-targets -- -D warnings`.
+- **Dev loop:** `cargo run -p liminal-salt` (Rust server on 8420) + `npm run tailwind` (CSS rebuild). The Django app still exists on the `rust-migration` branch but the Rust server is the one the user is running.
+- **What runs against the live OpenRouter API:** chat completions, memory merges, thread-memory merges, API-key validation, model listing. Budget ~5–30s per LLM call during manual smoke tests.
+- **Persistent preferences saved as memory files** under `~/.claude/projects/.../memory/`. A new session automatically loads the index from `MEMORY.md`. Current entries:
+  - `feedback_commit_style` — terse, lowercase first word, no Co-Authored-By trailer
+  - `feedback_audit_invariants` — audit invariants when porting; don't blindly preserve Python-era design
+  - `feedback_use_provided_date` — use the `Today's date is ...` value verbatim, don't invent dates
+  - `feedback_no_historical_comments` — comments describe current behavior; "we renamed X" goes in the commit message
+- **Active architectural decisions during the port** (documented in each phase's outcome block):
+  - Phase 4a: `config.json` ownership moved from `context_manager` → `persona` (per-persona state lives with persona CRUD).
+  - Phase 5a: `aggregate_all_sessions_messages` moved from `utils.py` → `session::list_persona_threads` (session-schema work in session service).
+  - Phase 5a: `_safe_persona_name` sanitization replaced with strict `valid_persona_name` rejection at service boundaries.
+  - Phase 5 audit: `thread_memory_updated_at` semantics corrected — stamped at update *start* (wall-clock) instead of last-message timestamp (misleading "Last updated" UI).
+  - Post-Phase-6 audit: persona CRUD routes moved from `/settings/*` → `/persona/*` (Django placement was a historical artifact).
+
+---
+
 ## Roadmap Overview
 
 Two milestones, each independently useful:
@@ -39,7 +59,9 @@ These shape every decision in the plan.
 
 ---
 
-## Current State (April 21, 2026)
+## Pre-Migration Python State (April 21, 2026)
+
+Snapshot of the Python codebase at the point Phase 1 started. Kept for historical reference; the Rust port's current state lives in the "Current State" block above.
 
 ### What's solid
 - Service ownership is exclusive and enforced (see CLAUDE.md ownership table).
@@ -622,6 +644,13 @@ This is the single highest-risk phase. Allocate the most time. Review concurrenc
 
 **Note — roadmap's summarizer bullet:** the roadmap said "`services/summarizer.rs` — already drafted in Phase 3, complete it here." It was already complete at Phase 3b (one-shot title generation with fallback + artifact stripping + char-boundary-safe truncation). No additional work in Phase 6.
 
+**Post-Phase-6 audit (done 2026-04-22):** systematic diff of Python surface vs. Rust surface found two drifts, both fixed:
+
+1. **`threadMemoryModal` never restored in chat.html.** Phase 3b stripped it with a "re-add in Phase 5" note; Phase 5 wired the handlers and JS but never put the modal back. The brain-cog icon dispatched an `open-thread-memory-modal` event nothing listened for. Fixed in commit `be7105a` + added a render test that asserts the modal's `x-data="threadMemoryModal"` is present in `chat.html`.
+2. **Persona CRUD routes in the wrong namespace.** The six routes for create/save/delete/save-model/save-thread-defaults/clear-thread-defaults were ported verbatim to `/settings/*`, matching Django's placement. That was a Python-era artifact: persona CRUD originally got added to the settings-page handler before the persona page had its own URL namespace. Moved to `/persona/*` in commit `32e9bf2`. `/settings/save/` stayed because it writes the app-level default-persona *choice* (a global preference, not persona CRUD).
+
+**Audit procedure** (useful for any future refactor): grep `x-data="..."` across both template trees and diff; grep `getAppUrl('...')` across JS and check each key has a matching `data-*-url` attribute in base.html; compare `urls.py` path set to `routes.rs` route set; grep every hardcoded URL in JS for a matching Rust route. 20 minutes. Caught two bugs that would have been costlier in Phase 7 or post-cutover.
+
 ---
 
 ### Phase 7 — Cutover + polish
@@ -629,11 +658,17 @@ This is the single highest-risk phase. Allocate the most time. Review concurrenc
 **Deliverable:** Django removed; Rust is the only backend.
 
 **Tasks:**
-1. Delete `liminal_salt/` (Django project), `chat/` (app), `manage.py`, `requirements.txt`, `run.py`, `scripts/`.
-2. Update `package.json` — Tailwind build pipeline stays; update the "dev" concurrent command to run `cargo run` instead of `manage.py runserver`.
-3. Update `CLAUDE.md`: rewrite the "Directory layout" and "Services" sections for the Rust codebase. Preserve the invariant list — it's language-agnostic.
-4. Update `README.md`: build/run instructions (`cargo run` vs `npm run dev`).
-5. Manual full-feature smoke test using a checklist (every route, every feature).
+1. **Relocate frontend assets into the crate.** The Rust server currently reads from `../../chat/static/` and `../../chat/default_personas/` via `CARGO_MANIFEST_DIR`-relative paths in `main.rs`. Before deleting `chat/`:
+   - Move `chat/static/` → `crates/liminal-salt/static/` (JS, CSS, themes, favicon — everything `ServeDir` mounts at `/static/`).
+   - Move `chat/default_personas/` → `crates/liminal-salt/default_personas/` (seeded into `data/personas/` on first boot by `prompt::seed_default_personas`).
+   - Update the path literals in `main.rs`: `static_dir = manifest_dir.join("static")`, `bundled_personas = manifest_dir.join("default_personas")`.
+   - `AGREEMENT.md` stays at repo root (`config.rs`'s `agreement_path()` already points there via `CARGO_MANIFEST_DIR/../../`).
+   - Update `package.json`'s Tailwind input/output paths to match the new `static/` location.
+2. **Delete Django.** `liminal_salt/` (Django project), `chat/` (app including templates + static after step 1 moves the assets), `manage.py`, `requirements.txt`, `run.py`, `scripts/`.
+3. **Update `package.json`** — the "dev" concurrent command should run `cargo run -p liminal-salt` instead of `python manage.py runserver`. Tailwind watcher stays, pointed at the relocated paths.
+4. **Rewrite `CLAUDE.md`.** Directory layout, Services section, and the ownership table all describe the Python codebase currently. Replace with the Rust reality. Preserve the invariant list (locks, separation rules, context assembly order) — language-agnostic. Capture the architectural decisions made during the port (see the Current State block at the top of this roadmap for the list).
+5. **Update `README.md`** — build/run instructions flip from `pip install + manage.py runserver` to `cargo run` + `npm run tailwind`.
+6. **Manual full-feature smoke test** using a checklist (every route, every feature). Use the fresh CLAUDE.md as the only reference — if something in the test requires consulting the old Python code, the doc missed a case.
 
 **Done when:** `grep -r "python\|django\|waitress" . --include="*.md" --include="*.toml" --include="*.json"` returns only historical references. `cargo run` + `npm run tailwind` is the entire dev loop.
 
@@ -712,6 +747,7 @@ The places where AI-generated code compiles but may silently diverge from correc
 3. **Session setup-wizard state** (Phase 6) — `tower-sessions` cookie config (SameSite, HttpOnly, Secure=false for localhost) is easy to get wrong.
 4. **HTMX partial shape drift** (Phase 3 onward) — HTMX depends on specific element IDs and data attributes in swap targets. A Tera rewrite that emits subtly different HTML (extra wrapper div, different ID) breaks UX in ways that pass unit tests. Browser smoke test every HTMX interaction.
 5. **Atomic multi-file operations** (Phase 4, persona rename) — no transactions; partial-failure is possible. Accept "log and continue" semantics; document what state is possible after a failure.
+6. **Orphan template URL attributes after refactors** (caught in Phase 6 audit) — when renaming a route, the `data-*-url` attributes in templates and `getAppUrl` fallbacks in JS can go stale without breaking the build or tests. They're just strings; the JS then fetches them and gets a 404. *How to catch it:* after any route rename, grep the new route literal across templates + JS and confirm every old-path reference got updated. The Phase 6 audit found `data-delete-persona-url="/persona/delete/"` pointing at a path that didn't exist (it was the *intended* new URL from an aborted refactor — we ended up actually moving the routes so the attribute became correct, but the inverse drift is the dangerous case).
 
 ---
 
@@ -725,7 +761,8 @@ Tips for when this doc gets handed to Claude in a new session to execute a phase
 4. **When writing tests, prefer integration tests with temp-dir filesystems.** `tempfile::TempDir` + real `tokio::fs` calls catches 10x more bugs than mocking.
 5. **Run `cargo test` + browser smoke test each phase.** Type checking proves the code compiles; the browser proves the feature works. Both are required.
 6. **If timestamps or JSON shape looks subtly different from Python, that's fine.** The constraint is "Rust-correct," not "Python-identical." See Project Constraints above.
-7. **If in doubt about a service boundary, re-read the CLAUDE.md ownership table.** Don't invent new ownership during the port; preserve the Python boundaries exactly.
+7. **If in doubt about a service boundary, re-read the CLAUDE.md ownership table.** Don't invent new ownership during the port; preserve the Python boundaries exactly — *unless* an audit step (see #8) reveals the Python boundary itself was wrong.
+8. **Audit at phase boundaries.** Before declaring a phase done, diff the Python surface against the Rust surface: URL coverage, template `x-data` components, JS URL references (`getAppUrl` keys + hardcoded fetch paths), service modules. The Phase 6 audit found two issues (one Phase 5 modal that was stripped and never restored; one Python-era namespace that should move during the port) that would have been costlier to catch in Phase 7 or post-cutover. Budget 20 minutes; use plain grep — no framework needed.
 
 ---
 
