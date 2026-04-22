@@ -65,7 +65,11 @@
         {% set is_last_or_second_last = loop.index >= messages | length - 1 %}
         <div class="message-container {{ message.role }} my-4 max-w-[80%] w-fit {% if message.role == 'user' %}ml-auto{% else %}mr-auto{% endif %}">
             <div class="message {{ message.role }} {% if message.role == 'user' %}message-tail-user bg-user-bubble text-foreground-on-accent{% else %}message-tail-assistant bg-assistant-bubble text-foreground{% endif %} p-3 px-4 rounded-lg">
+                {% if message.role == "user" %}
+                <div class="whitespace-pre-wrap">{{ message.content }}</div>
+                {% else %}
                 <div class="prose prose-invert">{{ message.content | markdown | safe }}</div>
+                {% endif %}
             </div>
             {% if message.role == "assistant" %}
             <div class="flex items-center gap-2 mt-3.5 px-1">

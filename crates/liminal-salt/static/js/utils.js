@@ -454,15 +454,12 @@ function addUserMessage(event) {
     const userDiv = document.createElement('div');
     userDiv.className = 'message user message-tail-user p-3 px-4 rounded-lg bg-user-bubble text-foreground-on-accent';
 
-    // Wrap content in prose div to match page load structure
-    const proseDiv = document.createElement('div');
-    proseDiv.className = 'prose prose-invert';
-    if (typeof marked !== 'undefined') {
-        proseDiv.innerHTML = marked.parse(message);
-    } else {
-        proseDiv.textContent = message;
-    }
-    userDiv.appendChild(proseDiv);
+    // User messages are plaintext — mirrors the server-side render in
+    // chat_main.html. whitespace-pre-wrap preserves typed line breaks.
+    const bodyDiv = document.createElement('div');
+    bodyDiv.className = 'whitespace-pre-wrap';
+    bodyDiv.textContent = message;
+    userDiv.appendChild(bodyDiv);
 
     container.appendChild(userDiv);
 

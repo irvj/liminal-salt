@@ -78,7 +78,7 @@ fn chat_main_renders_session_with_messages() {
         "messages",
         &json!([
             { "role": "user", "content": "hi **there**", "timestamp": "2026-04-21T12:00:00.000000Z" },
-            { "role": "assistant", "content": "hello!", "timestamp": "2026-04-21T12:00:01.000000Z" },
+            { "role": "assistant", "content": "hello **world**!", "timestamp": "2026-04-21T12:00:01.000000Z" },
         ]),
     );
     ctx.insert("scenario", "");
@@ -89,8 +89,16 @@ fn chat_main_renders_session_with_messages() {
 
     let out = tera.render("chat/chat.html", &ctx).expect("render main");
     assert!(out.contains("Evening chat"));
-    assert!(out.contains("<strong>there</strong>"), "markdown filter applied to user message");
-    assert!(out.contains("hello!"));
+    // User messages render as plaintext: markdown in user text stays literal.
+    assert!(
+        out.contains("hi **there**") && !out.contains("hi <strong>there</strong>"),
+        "user message must render as plaintext (no markdown processing)",
+    );
+    // Assistant messages still go through the markdown filter.
+    assert!(
+        out.contains("<strong>world</strong>"),
+        "assistant message must render through the markdown filter",
+    );
     assert!(out.contains("session_20260421_150000.json"));
     // Chat mode is chatbot → fork-to-roleplay button rendered, scenario button not.
     assert!(out.contains("/session/fork-to-roleplay/"));
