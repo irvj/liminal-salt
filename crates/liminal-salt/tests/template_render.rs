@@ -94,6 +94,22 @@ fn chat_main_renders_session_with_messages() {
     assert!(out.contains("session_20260421_150000.json"));
     // Chat mode is chatbot → fork-to-roleplay button rendered, scenario button not.
     assert!(out.contains("/session/fork-to-roleplay/"));
+
+    // Phase 5 modals must be present: stripping them silently breaks the
+    // brain-cog icon's click handler (dispatches an event that nothing
+    // listens for). Guard against regressing the Phase 3b omission.
+    assert!(
+        out.contains(r#"x-data="threadMemoryModal""#),
+        "thread memory modal must be registered in chat.html"
+    );
+    assert!(
+        out.contains(r#"data-update-url="/session/thread-memory/update/""#),
+        "thread memory modal wiring must point at the Phase 5 endpoint"
+    );
+    assert!(
+        out.contains(r#"data-settings-save-url="/session/thread-memory/settings/save/""#),
+        "thread memory modal must wire the settings-save endpoint"
+    );
 }
 
 #[test]
