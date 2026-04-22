@@ -30,13 +30,33 @@ pub fn memory_dir(data_dir: &Path) -> PathBuf {
     data_dir.join("memory")
 }
 
-pub fn memory_file(data_dir: &Path, persona_name: &str) -> PathBuf {
+fn memory_file(data_dir: &Path, persona_name: &str) -> PathBuf {
     memory_dir(data_dir).join(format!("{persona_name}.md"))
 }
 
 // =============================================================================
 // File I/O
 // =============================================================================
+
+/// Last-modified time of a persona's memory file. `None` when the file is
+/// absent, the persona name is invalid, or the metadata call fails.
+pub async fn get_mtime(data_dir: &Path, persona_name: &str) -> Option<std::time::SystemTime> {
+    if !persona::valid_persona_name(persona_name) {
+        return None;
+    }
+    let path = memory_file(data_dir, persona_name);
+    tokio::fs::metadata(&path).await.ok()?.modified().ok()
+}
+
+/// Same as `get_mtime`, coerced to Unix epoch seconds. Used by the memory view
+/// template (JS does `new Date(parseInt(timestamp) * 1000)`).
+pub async fn get_mtime_secs(data_dir: &Path, persona_name: &str) -> Option<u64> {
+    get_mtime(data_dir, persona_name)
+        .await?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_secs())
+}
 
 /// Read a persona's memory. Returns "" when the file is missing, invalid name,
 /// or read fails — matches the "Option-less read" convention the rest of the

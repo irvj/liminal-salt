@@ -806,11 +806,7 @@ impl MemoryWorker {
             }
 
             // Interval elapsed — check the message floor.
-            let memory_path = memory::memory_file(&state.data_dir, &persona_name);
-            let memory_mtime = tokio::fs::metadata(&memory_path)
-                .await
-                .ok()
-                .and_then(|m| m.modified().ok());
+            let memory_mtime = memory::get_mtime(&state.data_dir, &persona_name).await;
             let new_count = self
                 .count_new_messages_for_persona(&state.sessions_dir, &persona_name, memory_mtime)
                 .await;

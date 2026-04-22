@@ -465,16 +465,10 @@ async fn render_memory(
     let last_update = if selected.is_empty() {
         String::new()
     } else {
-        let path = memory::memory_file(&state.data_dir, selected);
-        match tokio::fs::metadata(&path).await {
-            Ok(meta) => meta
-                .modified()
-                .ok()
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_secs().to_string())
-                .unwrap_or_default(),
-            Err(_) => String::new(),
-        }
+        memory::get_mtime_secs(&state.data_dir, selected)
+            .await
+            .map(|s| s.to_string())
+            .unwrap_or_default()
     };
 
     let persona_cfg = if selected.is_empty() {

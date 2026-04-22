@@ -87,19 +87,17 @@ pub async fn build_system_prompt(data_dir: &Path, session: &Session) -> String {
     //    preserve immersion; a fictional persona shouldn't know real-user
     //    biographical facts mid-scene).
     if session.mode == Mode::Chatbot {
-        let memory_path = memory::memory_file(data_dir, &session.persona);
-        if let Ok(body) = tokio::fs::read_to_string(&memory_path).await {
-            let trimmed = body.trim();
-            if !trimmed.is_empty() {
-                out.push_str("--- YOUR MEMORY ABOUT THIS USER ---\n");
-                out.push_str(
-                    "The following is your memory about the person you're talking to. \
-                     It is written to you, about them — these are things you know, \
-                     have observed, and carry from previous conversations.\n\n",
-                );
-                out.push_str(trimmed);
-                out.push_str("\n\n");
-            }
+        let body = memory::get_memory_content(data_dir, &session.persona).await;
+        let trimmed = body.trim();
+        if !trimmed.is_empty() {
+            out.push_str("--- YOUR MEMORY ABOUT THIS USER ---\n");
+            out.push_str(
+                "The following is your memory about the person you're talking to. \
+                 It is written to you, about them — these are things you know, \
+                 have observed, and carry from previous conversations.\n\n",
+            );
+            out.push_str(trimmed);
+            out.push_str("\n\n");
         }
     }
 
