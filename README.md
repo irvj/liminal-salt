@@ -4,7 +4,7 @@
 
 A self-hosted LLM chatbot with persistent per-persona memory, customizable personas, and a roleplay mode. Runs locally; state lives in plain JSON and Markdown files under `data/`.
 
-> **Pre-release beta.** Currently a Python + Django webapp you run locally in your browser. A migration to a Rust backend (Axum) and a standalone desktop app (Tauri) is planned. Internals and on-disk data formats will change during this transition with no migration paths — expect breakage and back up anything you care about. If you want a stable install-and-forget app, wait for the desktop build.
+> **Pre-release beta.** A Rust (Axum) server you run locally in your browser. A standalone desktop build via Tauri is the next milestone. Internals and on-disk data formats may still change — back up anything you care about. If you want a stable install-and-forget app, wait for the desktop build.
 
 ![Liminal Salt](docs/images/main-screenshot.png)
 
@@ -16,7 +16,7 @@ A self-hosted LLM chatbot with persistent per-persona memory, customizable perso
 
 **For privacy-conscious users.** Runs on your machine. No database, no cloud, no telemetry. All state is readable text on disk.
 
-**For tinkerers.** Personas are Markdown. Themes are JSON. Django + HTMX + Alpine, easy to extend.
+**For tinkerers.** Personas are Markdown. Themes are JSON. Rust (Axum + Tera) + HTMX + Alpine, easy to extend.
 
 ---
 
@@ -25,12 +25,19 @@ A self-hosted LLM chatbot with persistent per-persona memory, customizable perso
 ```bash
 git clone https://github.com/irvj/liminal-salt.git
 cd liminal-salt
-python run.py
+npm install            # one-time: Tailwind toolchain
+npm run dev            # Tailwind watcher + cargo run, concurrent
 ```
 
-The launcher creates a virtual environment and installs dependencies on first run. Open http://localhost:8420 and follow the setup wizard.
+Open http://localhost:8420 and follow the setup wizard.
 
-Requires Python 3.10+ and an [OpenRouter API key](https://openrouter.ai/).
+Requires [Rust](https://rustup.rs/) (stable), [Node.js](https://nodejs.org/) (for Tailwind), and an [OpenRouter API key](https://openrouter.ai/).
+
+If you just want to run the server without the CSS watcher (e.g. the compiled `output.css` is already up to date):
+
+```bash
+cargo run -p liminal-salt
+```
 
 ---
 
@@ -57,7 +64,7 @@ Requires Python 3.10+ and an [OpenRouter API key](https://openrouter.ai/).
 
 ## Roadmap
 
-Development is usage-driven, not scheduled. Near-term work focuses on continued improvements to the memory and roleplay systems. Longer-term, the app is headed toward a standalone desktop build.
+Development is usage-driven, not scheduled. Near-term work focuses on continued improvements to the memory and roleplay systems. The next milestone is a Tauri desktop build so you can run Liminal Salt as a native window instead of in a browser tab.
 
 ---
 
