@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.20.0] - 2026-04-22
+
+### Changes
+- add version-bump script + settings-page version footer
+- fix intermittent 'EOF while parsing' by making all service writes atomic (tmp+rename)
+- vendor htmx 2.0.10 + alpinejs 3.15.11 into static/vendor/; drop CDN script tags
+- drop marked.js and stop markdown-rendering user messages (use whitespace-pre-wrap plaintext instead)
+- strip Phase N historical-context comments and delete dead stubs module
+- update README for the Rust dev loop (cargo run + tailwind watcher)
+- rewrite CLAUDE.md for the Rust app
+- delete Django: remove chat/, liminal_salt/, scripts/, manage.py, run.py, requirements.txt; cargo run becomes the dev loop
+- relocate static/ and default_personas/ into the crate
+- chat: drop Phase 4 debug log of full system prompt
+- context_files: unify into ContextScopeError; handlers map variants to HTTP status codes
+- memory: return Result<(), MemoryError> from every public op; worker emits per-variant status messages
+- session: return Result<_, SessionError> from every public op; handlers map to HTTP status codes
+- chat: type chat errors as ChatError instead of 'ERROR:' string prefix
+- local_context: reject invalid UTF-8 loudly instead of lossy-replacing
+- config: drop SCREAMING_SNAKE_CASE serde rename, match the snake_case convention used everywhere else
+- memory_worker: recover from StdMutex poison via lock_recover trait
+- memory: drop pub memory_file, add get_mtime accessors, route cross-service reads through service API
+- roadmap: drop 'data/ can be wiped' framing in favor of one-off migrations
+- roadmap: add current-state block, post-phase-6 audit, phase 7 asset relocation
+- move persona CRUD routes from /settings/* to /persona/*
+- settings: parse multipart for JS FormData POSTs (validate, save-provider-model, history-limit)
+- settings page + AJAX mutations (view/save/validate/history-limit/provider-model)
+- setup wizard + app_ready middleware; redirect-to-setup gate
+- openrouter + themes services; real /api/* handlers replacing stubs
+- home persona maps + thread-memory initial values; dedupe defaults
+- thread memory: stamp updated_at at update start, not last-message ts
+- restore threadMemoryModal in chat.html; guard against regression
+- wire memory + thread-memory handlers; ctrl_c shutdown; fix last_update format
+- memory_worker: schedulers + manual dispatch, lock discipline preserved
+- memory/thread_memory services + list_persona_threads on session
+- mark phase 4 complete in roadmap
+- wire persona/memory/context handlers
+- port persona/memory templates + restore chat.html modals
+- persona/context_files/local_context services + full prompt assembly
+- wire chat handlers; browser smoke pass
+- port chat templates to Tera (base, chat, sidebar, fragments, icons)
+- chat-flow infra: CSRF, sessions, services (chat, prompt, summarizer)
+- port foundation services: config, session, llm
+- scaffold Rust backend: Axum + Tera, /health, /hello, static serve
+- async/await + addEventListener cleanup, config_file_exists helper
+
 ## [0.10.10] - 2026-04-21
 
 ### Changes
