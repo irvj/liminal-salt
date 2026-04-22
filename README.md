@@ -25,19 +25,23 @@ A self-hosted LLM chatbot with persistent per-persona memory, customizable perso
 ```bash
 git clone https://github.com/irvj/liminal-salt.git
 cd liminal-salt
-npm install            # one-time: Tailwind toolchain
+npm install            # one-time: frontend build toolchain
 npm run dev            # Tailwind watcher + cargo run, concurrent
 ```
 
 Open http://localhost:8420 and follow the setup wizard.
 
-Requires [Rust](https://rustup.rs/) (stable), [Node.js](https://nodejs.org/) (for Tailwind), and an [OpenRouter API key](https://openrouter.ai/).
+Requires [Rust](https://rustup.rs/) (stable), [Node.js](https://nodejs.org/) (for Tailwind + vendored JS deps), and an [OpenRouter API key](https://openrouter.ai/).
 
 If you just want to run the server without the CSS watcher (e.g. the compiled `output.css` is already up to date):
 
 ```bash
 cargo run -p liminal-salt
 ```
+
+### Updating vendored JS deps
+
+HTMX and Alpine.js are pinned in `package.json` and vendored into `crates/liminal-salt/static/vendor/` so the app works offline and bundles cleanly into the eventual Tauri desktop build. To bump a version: edit the pin in `package.json`, then `npm install && npm run vendor`, and commit the updated files.
 
 ---
 
