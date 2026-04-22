@@ -83,11 +83,10 @@ pub fn build_router(state: AppState) -> Router {
             "/session/thread-memory/settings/reset/",
             post(handlers::thread_memory::settings_reset),
         )
-        // API endpoints — minimal JSON stubs so utils.js doesn't choke on page load.
-        .route("/api/themes/", get(handlers::stubs::themes_empty))
-        .route("/api/save-theme/", post(handlers::stubs::theme_save_ok))
-        // Phase 6 will fill these in.
-        .route("/settings/available-models/", get(handlers::stubs::not_implemented))
+        // API endpoints (Phase 6a).
+        .route("/api/themes/", get(handlers::api::themes))
+        .route("/api/save-theme/", post(handlers::api::save_theme))
+        .route("/settings/available-models/", get(handlers::api::available_models))
         .with_state(state)
 }
 

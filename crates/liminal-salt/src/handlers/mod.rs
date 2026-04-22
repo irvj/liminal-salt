@@ -1,3 +1,4 @@
+pub mod api;
 pub mod chat;
 pub mod context;
 pub mod memory;
