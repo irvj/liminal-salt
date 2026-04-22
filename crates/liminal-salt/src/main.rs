@@ -94,8 +94,13 @@ async fn main() -> anyhow::Result<()> {
         .layer(TraceLayer::new_for_http());
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8420));
-    tracing::info!("liminal-salt listening on http://{addr}");
     let listener = tokio::net::TcpListener::bind(addr).await?;
+
+    println!();
+    println!("Liminal Salt v{}", env!("CARGO_PKG_VERSION"));
+    println!("Listening on http://{addr}");
+    println!("Press Ctrl-C to stop.");
+    println!();
 
     axum::serve(listener, app)
         .with_graceful_shutdown(async {
