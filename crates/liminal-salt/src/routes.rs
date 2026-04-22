@@ -43,14 +43,14 @@ pub fn build_router(state: AppState) -> Router {
             post(handlers::persona::clear_persona_thread_defaults),
         )
         .route("/settings/save/", post(handlers::persona::save_default_persona))
-        // Memory page (ops stay stubbed until Phase 5)
+        // Memory page + ops (Phase 5c)
         .route("/memory/", get(handlers::memory::view))
-        .route("/memory/update/", post(handlers::stubs::not_implemented))
-        .route("/memory/wipe/", post(handlers::stubs::not_implemented))
-        .route("/memory/modify/", post(handlers::stubs::not_implemented))
-        .route("/memory/seed/", post(handlers::stubs::not_implemented))
-        .route("/memory/save-settings/", post(handlers::stubs::not_implemented))
-        .route("/memory/update-status/", get(handlers::stubs::not_implemented))
+        .route("/memory/update/", post(handlers::memory::update))
+        .route("/memory/wipe/", post(handlers::memory::wipe))
+        .route("/memory/modify/", post(handlers::memory::modify))
+        .route("/memory/seed/", post(handlers::memory::seed))
+        .route("/memory/save-settings/", post(handlers::memory::save_settings))
+        .route("/memory/update-status/", get(handlers::memory::update_status))
         // Context files — global scope
         .route("/settings/context/upload/", post(handlers::context::upload_global))
         .route("/settings/context/delete/", post(handlers::context::delete_file_global))
@@ -72,11 +72,17 @@ pub fn build_router(state: AppState) -> Router {
         .route("/context/local/refresh/", post(handlers::context::refresh_local_dir))
         // Phase 6 placeholders for settings page (separate from /settings/save/).
         .route("/settings/", get(handlers::stubs::page_not_yet))
-        // Phase 5 thread-memory stubs (referenced by chat_main's data div).
-        .route("/session/thread-memory/update/", post(handlers::stubs::not_implemented))
-        .route("/session/thread-memory/status/", get(handlers::stubs::not_implemented))
-        .route("/session/thread-memory/settings/save/", post(handlers::stubs::not_implemented))
-        .route("/session/thread-memory/settings/reset/", post(handlers::stubs::not_implemented))
+        // Thread-memory endpoints (Phase 5c).
+        .route("/session/thread-memory/update/", post(handlers::thread_memory::update))
+        .route("/session/thread-memory/status/", get(handlers::thread_memory::status))
+        .route(
+            "/session/thread-memory/settings/save/",
+            post(handlers::thread_memory::settings_save),
+        )
+        .route(
+            "/session/thread-memory/settings/reset/",
+            post(handlers::thread_memory::settings_reset),
+        )
         // API endpoints — minimal JSON stubs so utils.js doesn't choke on page load.
         .route("/api/themes/", get(handlers::stubs::themes_empty))
         .route("/api/save-theme/", post(handlers::stubs::theme_save_ok))

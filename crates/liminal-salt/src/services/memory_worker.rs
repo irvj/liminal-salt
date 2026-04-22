@@ -62,6 +62,11 @@ const DEFAULT_POLL_WHEN_NO_WORK: Duration = Duration::from_secs(60);
 /// slot is picked up quickly.
 const RETRY_DELAY_WHEN_LOCK_HELD: Duration = Duration::from_secs(60);
 
+/// Max time `stop_schedulers` waits for a mid-tick (or mid-LLM) scheduler to
+/// finish before abandoning the handle and letting the runtime clean up.
+/// Matches Python's `threading.Thread.join(timeout=15)`.
+const SCHEDULER_STOP_TIMEOUT: Duration = Duration::from_secs(15);
+
 /// Default minimum number of new messages across a persona's non-roleplay
 /// sessions before an auto-update fires. Paired with `auto_memory_interval`
 /// to form the unified trigger shape (interval AND floor).
@@ -716,13 +721,23 @@ impl MemoryWorker {
         }
     }
 
-    /// Signal both schedulers to stop and wait for them to finish their
-    /// current tick. A scheduler that's mid-LLM-call will complete before
-    /// returning — that's intentional so we never leave a half-finished write.
+    /// Signal both schedulers to stop. Waits up to `SCHEDULER_STOP_TIMEOUT` for
+    /// each to finish; an in-flight LLM call past that budget gets aborted so
+    /// the process can exit in bounded time. Matches Python's
+    /// `join(timeout=15)` semantics.
     pub async fn stop_schedulers(handles: SchedulerHandles) {
         let _ = handles.stop_tx.send(true);
-        let _ = handles.persona_handle.await;
-        let _ = handles.thread_handle.await;
+        for handle in [handles.persona_handle, handles.thread_handle] {
+            match tokio::time::timeout(SCHEDULER_STOP_TIMEOUT, handle).await {
+                Ok(_) => {}
+                Err(_) => {
+                    tracing::warn!(
+                        timeout_secs = SCHEDULER_STOP_TIMEOUT.as_secs(),
+                        "scheduler did not stop within timeout; task will be dropped when runtime exits"
+                    );
+                }
+            }
+        }
     }
 
     async fn persona_scheduler_loop(

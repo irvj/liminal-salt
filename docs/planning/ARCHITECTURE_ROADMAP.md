@@ -2,7 +2,7 @@
 
 **Created:** April 14, 2026
 **Updated:** April 22, 2026
-**Status:** Rust migration in progress — Phases 0–4 complete; Phase 5 (memory system) in progress (5a + 5b done)
+**Status:** Rust migration in progress — Phases 0–5 complete; Phase 6 (settings + setup wizard) up next
 **Scope:** Python/Django → Rust (Axum + Tera) → Tauri desktop app
 
 ---
@@ -487,10 +487,10 @@ These three have no intra-layer dependencies and block everything else.
 
 This is the single highest-risk phase. Allocate the most time. Review concurrency carefully.
 
-**In progress.** Split into three sub-commits following the Phase 3/4 pattern:
+**Complete.** Split into three sub-commits following the Phase 3/4 pattern:
 - **5a (done 2026-04-22):** service layer — `services/{memory,thread_memory}.rs`, plus `session::list_persona_threads` (ported from `chat/utils.py`). No handlers, no scheduler. 38 new integration + unit tests; 111 tests total across the crate.
 - **5b (done 2026-04-22):** memory worker — `services/memory_worker.rs` + two `tokio::spawn`ed scheduler tasks. Per-persona + per-session "already running" mutex registries distinct from the session-JSON lock. Manual dispatch (`start_manual_update`, `start_modify_update`, `start_seed_update`, `start_thread_memory_update`), status tracking, `reschedule_thread_next_fire` hook, scheduler lifecycle via `watch` channel. `MemoryWorker` wired into `AppState`; schedulers spawn in `main.rs`. 16 new integration tests; 127 total.
-- **5c:** handlers + wire-up — `/memory/*` (update/wipe/modify/seed/save-settings/status), `/session/thread-memory/*` (update/status/settings save+reset), ctrl_c → graceful scheduler shutdown.
+- **5c (done 2026-04-22):** handlers + wire-up — real `/memory/*` (update/wipe/modify/seed/save-settings/status) and `/session/thread-memory/*` (update/status/settings save+reset) handlers replacing the Phase 4 stubs. Graceful shutdown via `tokio::signal::ctrl_c` with a bounded 15s timeout matching Python's `join(timeout=15)`. 4 new handler unit tests covering clamp/parse logic; 131 tests total. Browser + curl smoke pass for all 10 endpoints.
 
 **Services:**
 - `services/memory.rs` — per-persona memory file I/O + LLM merge/seed/modify. Owns `data/memory/{name}.md`.
@@ -572,6 +572,36 @@ This is the single highest-risk phase. Allocate the most time. Review concurrenc
 - **Tests (+16, 127 total):** persona-memory status transitions, empty-threads completed-with-message path, concurrent-manual-update rejection, modify refuses without existing memory, seed writes+completes, thread-memory writes session fields with correct `updated_at` cutoff, missing-session failed status, manual reprocess fallback, auto "no new messages" path, roleplay excludes persona memory from prompt (capturing-LLM verifies), **session-JSON-lock-not-held-across-LLM regression guard**, `start_manual_update` pre-check rejection, scheduler defer-when-floor-unmet, scheduler graceful shutdown, `reschedule_thread_next_fire` no-panic round trip, thread-memory settings resolve through persona default + override.
 
 **Note (flagged to user, not blocking):** Scheduler ticks reload `config::load_config` + `persona::load_persona_config` per persona. Matches Python's "no-restart-needed" semantics for settings changes. Cheap at localhost scale (2+N JSON reads every ≥10s), so preserved as-is.
+
+**Phase 5c outcome:**
+
+- **`handlers/memory.rs` expanded** from GET-only to full CRUD:
+  - `POST /memory/update/` — dispatches `MemoryWorker::start_manual_update`, re-renders `memory/memory_main.html` with `memory_updating=true` on success, `error=…` on already-running. Pre-checks `OPENROUTER_API_KEY`.
+  - `POST /memory/wipe/` — `memory::delete_memory`, re-renders with success flash.
+  - `POST /memory/modify/` — dispatches `start_modify_update`, rejects empty command with 400 before touching the worker.
+  - `POST /memory/seed/` — multipart, enforces `.md`/`.txt` extension, UTF-8 lossy decode (matches Python's `errors='replace'`), dispatches `start_seed_update`.
+  - `POST /memory/save-settings/` — multipart (JS `FormData` is multipart, not urlencoded), parses + clamps the five numeric fields server-side (duplicating JS clamps — server is authoritative), persists the updated persona config, returns `{"success": true}`. Non-memory fields (`default_thread_memory_settings`, `model`, `extras`) round-trip untouched through the RMW.
+  - `GET /memory/update-status/` — Query-param `persona`, returns `Status` struct as JSON. Polled at 3s by `utils.js:pollMemoryUpdateStatus`.
+- **`handlers/thread_memory.rs` (new)** owns `/session/thread-memory/*`:
+  - `POST /session/thread-memory/update/` — 202 on start, 409 (`{"state":"already_running"}`) when the per-session mutex is held, 400 when no active session or API key unconfigured. Matches the status-code contract the Alpine modal already expects.
+  - `GET /session/thread-memory/status/` — merges `MemoryWorker::get_thread_update_status` with the session's `thread_memory` / `thread_memory_updated_at` fields into one JSON object so the polling client can refresh content inline when a background auto-update lands.
+  - `POST /session/thread-memory/settings/save/` — partial patch (interval, floor, size_limit all `Option<u32>`). No-op detection: if the merged override would resolve to the same `EffectiveThreadMemorySettings` as the persona/global defaults, the override is cleared rather than persisted (prevents the "Custom" badge from lighting up for values identical to upstream). After save/clear, calls `MemoryWorker::reschedule_thread_next_fire` with the new resolved interval, then returns `{effective, has_override}`.
+  - `POST /session/thread-memory/settings/reset/` — clears override, reschedules at the new (persona/global) interval, returns the same resolved-settings JSON.
+- **Drive-by bug fix — `last_update` format.** Phase 4's memory view handler emitted `to_rfc3339()`, but the template's JS (`initMemoryView → parseInt(timestamp) * 1000`) expects Unix seconds. The page's "Last updated" timestamp has been broken since Phase 4 and nobody noticed because it silently renders as 1970. Handler now emits epoch seconds; matches Django's `|date:'U'` filter.
+- **Graceful shutdown in `main.rs`:** `axum::serve(...).with_graceful_shutdown(tokio::signal::ctrl_c())` drains in-flight HTTP requests on SIGINT, then `MemoryWorker::stop_schedulers(handles).await` signals the schedulers and waits for them to finish their current tick. `stop_schedulers` now wraps each handle join in `tokio::time::timeout(SCHEDULER_STOP_TIMEOUT)` (15s) so a scheduler mid-LLM-call doesn't block process exit indefinitely — matches Python's `threading.Thread.join(timeout=15)`.
+- **Curl smoke pass (all 10 endpoints, real OpenRouter config):**
+  - `GET /memory/` renders with Unix-seconds `data-timestamp`.
+  - `GET /memory/update-status/?persona=lottie` → `{"state":"idle"}`.
+  - `POST /memory/save-settings/` (multipart) → `{"success":true}`; persona config updated while preserving `default_thread_memory_settings` and other fields.
+  - `POST /memory/wipe/` (HTMX) → file deleted, response includes "Memory wiped successfully".
+  - `POST /memory/modify/` with empty command → 400, no LLM dispatch.
+  - `GET /session/thread-memory/status/?session_id=…` → `{memory, updated_at, state}`.
+  - `POST /session/thread-memory/settings/save/` with full patch → `{effective, has_override: true}`; session JSON has `thread_memory_settings` object.
+  - Same endpoint with values matching defaults → `has_override: false`; `thread_memory_settings` removed from session JSON.
+  - `POST /session/thread-memory/settings/reset/` → `{effective: <global defaults>, has_override: false}`.
+  - Graceful shutdown verified: ctrl_c drains server + schedulers + completes mid-LLM updates before exit.
+- **Route table update:** 10 routes in `routes.rs` flipped from `stubs::not_implemented` to real handlers. Stubs remain for Phase 6's `/settings/` and `/settings/available-models/`.
+- **Tests (+4, 131 total):** `handlers::memory::tests` covers `parse_clamp_u32` (in-range, above/below min/max, parse error → fallback) and `parse_auto_interval` (0/negative → disabled, 1–4 clamped to 5-min minimum, in-range pass, above-max → 1440). `handlers::thread_memory::tests` covers `parse_interval_override` (None/empty → None, explicit 0 → Some(0) for "disable this thread" override, clamped to [5, 1440]) and `parse_u32_override` (None/empty, in-range, below/above clamp, min=0 vs min=1 behavior).
 
 ---
 

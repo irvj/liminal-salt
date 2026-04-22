@@ -56,9 +56,9 @@ async fn main() -> anyhow::Result<()> {
         memory: MemoryWorker::new(),
     };
 
-    // Kick off the two memory schedulers. They run until the process exits.
-    // (5c will wire tokio::signal::ctrl_c for graceful shutdown.)
-    let _scheduler_handles = state.memory.start_schedulers(state.clone());
+    // Kick off the two memory schedulers. They're stopped via ctrl_c below
+    // so a scheduler mid-LLM-call gets to finish before the process exits.
+    let scheduler_handles = state.memory.start_schedulers(state.clone());
 
     // Static assets still live at the repo-root chat/static/ path (unchanged from Django).
     let static_dir = manifest_dir.join("../../chat/static");
@@ -84,6 +84,17 @@ async fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 8420));
     tracing::info!("liminal-salt listening on http://{addr}");
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+            let _ = tokio::signal::ctrl_c().await;
+            tracing::info!("ctrl_c received, shutting down");
+        })
+        .await?;
+
+    // Stop the schedulers AFTER the server drains so any in-flight request
+    // that would dispatch to the worker still finds the worker alive.
+    MemoryWorker::stop_schedulers(scheduler_handles).await;
+    tracing::info!("schedulers stopped");
     Ok(())
 }
