@@ -27,7 +27,7 @@ use crate::services::session::{Mode, SessionSummary};
 // Helpers
 // =============================================================================
 
-fn is_htmx(headers: &HeaderMap) -> bool {
+pub(crate) fn is_htmx(headers: &HeaderMap) -> bool {
     headers
         .get("HX-Request")
         .map(|v| v.as_bytes() == b"true")
@@ -44,7 +44,7 @@ pub struct PersonaGroup {
 /// ordered by most-recent-session-id descending, matching Python's sidebar
 /// ordering. Each group is already newest-first because `list_sessions` sorts
 /// by id desc.
-fn group_sessions(
+pub(crate) fn group_sessions(
     sessions: Vec<SessionSummary>,
 ) -> (Vec<SessionSummary>, Vec<PersonaGroup>) {
     let mut pinned = Vec::new();
@@ -72,7 +72,7 @@ fn group_sessions(
 
 /// Build a Context seeded with fields every chat template expects: csrf token,
 /// theme, sidebar session groups, current session highlight.
-async fn base_chat_context(state: &AppState, session: &Session) -> Context {
+pub(crate) async fn base_chat_context(state: &AppState, session: &Session) -> Context {
     let mut ctx = Context::new();
     ctx.insert(
         "csrf_token",
@@ -372,6 +372,13 @@ pub async fn send(
     let llm = build_llm(&state, &cfg);
 
     let system_prompt = prompt::build_system_prompt(&state.data_dir, &existing).await;
+    tracing::debug!(
+        session_id = %session_id,
+        persona = %existing.persona,
+        mode = ?existing.mode,
+        prompt_bytes = system_prompt.len(),
+        "\n===== SYSTEM PROMPT =====\n{system_prompt}\n========================="
+    );
 
     let user_tz = session_state::user_timezone(&session).await;
     let history_limit = if cfg.context_history_limit == 0 {

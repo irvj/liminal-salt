@@ -63,6 +63,9 @@ pub struct LocalDirectoryEntry {
 pub struct LocalFileEntry {
     pub name: String,
     pub enabled: bool,
+    /// Serializes as `exists` to match the JS frontend (which also matches
+    /// Python's `list_directory_files` output).
+    #[serde(rename = "exists")]
     pub exists_on_disk: bool,
 }
 

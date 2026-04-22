@@ -1,8 +1,8 @@
 use axum::{
+    Router,
     extract::State,
     response::{Html, Redirect},
     routing::{get, post},
-    Router,
 };
 
 use crate::{AppState, handlers};
@@ -28,14 +28,51 @@ pub fn build_router(state: AppState) -> Router {
         // Session ops
         .route("/session/scenario/save/", post(handlers::session::save_scenario))
         .route("/session/fork-to-roleplay/", post(handlers::session::fork_to_roleplay))
-        // Phase 4+ placeholders — returning something graceful so sidebar
-        // footer clicks surface "Coming soon" rather than 404ing into broken state.
-        .route("/memory/", get(handlers::stubs::page_not_yet))
+        // Persona page + CRUD
+        .route("/persona/", get(handlers::persona::view))
+        .route("/settings/create-persona/", post(handlers::persona::create_persona))
+        .route("/settings/save-persona/", post(handlers::persona::save_persona))
+        .route("/settings/delete-persona/", post(handlers::persona::delete_persona))
+        .route("/settings/save-persona-model/", post(handlers::persona::save_persona_model))
+        .route(
+            "/settings/save-persona-thread-defaults/",
+            post(handlers::persona::save_persona_thread_defaults),
+        )
+        .route(
+            "/settings/clear-persona-thread-defaults/",
+            post(handlers::persona::clear_persona_thread_defaults),
+        )
+        .route("/settings/save/", post(handlers::persona::save_default_persona))
+        // Memory page (ops stay stubbed until Phase 5)
+        .route("/memory/", get(handlers::memory::view))
+        .route("/memory/update/", post(handlers::stubs::not_implemented))
         .route("/memory/wipe/", post(handlers::stubs::not_implemented))
-        .route("/persona/", get(handlers::stubs::page_not_yet))
-        .route("/persona/delete/", post(handlers::stubs::not_implemented))
+        .route("/memory/modify/", post(handlers::stubs::not_implemented))
+        .route("/memory/seed/", post(handlers::stubs::not_implemented))
+        .route("/memory/save-settings/", post(handlers::stubs::not_implemented))
+        .route("/memory/update-status/", get(handlers::stubs::not_implemented))
+        // Context files — global scope
+        .route("/settings/context/upload/", post(handlers::context::upload_global))
+        .route("/settings/context/delete/", post(handlers::context::delete_file_global))
+        .route("/settings/context/toggle/", post(handlers::context::toggle_file_global))
+        .route("/settings/context/content/", get(handlers::context::get_file_content))
+        .route("/settings/context/save/", post(handlers::context::save_file_content))
+        // Context files — per-persona scope
+        .route("/persona/context/upload/", post(handlers::context::upload_persona))
+        .route("/persona/context/delete/", post(handlers::context::delete_file_persona))
+        .route("/persona/context/toggle/", post(handlers::context::toggle_file_persona))
+        .route("/persona/context/content/", get(handlers::context::get_file_content))
+        .route("/persona/context/save/", post(handlers::context::save_file_content))
+        // Local directories — shared global/persona via `persona` form field
+        .route("/context/local/browse/", get(handlers::context::browse_directory))
+        .route("/context/local/add/", post(handlers::context::add_directory))
+        .route("/context/local/remove/", post(handlers::context::remove_directory))
+        .route("/context/local/toggle/", post(handlers::context::toggle_local_file))
+        .route("/context/local/content/", get(handlers::context::get_local_file_content))
+        .route("/context/local/refresh/", post(handlers::context::refresh_local_dir))
+        // Phase 6 placeholders for settings page (separate from /settings/save/).
         .route("/settings/", get(handlers::stubs::page_not_yet))
-        // Phase 5 thread-memory endpoints (referenced by chat_main's data div).
+        // Phase 5 thread-memory stubs (referenced by chat_main's data div).
         .route("/session/thread-memory/update/", post(handlers::stubs::not_implemented))
         .route("/session/thread-memory/status/", get(handlers::stubs::not_implemented))
         .route("/session/thread-memory/settings/save/", post(handlers::stubs::not_implemented))
@@ -43,6 +80,8 @@ pub fn build_router(state: AppState) -> Router {
         // API endpoints — minimal JSON stubs so utils.js doesn't choke on page load.
         .route("/api/themes/", get(handlers::stubs::themes_empty))
         .route("/api/save-theme/", post(handlers::stubs::theme_save_ok))
+        // Phase 6 will fill these in.
+        .route("/settings/available-models/", get(handlers::stubs::not_implemented))
         .with_state(state)
 }
 
