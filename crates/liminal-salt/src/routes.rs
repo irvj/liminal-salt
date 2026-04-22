@@ -13,6 +13,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/", get(index))
         .route("/health", get(health))
         .route("/hello", get(hello))
+        // Setup wizard (Phase 6b) — app-ready gate exempts this path.
+        .route("/setup/", get(handlers::setup::view).post(handlers::setup::submit))
         // Chat lifecycle
         .route("/chat/", get(handlers::chat::view))
         .route("/chat/new/", get(handlers::chat::new_chat))

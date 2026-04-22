@@ -327,3 +327,123 @@ fn context_files_modal_renders_title_and_description() {
     // Nested modals present.
     assert!(out.contains("Browse Directories"));
 }
+
+// =============================================================================
+// Setup wizard (Phase 6b)
+// =============================================================================
+
+#[test]
+fn setup_step1_renders_provider_picker() {
+    let tera = build_tera();
+    let mut ctx = base_context();
+    ctx.insert(
+        "providers",
+        &json!([{
+            "id": "openrouter",
+            "name": "OpenRouter",
+            "api_key_url": "https://openrouter.ai/keys",
+            "api_key_placeholder": "sk-or-v1-..."
+        }]),
+    );
+    ctx.insert("selected_provider", "openrouter");
+    ctx.insert("api_key", "");
+
+    let out = tera.render("setup/step1.html", &ctx).expect("render step1");
+    assert!(out.contains("Step 1: Connect Your Provider"));
+    assert!(out.contains("OpenRouter"));
+    assert!(out.contains("sk-or-v1-..."));
+    assert!(out.contains("Validate & Continue"));
+    // CSRF token field + meta both wired.
+    assert!(out.contains(r#"name="csrfmiddlewaretoken""#));
+    assert!(out.contains("test_csrf_abcd1234"));
+}
+
+#[test]
+fn setup_step1_renders_error_banner() {
+    let tera = build_tera();
+    let mut ctx = base_context();
+    ctx.insert("providers", &Vec::<serde_json::Value>::new());
+    ctx.insert("selected_provider", "openrouter");
+    ctx.insert("api_key", "");
+    ctx.insert("error", "Invalid API key. Please check your key and try again.");
+
+    let out = tera.render("setup/step1.html", &ctx).expect("render step1 error");
+    assert!(out.contains("Invalid API key"));
+}
+
+#[test]
+fn setup_step2_renders_model_and_theme_pickers() {
+    let tera = build_tera();
+    let mut ctx = base_context();
+    ctx.insert(
+        "available_models",
+        &json!([
+            { "id": "anthropic/claude", "display": "Anthropic: Claude - $3.00/$15.00 per 1M" },
+            { "id": "openai/gpt-4", "display": "Openai: GPT-4 - Free" }
+        ]),
+    );
+    ctx.insert(
+        "available_models_json",
+        r#"[{"id":"anthropic/claude","display":"Claude"}]"#,
+    );
+    ctx.insert("model_count", &2);
+    ctx.insert("selected_model", "");
+    ctx.insert(
+        "themes",
+        &json!([
+            { "id": "liminal-salt", "name": "Liminal Salt" },
+            { "id": "dracula", "name": "Dracula" }
+        ]),
+    );
+    ctx.insert(
+        "themes_json",
+        r#"[{"id":"liminal-salt","name":"Liminal Salt"}]"#,
+    );
+    ctx.insert("selected_theme", "liminal-salt");
+    ctx.insert("selected_mode", "dark");
+
+    let out = tera.render("setup/step2.html", &ctx).expect("render step2");
+    assert!(out.contains("Step 2: Choose Your Preferences"));
+    assert!(out.contains("Select a model"));
+    // Theme selector dropdowns present.
+    assert!(out.contains("Select a theme..."));
+    // Dark/Light mode buttons render via the icons macro (no import bleed).
+    assert!(out.contains("Dark"));
+    assert!(out.contains("Light"));
+    // Back button present so step 2 can walk back to step 1.
+    assert!(out.contains(r#"value="back""#));
+}
+
+#[test]
+fn setup_step3_renders_agreement_and_accept() {
+    let tera = build_tera();
+    let mut ctx = base_context();
+    ctx.insert("agreement_version", "1.1");
+    ctx.insert(
+        "agreement_body",
+        "# Liminal Salt\n\nThis is **bold** in the agreement body.",
+    );
+    ctx.insert("can_go_back", &true);
+
+    let out = tera.render("setup/step3.html", &ctx).expect("render step3");
+    assert!(out.contains("Version 1.1"));
+    // Markdown filter applied to agreement body.
+    assert!(out.contains("<strong>bold</strong>"));
+    assert!(out.contains("I Agree"));
+    // Back button visible only when can_go_back is true.
+    assert!(out.contains(r#"value="back""#));
+}
+
+#[test]
+fn setup_step3_hides_back_when_agreement_reprompt() {
+    let tera = build_tera();
+    let mut ctx = base_context();
+    ctx.insert("agreement_version", "1.1");
+    ctx.insert("agreement_body", "body");
+    ctx.insert("can_go_back", &false);
+
+    let out = tera.render("setup/step3.html", &ctx).expect("render step3 no-back");
+    // Accept still renders; back button absent.
+    assert!(out.contains("I Agree"));
+    assert!(!out.contains(r#"value="back""#));
+}

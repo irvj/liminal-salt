@@ -8,7 +8,7 @@ use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitEx
 
 use liminal_salt::{
     AppState,
-    middleware::csrf,
+    middleware::{app_ready, csrf},
     routes,
     services::{config, memory_worker::MemoryWorker, prompt},
     tera_extra,
@@ -75,8 +75,18 @@ async fn main() -> anyhow::Result<()> {
         .with_secure(false)
         .with_expiry(Expiry::OnInactivity(CookieDuration::weeks(2)));
 
-    let app = routes::build_router(state)
+    // Layer order (outer → inner as written; inner runs first at request time):
+    //   TraceLayer  (outermost, sees every request)
+    //   session_layer  (must run before any middleware that reads the session)
+    //   csrf_layer  (needs session)
+    //   app_ready  (needs session for the redirect; runs after csrf so we
+    //               don't burn CSRF on a request we're about to redirect)
+    let app = routes::build_router(state.clone())
         .nest_service("/static", ServeDir::new(&static_dir))
+        .layer(axum_mw::from_fn_with_state(
+            state.clone(),
+            app_ready::require_app_ready,
+        ))
         .layer(axum_mw::from_fn(csrf::require_csrf))
         .layer(session_layer)
         .layer(TraceLayer::new_for_http());

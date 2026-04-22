@@ -11,6 +11,7 @@ use tower_sessions::Session;
 const CSRF_KEY: &str = "csrf_token";
 const CURRENT_SESSION_KEY: &str = "current_session";
 const TIMEZONE_KEY: &str = "user_timezone";
+const SETUP_STEP_KEY: &str = "setup_step";
 
 /// Fetch (or lazily mint) the CSRF token for the current session. A 32-byte
 /// random token, hex-encoded to 64 chars.
@@ -61,6 +62,20 @@ pub async fn user_timezone(session: &Session) -> String {
 
 pub async fn set_user_timezone(session: &Session, tz: &str) {
     let _ = session.insert(TIMEZONE_KEY, tz).await;
+}
+
+/// Setup wizard step — 1, 2, or 3. `None` means the user isn't mid-wizard; the
+/// handler picks an initial step based on current config state.
+pub async fn setup_step(session: &Session) -> Option<u8> {
+    session.get::<u8>(SETUP_STEP_KEY).await.ok().flatten()
+}
+
+pub async fn set_setup_step(session: &Session, step: u8) {
+    let _ = session.insert(SETUP_STEP_KEY, step).await;
+}
+
+pub async fn clear_setup_step(session: &Session) {
+    let _ = session.remove::<u8>(SETUP_STEP_KEY).await;
 }
 
 fn new_token() -> String {
