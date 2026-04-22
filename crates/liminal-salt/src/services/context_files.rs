@@ -20,14 +20,25 @@ use crate::services::local_context;
 
 const CONFIG_FILE: &str = "config.json";
 
-/// Why `get_local_file_content` couldn't return a string. The handler maps these
-/// to distinct HTTP responses so the UI can tell the user *why* a preview failed
-/// (missing vs unreadable vs wrong encoding).
-#[derive(Debug)]
-pub enum LocalContentError {
+/// Why a context-scope operation failed. Handlers map variants to HTTP codes:
+/// `InvalidFilename` / `InvalidPath` → 400, `NotTracked` → 404, file-read
+/// problems (`Read`) pass the underlying `local_context::ReadError` through so
+/// "invalid UTF-8" can become 422 distinct from "missing file".
+#[derive(Debug, thiserror::Error)]
+pub enum ContextScopeError {
+    #[error("invalid filename")]
     InvalidFilename,
-    DirMissing,
-    Read(local_context::ReadError),
+    /// The file or directory isn't in the scope's config.json — either never
+    /// uploaded/added, or already removed.
+    #[error("no such tracked entry")]
+    NotTracked,
+    /// User-facing string from `local_context::validate_directory_path`.
+    #[error("{0}")]
+    InvalidPath(String),
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("{0}")]
+    Read(#[from] local_context::ReadError),
 }
 
 // =============================================================================
@@ -139,11 +150,12 @@ impl ContextScope {
         })
     }
 
-    async fn save_config(&self, config: &ScopeConfig) -> std::io::Result<()> {
+    async fn save_config(&self, config: &ScopeConfig) -> Result<(), ContextScopeError> {
         tokio::fs::create_dir_all(&self.base_dir).await?;
         let bytes = serde_json::to_vec_pretty(config)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        write_file_durable(&self.config_path(), &bytes).await
+        write_file_durable(&self.config_path(), &bytes).await?;
+        Ok(())
     }
 
     // ---------------------------------------------------------------------
@@ -166,59 +178,64 @@ impl ContextScope {
 
     /// Write the uploaded file bytes and mark it enabled in config. Filename
     /// is sanitized via `basename` to block directory traversal.
-    pub async fn upload_file(&self, filename: &str, bytes: &[u8]) -> Option<String> {
-        let safe = sanitize_filename(filename)?;
-        tokio::fs::create_dir_all(&self.base_dir).await.ok()?;
-        let path = self.base_dir.join(&safe);
-        if write_file_durable(&path, bytes).await.is_err() {
-            return None;
-        }
+    pub async fn upload_file(
+        &self,
+        filename: &str,
+        bytes: &[u8],
+    ) -> Result<String, ContextScopeError> {
+        let safe = sanitize_filename(filename).ok_or(ContextScopeError::InvalidFilename)?;
+        tokio::fs::create_dir_all(&self.base_dir).await?;
+        write_file_durable(&self.base_dir.join(&safe), bytes).await?;
         let mut cfg = self.load_config().await;
         cfg.files.insert(safe.clone(), FileState { enabled: true });
-        if self.save_config(&cfg).await.is_err() {
-            return None;
-        }
-        Some(safe)
+        self.save_config(&cfg).await?;
+        Ok(safe)
     }
 
-    pub async fn delete_file(&self, filename: &str) -> bool {
-        let Some(safe) = sanitize_filename(filename) else {
-            return false;
-        };
-        let path = self.base_dir.join(&safe);
-        let _ = tokio::fs::remove_file(&path).await;
-        let mut cfg = self.load_config().await;
-        let removed = cfg.files.remove(&safe).is_some();
-        if removed {
-            let _ = self.save_config(&cfg).await;
+    /// Delete an uploaded file + remove its config entry. Missing file is
+    /// treated as success (idempotent).
+    pub async fn delete_file(&self, filename: &str) -> Result<(), ContextScopeError> {
+        let safe = sanitize_filename(filename).ok_or(ContextScopeError::InvalidFilename)?;
+        match tokio::fs::remove_file(self.base_dir.join(&safe)).await {
+            Ok(()) => {}
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => return Err(ContextScopeError::Io(err)),
         }
-        true
+        let mut cfg = self.load_config().await;
+        if cfg.files.remove(&safe).is_some() {
+            self.save_config(&cfg).await?;
+        }
+        Ok(())
     }
 
-    /// Toggle or explicitly set the `enabled` flag. Returns the new state, or
-    /// `None` if the file isn't tracked in config.
-    pub async fn toggle_file(&self, filename: &str, enabled: Option<bool>) -> Option<bool> {
-        let safe = sanitize_filename(filename)?;
+    /// Toggle or explicitly set the `enabled` flag. Returns the new state.
+    pub async fn toggle_file(
+        &self,
+        filename: &str,
+        enabled: Option<bool>,
+    ) -> Result<bool, ContextScopeError> {
+        let safe = sanitize_filename(filename).ok_or(ContextScopeError::InvalidFilename)?;
         let mut cfg = self.load_config().await;
-        let entry = cfg.files.get_mut(&safe)?;
+        let entry = cfg.files.get_mut(&safe).ok_or(ContextScopeError::NotTracked)?;
         entry.enabled = enabled.unwrap_or(!entry.enabled);
         let new_state = entry.enabled;
-        self.save_config(&cfg).await.ok()?;
-        Some(new_state)
+        self.save_config(&cfg).await?;
+        Ok(new_state)
     }
 
-    pub async fn get_file_content(&self, filename: &str) -> Option<String> {
-        let safe = sanitize_filename(filename)?;
-        tokio::fs::read_to_string(self.base_dir.join(&safe)).await.ok()
+    pub async fn get_file_content(&self, filename: &str) -> Result<String, ContextScopeError> {
+        let safe = sanitize_filename(filename).ok_or(ContextScopeError::InvalidFilename)?;
+        Ok(tokio::fs::read_to_string(self.base_dir.join(&safe)).await?)
     }
 
-    pub async fn save_file_content(&self, filename: &str, content: &str) -> bool {
-        let Some(safe) = sanitize_filename(filename) else {
-            return false;
-        };
-        write_file_durable(&self.base_dir.join(&safe), content.as_bytes())
-            .await
-            .is_ok()
+    pub async fn save_file_content(
+        &self,
+        filename: &str,
+        content: &str,
+    ) -> Result<(), ContextScopeError> {
+        let safe = sanitize_filename(filename).ok_or(ContextScopeError::InvalidFilename)?;
+        write_file_durable(&self.base_dir.join(&safe), content.as_bytes()).await?;
+        Ok(())
     }
 
     // ---------------------------------------------------------------------
@@ -226,13 +243,14 @@ impl ContextScope {
     // ---------------------------------------------------------------------
 
     /// Add a local directory to the config as enabled and seed all files as
-    /// enabled. Returns the resolved absolute path + the file list on success,
-    /// or an error message for UI display.
+    /// enabled. Returns the resolved absolute path + the file list.
+    /// `InvalidPath` carries a user-facing message from validation.
     pub async fn add_local_directory(
         &self,
         dir_path: &str,
-    ) -> Result<(String, Vec<local_context::LocalFile>), String> {
-        let resolved = local_context::validate_directory_path(dir_path)?;
+    ) -> Result<(String, Vec<local_context::LocalFile>), ContextScopeError> {
+        let resolved = local_context::validate_directory_path(dir_path)
+            .map_err(ContextScopeError::InvalidPath)?;
         let files = local_context::scan_directory(&resolved).await;
 
         let mut cfg = self.load_config().await;
@@ -247,13 +265,12 @@ impl ContextScope {
                 .entry(file.name.clone())
                 .or_insert(FileState { enabled: true });
         }
-        self.save_config(&cfg)
-            .await
-            .map_err(|e| format!("config save failed: {e}"))?;
+        self.save_config(&cfg).await?;
         Ok((key, files))
     }
 
-    pub async fn remove_local_directory(&self, dir_path: &str) -> bool {
+    /// Idempotent: missing entries are not an error.
+    pub async fn remove_local_directory(&self, dir_path: &str) -> Result<(), ContextScopeError> {
         let resolved = match local_context::resolve(dir_path) {
             Some(p) => p.to_string_lossy().to_string(),
             None => dir_path.to_string(),
@@ -262,9 +279,9 @@ impl ContextScope {
         let removed = cfg.local_directories.remove(&resolved).is_some()
             || cfg.local_directories.remove(dir_path).is_some();
         if removed {
-            let _ = self.save_config(&cfg).await;
+            self.save_config(&cfg).await?;
         }
-        removed
+        Ok(())
     }
 
     /// List every configured local directory, merging disk state (which
@@ -315,29 +332,34 @@ impl ContextScope {
         dir_path: &str,
         filename: &str,
         enabled: Option<bool>,
-    ) -> Option<bool> {
-        let safe = sanitize_filename(filename)?;
+    ) -> Result<bool, ContextScopeError> {
+        let safe = sanitize_filename(filename).ok_or(ContextScopeError::InvalidFilename)?;
         let mut cfg = self.load_config().await;
-        let dir_entry = cfg.local_directories.get_mut(dir_path)?;
-        let file_state = dir_entry.files.get_mut(&safe)?;
+        let dir_entry = cfg
+            .local_directories
+            .get_mut(dir_path)
+            .ok_or(ContextScopeError::NotTracked)?;
+        let file_state = dir_entry
+            .files
+            .get_mut(&safe)
+            .ok_or(ContextScopeError::NotTracked)?;
         file_state.enabled = enabled.unwrap_or(!file_state.enabled);
         let new_state = file_state.enabled;
-        self.save_config(&cfg).await.ok()?;
-        Some(new_state)
+        self.save_config(&cfg).await?;
+        Ok(new_state)
     }
 
     /// Re-scan a configured directory: add newly-discovered files as enabled
     /// (preserves existing enabled flags). Files that disappeared stay in
     /// the config with `exists_on_disk=false` when listed.
-    pub async fn refresh_local_directory(&self, dir_path: &str) -> bool {
+    pub async fn refresh_local_directory(&self, dir_path: &str) -> Result<(), ContextScopeError> {
         let mut cfg = self.load_config().await;
-        let Some(dir_entry) = cfg.local_directories.get_mut(dir_path) else {
-            return false;
-        };
-        let resolved = match local_context::resolve(dir_path) {
-            Some(p) => p,
-            None => return false,
-        };
+        let dir_entry = cfg
+            .local_directories
+            .get_mut(dir_path)
+            .ok_or(ContextScopeError::NotTracked)?;
+        let resolved = local_context::resolve(dir_path)
+            .ok_or_else(|| ContextScopeError::InvalidPath(dir_path.to_string()))?;
         let disk = local_context::scan_directory(&resolved).await;
         for file in disk {
             dir_entry
@@ -345,19 +367,18 @@ impl ContextScope {
                 .entry(file.name)
                 .or_insert(FileState { enabled: true });
         }
-        self.save_config(&cfg).await.is_ok()
+        self.save_config(&cfg).await
     }
 
     pub async fn get_local_file_content(
         &self,
         dir_path: &str,
         filename: &str,
-    ) -> Result<String, LocalContentError> {
-        let safe = sanitize_filename(filename).ok_or(LocalContentError::InvalidFilename)?;
-        let resolved = local_context::resolve(dir_path).ok_or(LocalContentError::DirMissing)?;
-        local_context::read_file(&resolved.join(&safe))
-            .await
-            .map_err(LocalContentError::Read)
+    ) -> Result<String, ContextScopeError> {
+        let safe = sanitize_filename(filename).ok_or(ContextScopeError::InvalidFilename)?;
+        let resolved = local_context::resolve(dir_path)
+            .ok_or_else(|| ContextScopeError::InvalidPath(dir_path.to_string()))?;
+        Ok(local_context::read_file(&resolved.join(&safe)).await?)
     }
 
     // ---------------------------------------------------------------------

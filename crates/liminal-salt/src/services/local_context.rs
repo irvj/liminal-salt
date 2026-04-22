@@ -134,19 +134,12 @@ fn has_allowed_extension(name: &str) -> bool {
 /// Failure modes for reading a local-context file. Split apart so the UI can
 /// say "invalid UTF-8" specifically (invisible replacement chars in a prompt
 /// degrade LLM output; silent acceptance is worse than surfacing the mismatch).
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ReadError {
-    Io(std::io::Error),
+    #[error("{0}")]
+    Io(#[from] std::io::Error),
+    #[error("file is not valid UTF-8")]
     InvalidUtf8,
-}
-
-impl std::fmt::Display for ReadError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Io(err) => write!(f, "{err}"),
-            Self::InvalidUtf8 => write!(f, "file is not valid UTF-8"),
-        }
-    }
 }
 
 /// Read a single local-context file. Logs a warning on every failure path so

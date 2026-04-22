@@ -15,7 +15,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     AppState,
-    services::{context_files::ContextScope, local_context},
+    services::{
+        context_files::{ContextScope, ContextScopeError},
+        local_context::{self, ReadError},
+    },
 };
 
 // =============================================================================
@@ -78,8 +81,13 @@ async fn upload_impl(
         return (StatusCode::BAD_REQUEST, "no file").into_response();
     };
     let scope = scope_for(&state, &persona);
-    if scope.upload_file(&name, &body).await.is_none() {
-        return (StatusCode::INTERNAL_SERVER_ERROR, "upload failed").into_response();
+    if let Err(err) = scope.upload_file(&name, &body).await {
+        tracing::warn!(persona = %persona, filename = %name, error = %err, "upload_file failed");
+        let status = match err {
+            ContextScopeError::InvalidFilename => StatusCode::BAD_REQUEST,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+        return (status, "upload failed").into_response();
     }
     let files = scope.list_files().await;
     Json(FilesResponse { files }).into_response()
@@ -97,7 +105,7 @@ async fn mutate_file_impl<F, Fut>(
 ) -> Response
 where
     F: FnOnce(ContextScope, String) -> Fut,
-    Fut: std::future::Future<Output = bool>,
+    Fut: std::future::Future<Output = Result<(), ContextScopeError>>,
 {
     let mut persona = String::new();
     let mut filename: Option<String> = None;
@@ -112,9 +120,9 @@ where
         return (StatusCode::BAD_REQUEST, "filename required").into_response();
     };
     let scope = scope_for(&state, &persona);
-    let ok = op(scope, fname).await;
-    if !ok {
-        return (StatusCode::BAD_REQUEST, "operation failed").into_response();
+    if let Err(err) = op(scope, fname.clone()).await {
+        tracing::warn!(persona = %persona, filename = %fname, error = %err, "context file op failed");
+        return (context_scope_status(&err), "operation failed").into_response();
     }
     // Re-list and return.
     let scope = scope_for(&state, &persona);
@@ -124,12 +132,25 @@ where
     .into_response()
 }
 
+/// Map a `ContextScopeError` to the HTTP status the handler should surface.
+fn context_scope_status(err: &ContextScopeError) -> StatusCode {
+    match err {
+        ContextScopeError::InvalidFilename | ContextScopeError::InvalidPath(_) => {
+            StatusCode::BAD_REQUEST
+        }
+        ContextScopeError::NotTracked => StatusCode::NOT_FOUND,
+        ContextScopeError::Read(ReadError::InvalidUtf8) => StatusCode::UNPROCESSABLE_ENTITY,
+        ContextScopeError::Read(ReadError::Io(_)) => StatusCode::NOT_FOUND,
+        ContextScopeError::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
 pub async fn toggle_file_global(
     State(state): State<AppState>,
     multipart: Multipart,
 ) -> Response {
     mutate_file_impl(state, multipart, |scope, name| async move {
-        scope.toggle_file(&name, None).await.is_some()
+        scope.toggle_file(&name, None).await.map(|_| ())
     })
     .await
 }
@@ -178,8 +199,8 @@ pub async fn get_file_content(
 ) -> Response {
     let scope = scope_for(&state, &q.persona);
     match scope.get_file_content(&q.filename).await {
-        Some(content) => Json(ContentResponse { content }).into_response(),
-        None => (StatusCode::NOT_FOUND, "not found").into_response(),
+        Ok(content) => Json(ContentResponse { content }).into_response(),
+        Err(err) => (context_scope_status(&err), "not found").into_response(),
     }
 }
 
@@ -204,8 +225,9 @@ pub async fn save_file_content(
         return (StatusCode::BAD_REQUEST, "filename + content required").into_response();
     };
     let scope = scope_for(&state, &persona);
-    if !scope.save_file_content(&fname, &body).await {
-        return (StatusCode::INTERNAL_SERVER_ERROR, "save failed").into_response();
+    if let Err(err) = scope.save_file_content(&fname, &body).await {
+        tracing::warn!(persona = %persona, filename = %fname, error = %err, "save_file_content failed");
+        return (context_scope_status(&err), "save failed").into_response();
     }
     StatusCode::NO_CONTENT.into_response()
 }
@@ -332,8 +354,10 @@ pub async fn add_directory(
         })
         .into_response(),
         Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse { error: err }),
+            context_scope_status(&err),
+            Json(ErrorResponse {
+                error: err.to_string(),
+            }),
         )
             .into_response(),
     }
@@ -353,7 +377,9 @@ pub async fn remove_directory(
         return (StatusCode::BAD_REQUEST, "dir_path required").into_response();
     };
     let scope = scope_for(&state, &persona);
-    scope.remove_local_directory(&path).await;
+    if let Err(err) = scope.remove_local_directory(&path).await {
+        tracing::warn!(persona = %persona, path = %path, error = %err, "remove_local_directory failed");
+    }
     Json(DirectoriesResponse {
         directories: scope.list_local_directories().await,
     })
@@ -369,7 +395,9 @@ pub async fn toggle_local_file(
         return (StatusCode::BAD_REQUEST, "dir_path + filename required").into_response();
     };
     let scope = scope_for(&state, &persona);
-    scope.toggle_local_file(&path, &fname, None).await;
+    if let Err(err) = scope.toggle_local_file(&path, &fname, None).await {
+        tracing::warn!(persona = %persona, path = %path, filename = %fname, error = %err, "toggle_local_file failed");
+    }
     Json(DirectoriesResponse {
         directories: scope.list_local_directories().await,
     })
@@ -385,7 +413,9 @@ pub async fn refresh_local_dir(
         return (StatusCode::BAD_REQUEST, "dir_path required").into_response();
     };
     let scope = scope_for(&state, &persona);
-    scope.refresh_local_directory(&path).await;
+    if let Err(err) = scope.refresh_local_directory(&path).await {
+        tracing::warn!(persona = %persona, path = %path, error = %err, "refresh_local_directory failed");
+    }
     Json(DirectoriesResponse {
         directories: scope.list_local_directories().await,
     })
@@ -404,24 +434,16 @@ pub async fn get_local_file_content(
     State(state): State<AppState>,
     Query(q): Query<LocalContentQuery>,
 ) -> Response {
-    use crate::services::{
-        context_files::LocalContentError,
-        local_context::ReadError,
-    };
     let scope = scope_for(&state, &q.persona);
     match scope.get_local_file_content(&q.dir_path, &q.filename).await {
         Ok(content) => Json(ContentResponse { content }).into_response(),
-        Err(LocalContentError::InvalidFilename | LocalContentError::DirMissing) => {
-            (StatusCode::NOT_FOUND, "not found").into_response()
+        Err(err) => {
+            let body = match &err {
+                ContextScopeError::Read(ReadError::InvalidUtf8) => "file is not valid UTF-8",
+                _ => "not found",
+            };
+            (context_scope_status(&err), body).into_response()
         }
-        Err(LocalContentError::Read(ReadError::Io(_))) => {
-            (StatusCode::NOT_FOUND, "not found").into_response()
-        }
-        Err(LocalContentError::Read(ReadError::InvalidUtf8)) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "file is not valid UTF-8",
-        )
-            .into_response(),
     }
 }
 

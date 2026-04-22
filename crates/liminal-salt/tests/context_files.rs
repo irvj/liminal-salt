@@ -19,10 +19,10 @@ async fn upload_list_toggle_delete_uploaded_file() {
     assert_eq!(files[0].name, "notes.md");
     assert!(files[0].enabled);
 
-    assert_eq!(scope.toggle_file("notes.md", None).await, Some(false));
-    assert_eq!(scope.toggle_file("notes.md", Some(true)).await, Some(true));
+    assert!(!scope.toggle_file("notes.md", None).await.unwrap());
+    assert!(scope.toggle_file("notes.md", Some(true)).await.unwrap());
 
-    assert!(scope.delete_file("notes.md").await);
+    scope.delete_file("notes.md").await.unwrap();
     assert!(scope.list_files().await.is_empty());
 }
 
@@ -96,10 +96,13 @@ async fn save_and_get_file_content_roundtrip() {
     let tmp = tempfile::tempdir().unwrap();
     let scope = ContextScope::global(tmp.path());
     scope.upload_file("memo.md", b"v1").await.unwrap();
-    assert!(scope.save_file_content("memo.md", "v2 rewritten").await);
+    scope
+        .save_file_content("memo.md", "v2 rewritten")
+        .await
+        .unwrap();
     assert_eq!(
-        scope.get_file_content("memo.md").await.as_deref(),
-        Some("v2 rewritten")
+        scope.get_file_content("memo.md").await.unwrap(),
+        "v2 rewritten"
     );
 }
 
@@ -134,7 +137,7 @@ async fn add_and_remove_local_directory() {
     assert_eq!(dirs.len(), 1);
     assert!(dirs[0].exists);
 
-    assert!(scope.remove_local_directory(&resolved).await);
+    scope.remove_local_directory(&resolved).await.unwrap();
     assert!(scope.list_local_directories().await.is_empty());
 }
 
