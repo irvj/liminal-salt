@@ -32,8 +32,7 @@ pub async fn view(
     headers: HeaderMap,
 ) -> Response {
     // Full-page GET shows the chat shell with the settings panel; HTMX GET
-    // returns just the settings_main.html partial. Matches the memory/persona
-    // page pattern from Phase 4.
+    // returns just the settings_main.html partial. Mirrors memory/persona.
     render_settings(&state, &session, &headers, None, None).await
 }
 

@@ -13,7 +13,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/", get(index))
         .route("/health", get(health))
         .route("/hello", get(hello))
-        // Setup wizard (Phase 6b) — app-ready gate exempts this path.
+        // Setup wizard — the app-ready gate exempts this path.
         .route("/setup/", get(handlers::setup::view).post(handlers::setup::submit))
         // Chat lifecycle
         .route("/chat/", get(handlers::chat::view))
@@ -45,7 +45,7 @@ pub fn build_router(state: AppState) -> Router {
             post(handlers::persona::clear_persona_thread_defaults),
         )
         .route("/settings/save/", post(handlers::settings::save))
-        // Memory page + ops (Phase 5c)
+        // Memory page + ops
         .route("/memory/", get(handlers::memory::view))
         .route("/memory/update/", post(handlers::memory::update))
         .route("/memory/wipe/", post(handlers::memory::wipe))
@@ -72,7 +72,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/context/local/toggle/", post(handlers::context::toggle_local_file))
         .route("/context/local/content/", get(handlers::context::get_local_file_content))
         .route("/context/local/refresh/", post(handlers::context::refresh_local_dir))
-        // Settings page + AJAX mutations (Phase 6c).
+        // Settings page + AJAX mutations.
         .route("/settings/", get(handlers::settings::view))
         .route(
             "/settings/save-context-history-limit/",
@@ -86,7 +86,7 @@ pub fn build_router(state: AppState) -> Router {
             "/settings/save-provider-model/",
             post(handlers::settings::save_provider_model),
         )
-        // Thread-memory endpoints (Phase 5c).
+        // Thread-memory endpoints.
         .route("/session/thread-memory/update/", post(handlers::thread_memory::update))
         .route("/session/thread-memory/status/", get(handlers::thread_memory::status))
         .route(
@@ -97,7 +97,7 @@ pub fn build_router(state: AppState) -> Router {
             "/session/thread-memory/settings/reset/",
             post(handlers::thread_memory::settings_reset),
         )
-        // API endpoints (Phase 6a).
+        // API endpoints.
         .route("/api/themes/", get(handlers::api::themes))
         .route("/api/save-theme/", post(handlers::api::save_theme))
         .route("/settings/available-models/", get(handlers::api::available_models))

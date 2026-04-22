@@ -1,5 +1,4 @@
-//! System prompt assembly. Full implementation per the CLAUDE.md context
-//! order:
+//! System prompt assembly, per the CLAUDE.md context order:
 //!
 //! 1. Persona identity `.md` files
 //! 2. Persona-scoped context files (uploaded + local dirs)
@@ -8,8 +7,8 @@
 //! 5. Thread memory — per-thread running summary
 //! 6. Persona memory — chatbot threads only (suppressed in roleplay)
 //!
-//! Persona memory writes are still the responsibility of a Phase 5 service
-//! (`memory_manager.rs`); this module only reads the resulting markdown file.
+//! Persona memory writes live in `memory.rs`; this module only reads the
+//! resulting markdown through `memory::get_memory_content`.
 
 use std::path::Path;
 

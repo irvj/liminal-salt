@@ -79,7 +79,7 @@ pub struct PersonaConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_thread_memory_settings: Option<ThreadMemoryDefaults>,
 
-    // Memory settings (consumed by Phase 5 memory_manager / worker).
+    // Memory settings (consumed by `memory` + `memory_worker`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_history_max_threads: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]

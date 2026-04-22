@@ -6,5 +6,4 @@ pub mod persona;
 pub mod session;
 pub mod settings;
 pub mod setup;
-pub mod stubs;
 pub mod thread_memory;
