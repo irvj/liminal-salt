@@ -5,7 +5,7 @@
 //! Steps:
 //! 1. Provider + API key → validated against OpenRouter → partial config saved
 //! 2. Theme + model → model fetched via `/settings/available-models` equivalent
-//! 3. Agreement → accept flips `SETUP_COMPLETE=true` + `AGREEMENT_ACCEPTED=<version>`
+//! 3. Agreement → accept flips `setup_complete=true` + `agreement_accepted=<version>`
 
 use axum::{
     Form,
@@ -115,7 +115,7 @@ async fn dispatch(
 /// Starting step for a fresh wizard session, derived from what's already in
 /// config.json:
 ///
-/// - `SETUP_COMPLETE=true` but `AGREEMENT_ACCEPTED` drifted → step 3 (agreement re-prompt)
+/// - `setup_complete=true` but `agreement_accepted` drifted → step 3 (agreement re-prompt)
 /// - API key + model already present (beta upgrade path) → step 3
 /// - Otherwise → step 1
 fn initial_step(cfg: &config::AppConfig) -> u8 {

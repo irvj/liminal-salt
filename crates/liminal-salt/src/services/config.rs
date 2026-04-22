@@ -9,11 +9,11 @@ use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 
 /// App configuration. Loaded from `<data_dir>/config.json` and re-saved whenever
-/// settings change. Field names serialize as `SCREAMING_SNAKE_CASE` to match the
-/// convention the Django app established; `extras` catches any unknown keys so
-/// they round-trip through load → save untouched.
+/// settings change. Field names serialize as `snake_case` (matches persona
+/// configs and session JSON). `extras` catches any unknown keys so they
+/// round-trip through load → save untouched.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE", default)]
+#[serde(default)]
 pub struct AppConfig {
     pub setup_complete: bool,
     pub agreement_accepted: String,
