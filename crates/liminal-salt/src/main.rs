@@ -67,8 +67,7 @@ async fn main() -> anyhow::Result<()> {
     let static_dir = manifest_dir.join("static");
 
     // Session state (current session id, user timezone, CSRF token) lives in a
-    // process-local memory store. Two-week cookie expiry matches Django's
-    // SESSION_COOKIE_AGE.
+    // process-local memory store. Two-week cookie expiry on inactivity.
     let session_store = MemoryStore::default();
     let session_layer = SessionManagerLayer::new(session_store)
         .with_name("liminal_salt_session")
