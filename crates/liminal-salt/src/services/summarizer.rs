@@ -28,9 +28,7 @@ pub async fn generate_title<L: ChatLlm>(
         return "New Chat".to_string();
     }
 
-    let use_response = !assistant_response.is_empty()
-        && !assistant_response.starts_with("ERROR:")
-        && !assistant_response.trim().is_empty();
+    let use_response = !assistant_response.trim().is_empty();
 
     let prompt = if use_response {
         format!(

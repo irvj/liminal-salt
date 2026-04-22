@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use liminal_salt::services::chat::{SendContext, send_message};
+use liminal_salt::services::chat::{ChatError, SendContext, send_message};
 use liminal_salt::services::llm::{ChatLlm, LlmError, LlmMessage};
 use liminal_salt::services::session::{self, Mode, Role};
 
@@ -70,8 +70,7 @@ async fn send_preserves_scenario_memory_pinned_draft() {
     )
     .await;
 
-    assert!(!outcome.is_error);
-    assert_eq!(outcome.response, "The gate creaks open.");
+    assert_eq!(outcome.unwrap(), "The gate creaks open.");
 
     let loaded = session::load_session(tmp.path(), id).await.unwrap();
     assert_eq!(loaded.scenario.as_deref(), Some("ominous clearing at dusk"));
@@ -118,7 +117,7 @@ async fn skip_user_save_does_not_duplicate_message() {
         true,
     )
     .await;
-    assert!(!outcome.is_error);
+    assert!(outcome.is_ok());
 
     let loaded = session::load_session(tmp.path(), id).await.unwrap();
     assert_eq!(loaded.messages.len(), 2); // user + assistant, not duplicated
@@ -127,7 +126,7 @@ async fn skip_user_save_does_not_duplicate_message() {
 }
 
 #[tokio::test]
-async fn llm_failure_surfaces_as_error_string() {
+async fn llm_failure_surfaces_as_llm_failed_error() {
     let tmp = tempfile::tempdir().unwrap();
     let id = "session_20260421_130003.json";
     session::create_session(tmp.path(), id, "assistant", "t", Mode::Chatbot, vec![])
@@ -141,8 +140,10 @@ async fn llm_failure_surfaces_as_error_string() {
         false,
     )
     .await;
-    assert!(outcome.is_error);
-    assert!(outcome.response.starts_with("ERROR:"));
+    match outcome {
+        Err(ChatError::LlmFailed(_)) => {}
+        other => panic!("expected LlmFailed, got {other:?}"),
+    }
 
     // On error we do NOT save the assistant message. The user message we
     // appended is also not persisted (the save path is after the LLM call).
@@ -154,7 +155,7 @@ async fn llm_failure_surfaces_as_error_string() {
 }
 
 #[tokio::test]
-async fn missing_session_returns_error_without_panic() {
+async fn missing_session_returns_session_not_found() {
     let tmp = tempfile::tempdir().unwrap();
     let id = "session_20260421_130004.json";
     // Don't create the session — load_session will return None.
@@ -168,6 +169,8 @@ async fn missing_session_returns_error_without_panic() {
         false,
     )
     .await;
-    assert!(outcome.is_error);
-    assert!(outcome.response.contains("session not found"));
+    match outcome {
+        Err(ChatError::SessionNotFound(got)) => assert_eq!(got, id),
+        other => panic!("expected SessionNotFound, got {other:?}"),
+    }
 }

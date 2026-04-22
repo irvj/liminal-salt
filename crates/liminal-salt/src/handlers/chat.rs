@@ -447,11 +447,11 @@ pub async fn send(
     let skip = form.skip_user_save == "true" || form.skip_user_save == "1";
     let outcome = chat_svc::send_message(&ctx_out, &llm, &form.message, skip).await;
 
-    // After-the-fact: if the session still has no title_locked and this wasn't
-    // an error, generate one. Read the session fresh to avoid TOCTOU on the
+    // After-the-fact: if the session still has no title_locked and the turn
+    // succeeded, generate one. Read the session fresh to avoid TOCTOU on the
     // just-persisted messages.
     let mut title_changed: Option<String> = None;
-    if !outcome.is_error
+    if outcome.is_ok()
         && let Some(post) = session_svc::load_session(&state.sessions_dir, &session_id).await
         && !post.title_locked.unwrap_or(false)
     {
@@ -492,7 +492,10 @@ pub async fn send(
         "csrf_token",
         &session_state::current_csrf_token(&session).await,
     );
-    ctx.insert("assistant_message", &outcome.response);
+    match &outcome {
+        Ok(text) => ctx.insert("assistant_message", text),
+        Err(err) => ctx.insert("error_message", &err.to_string()),
+    }
     ctx.insert("assistant_timestamp", &session_svc::now_timestamp());
 
     let body = match state.tera.render("chat/assistant_fragment.html", &ctx) {

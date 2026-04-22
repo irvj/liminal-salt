@@ -30,17 +30,35 @@ pub struct SendContext<'a> {
     pub context_history_limit: usize,
 }
 
-/// Outcome of a single chat turn. `response` is either the assistant's reply
-/// or an `ERROR: ...` string (matches Python's fire-and-format error path so
-/// the frontend doesn't need a separate error channel). `is_error` lets the
-/// handler skip title generation cleanly.
-pub struct SendOutcome {
-    pub response: String,
-    pub is_error: bool,
+/// Why a chat turn failed. `Display` renders the user-facing error body; the
+/// handler passes `to_string()` into the template as `error_message`.
+#[derive(Debug)]
+pub enum ChatError {
+    SessionNotFound(String),
+    LlmFailed(LlmError),
+}
+
+impl std::fmt::Display for ChatError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::SessionNotFound(id) => write!(f, "session not found: {id}"),
+            Self::LlmFailed(err) => write!(f, "{err}"),
+        }
+    }
+}
+
+impl std::error::Error for ChatError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::SessionNotFound(_) => None,
+            Self::LlmFailed(err) => Some(err),
+        }
+    }
 }
 
 /// Append a user message, run the LLM, append the assistant response, save
-/// the session. Returns the response text plus an error flag.
+/// the session. On success returns the assistant's reply; on failure returns
+/// a typed error the handler can shape into a response or short-circuit on.
 ///
 /// `skip_user_save = true` means the user message is already persisted
 /// upstream (e.g. by `start_chat` which saves before dispatching to `send`).
@@ -49,19 +67,12 @@ pub async fn send_message<L: ChatLlm>(
     llm: &L,
     user_input: &str,
     skip_user_save: bool,
-) -> SendOutcome {
-    // 1. Load the session. If missing, we still try the LLM call against an
-    //    empty history — matches Python, which defers the "no session" case
-    //    to subsequent save attempts.
-    let mut session = match session::load_session(ctx.sessions_dir, ctx.session_id).await {
-        Some(s) => s,
-        None => {
-            return SendOutcome {
-                response: format!("ERROR: session not found: {}", ctx.session_id),
-                is_error: true,
-            };
-        }
-    };
+) -> Result<String, ChatError> {
+    // 1. Load the session. No-session is a hard error — without it we can't
+    //    persist the exchange.
+    let mut session = session::load_session(ctx.sessions_dir, ctx.session_id)
+        .await
+        .ok_or_else(|| ChatError::SessionNotFound(ctx.session_id.to_string()))?;
 
     if !skip_user_save {
         session.messages.push(Message {
@@ -80,18 +91,15 @@ pub async fn send_message<L: ChatLlm>(
         ctx.assistant_timezone,
     );
 
-    // 3. Call LLM with retries on empty / LlmError response. Matches Python's
-    //    2-attempt policy with a 2s backoff between tries.
-    let assistant_text = match run_with_retry(llm, &payload).await {
-        Ok(text) => text,
-        Err(err) => {
-            tracing::warn!(session_id = ctx.session_id, error = %err, "LLM call failed after retries");
-            return SendOutcome {
-                response: format!("ERROR: {err}"),
-                is_error: true,
-            };
-        }
-    };
+    // 3. Call LLM with retries. 2-attempt policy with a 2s backoff between tries.
+    let assistant_text = run_with_retry(llm, &payload).await.map_err(|err| {
+        tracing::warn!(
+            session_id = ctx.session_id,
+            error = %err,
+            "LLM call failed after retries",
+        );
+        ChatError::LlmFailed(err)
+    })?;
 
     // 4. Append assistant message + persist. `save_chat_history` RMWs through
     //    the session lock so scenario/thread_memory/pinned/draft survive.
@@ -114,10 +122,7 @@ pub async fn send_message<L: ChatLlm>(
         tracing::warn!(session_id = ctx.session_id, "save_chat_history returned false");
     }
 
-    SendOutcome {
-        response: assistant_text,
-        is_error: false,
-    }
+    Ok(assistant_text)
 }
 
 async fn run_with_retry<L: ChatLlm>(

@@ -113,35 +113,35 @@ fn chat_main_renders_session_with_messages() {
 }
 
 #[test]
-fn chat_main_renders_error_message_without_markdown() {
+fn assistant_fragment_renders_success_with_markdown() {
     let tera = build_tera();
-    let mut ctx = base_context();
-    ctx.insert("show_home", &false);
-    ctx.insert("session_id", "session_20260421_150001.json");
-    ctx.insert("title", "Oops");
-    ctx.insert("persona", "assistant");
-    ctx.insert("model", "model/id");
-    ctx.insert("mode", "chatbot");
-    ctx.insert("draft", "");
-    ctx.insert(
-        "messages",
-        &json!([
-            { "role": "user", "content": "hi", "timestamp": "2026-04-21T12:00:00.000000Z" },
-            { "role": "assistant", "content": "ERROR: network down", "timestamp": "2026-04-21T12:00:01.000000Z" },
-        ]),
-    );
-    ctx.insert("scenario", "");
-    ctx.insert("thread_memory", "");
-    ctx.insert("thread_memory_updated_at", "");
-    ctx.insert("pinned_sessions", &Vec::<serde_json::Value>::new());
-    ctx.insert("grouped_sessions", &Vec::<serde_json::Value>::new());
+    let mut ctx = Context::new();
+    ctx.insert("csrf_token", "test_csrf");
+    ctx.insert("assistant_message", "hello **world**");
+    ctx.insert("assistant_timestamp", "2026-04-21T12:00:01.000000Z");
+    let out = tera
+        .render("chat/assistant_fragment.html", &ctx)
+        .expect("render success fragment");
+    assert!(out.contains("<strong>world</strong>"));
+    assert!(!out.contains("Error:"));
+    assert!(!out.contains("<pre"));
+}
 
-    let out = tera.render("chat/chat.html", &ctx).expect("render error message");
-    // "ERROR:" prefix triggers the error path — shows "Error:" heading and the
-    // text in a <pre>, stripped of the leading "ERROR:".
+#[test]
+fn assistant_fragment_renders_error_in_pre_block() {
+    let tera = build_tera();
+    let mut ctx = Context::new();
+    ctx.insert("csrf_token", "test_csrf");
+    ctx.insert("error_message", "network down");
+    ctx.insert("assistant_timestamp", "2026-04-21T12:00:01.000000Z");
+    let out = tera
+        .render("chat/assistant_fragment.html", &ctx)
+        .expect("render error fragment");
     assert!(out.contains("Error:"));
     assert!(out.contains("<pre"));
-    assert!(out.contains(" network down"));
+    assert!(out.contains("network down"));
+    // No markdown processing on error path.
+    assert!(!out.contains("<strong>"));
 }
 
 #[test]
