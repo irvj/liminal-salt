@@ -118,6 +118,15 @@ pub struct SessionSummary {
     pub mode: Mode,
 }
 
+/// A session's thread reduced to the fields memory aggregation cares about.
+/// Produced by `list_persona_threads`; consumed by `memory::update_memory`.
+#[derive(Clone, Debug)]
+pub struct ThreadSnapshot {
+    pub title: String,
+    pub persona: String,
+    pub messages: Vec<Message>,
+}
+
 // =============================================================================
 // Timestamps & IDs
 // =============================================================================
@@ -259,6 +268,76 @@ pub async fn list_sessions(sessions_dir: &Path) -> Vec<SessionSummary> {
 
     summaries.sort_by(|a, b| b.id.cmp(&a.id));
     summaries
+}
+
+/// Aggregate messages from sessions that match a persona, newest session first.
+/// Skips roleplay sessions — those don't feed cross-thread persona memory.
+///
+/// `max_threads` caps the number of threads returned (newest by file mtime).
+/// `messages_per_thread` trims each thread's messages to its most recent N.
+/// Both `None` means no cap.
+///
+/// Like `list_sessions`, this reads without acquiring the per-session lock: a
+/// brief stale read during concurrent writes is acceptable since the scheduler
+/// tolerates missing the most recent in-flight message.
+pub async fn list_persona_threads(
+    sessions_dir: &Path,
+    persona: &str,
+    max_threads: Option<usize>,
+    messages_per_thread: Option<usize>,
+) -> Vec<ThreadSnapshot> {
+    let mut entries = match tokio::fs::read_dir(sessions_dir).await {
+        Ok(e) => e,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
+        Err(err) => {
+            tracing::error!(?sessions_dir, error = %err, "list_persona_threads: read_dir failed");
+            return Vec::new();
+        }
+    };
+
+    // Collect (path, mtime) so we can sort newest-first before reading bodies.
+    let mut files: Vec<(PathBuf, std::time::SystemTime)> = Vec::new();
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let filename = entry.file_name().to_string_lossy().to_string();
+        if !filename.ends_with(".json") {
+            continue;
+        }
+        let Ok(meta) = entry.metadata().await else { continue };
+        let Ok(mtime) = meta.modified() else { continue };
+        files.push((entry.path(), mtime));
+    }
+    files.sort_by_key(|(_, mtime)| std::cmp::Reverse(*mtime));
+
+    if let Some(cap) = max_threads {
+        files.truncate(cap);
+    }
+
+    let mut threads = Vec::new();
+    for (path, _) in files {
+        let Some(session) = read_session(&path).await else { continue };
+        if session.persona != persona {
+            continue;
+        }
+        if session.mode == Mode::Roleplay {
+            continue;
+        }
+        if session.messages.is_empty() {
+            continue;
+        }
+        let mut messages = session.messages;
+        if let Some(cap) = messages_per_thread
+            && messages.len() > cap
+        {
+            let start = messages.len() - cap;
+            messages = messages.split_off(start);
+        }
+        threads.push(ThreadSnapshot {
+            title: session.title,
+            persona: session.persona,
+            messages,
+        });
+    }
+    threads
 }
 
 // =============================================================================

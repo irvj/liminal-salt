@@ -1,8 +1,8 @@
 # Liminal Salt — Architecture Roadmap
 
 **Created:** April 14, 2026
-**Updated:** April 21, 2026
-**Status:** Rust migration in progress — Phases 0, 1, 2, 3, 4 complete; Phase 5 (memory system) up next
+**Updated:** April 22, 2026
+**Status:** Rust migration in progress — Phases 0–4 complete; Phase 5 (memory system) in progress (5a done)
 **Scope:** Python/Django → Rust (Axum + Tera) → Tauri desktop app
 
 ---
@@ -487,6 +487,11 @@ These three have no intra-layer dependencies and block everything else.
 
 This is the single highest-risk phase. Allocate the most time. Review concurrency carefully.
 
+**In progress.** Split into three sub-commits following the Phase 3/4 pattern:
+- **5a (done 2026-04-22):** service layer — `services/{memory,thread_memory}.rs`, plus `session::list_persona_threads` (ported from `chat/utils.py`). No handlers, no scheduler. 38 new integration + unit tests; 111 tests total across the crate.
+- **5b:** memory worker — two `tokio::spawn`ed scheduler tasks, per-persona + per-session "already running" mutex registries distinct from the session-JSON lock, manual dispatch helpers, status tracking. Invariant-sensitive.
+- **5c:** handlers + wire-up — `/memory/*` (update/wipe/modify/seed/save-settings/status), `/session/thread-memory/*` (update/status/settings save+reset), scheduler startup in `main.rs`.
+
 **Services:**
 - `services/memory.rs` — per-persona memory file I/O + LLM merge/seed/modify. Owns `data/memory/{name}.md`.
 - `services/thread_memory.rs` — per-session running summary via LLM merge. Two prompt variants (chatbot / roleplay). Settings resolver (per-thread override → persona default → global fallback).
@@ -528,6 +533,25 @@ This is the single highest-risk phase. Allocate the most time. Review concurrenc
 - Concurrent user message write + memory-worker read: user write sees the latest, worker gets a consistent snapshot.
 
 **Done when:** manual smoke — let a roleplay thread accumulate 20 messages, trigger thread-memory update, verify the summary appears in the next response's context (log the prompt). Wait for the auto-scheduler to fire; verify via logs.
+
+**Phase 5a outcome:**
+
+- **`services/memory.rs`** owns `data/memory/{name}.md` end-to-end. Public surface: `get_memory_content`, `save_memory_content`, `delete_memory`, `rename_memory`, `list_persona_memories`, `get_memory_model` (fallback chain: explicit `MEMORY_MODEL` → persona's `model` → default), plus the three LLM-driven ops `update_memory`, `seed_memory`, `modify_memory` — all sharing a private `merge_memory` helper. The memory-merge prompt is ported verbatim from Python; the chatbot/roleplay variant split lives in `thread_memory` instead.
+- **`services/thread_memory.rs`** is stateless — returns merged summary text; doesn't write files. Owns the constants (`DEFAULT_THREAD_MEMORY_SIZE=4000`, `_INTERVAL_MINUTES=0`, `_MESSAGE_FLOOR=4`), `EffectiveThreadMemorySettings` struct (concrete u32s, no Option), `resolve_settings(session, persona_cfg)` walking per-thread override → persona default → global, `resolve_persona_defaults` for the persona-settings form, `filter_new_messages(&[Message], updated_at) -> Vec<Message>`, and `merge<L: ChatLlm>(...) -> Option<String>` dispatching on `Mode` for chatbot vs. roleplay prompts.
+- **`session::list_persona_threads`** (new, replaces Python's `chat/utils.py::aggregate_all_sessions_messages`): moved into `services/session.rs` where the session schema already lives. Takes `persona`, `max_threads`, `messages_per_thread` caps. Returns newest-first by file mtime; skips roleplay and empty threads. Read without per-session locks, matching `list_sessions`'s convention for sidebar reads.
+- **SoC fixes landed alongside the port** (small things Python had as artifacts):
+  1. `aggregate_all_sessions_messages` lived in `chat/utils.py` but did raw session JSON reads + schema-aware filtering — session-ownership work outside the session service. In Rust the equivalent lives on `session.rs` alongside `list_sessions`.
+  2. `memory_manager.py::_safe_persona_name` silently mapped bad names (`"../escape"`) to sanitized ones and proceeded. In Rust, every memory.rs public entry short-circuits on `persona::valid_persona_name`, same pattern as `session::valid_session_id`.
+  3. `persona.rs` previously inlined the memory-file rename/delete paths via a private `memory_file()` helper. That's been removed; the cascade in `delete_persona` / `rename_persona` now calls `memory::delete_memory` / `memory::rename_memory`. `data/memory/` has exactly one writer.
+- **Return conventions preserved** from Phases 2–4: `String` (empty on failure) for reads, `bool` for writes, `Option<String>` for "merged text on success, None on failure" (what `thread_memory::merge` returns — the worker decides whether to persist). Errors log via `tracing` rather than propagate up.
+- **`PersonaConfig`'s memory fields** added in Phase 4 (`user_history_max_threads`, `user_history_messages_per_thread`, `memory_size_limit`, `auto_memory_interval`, `auto_memory_message_floor`) are now consumed by the memory service + thread-memory resolver. No schema changes in 5a.
+- **Tests (38 new, 111 total):**
+  - `tests/memory_service.rs` (17 tests): save/get roundtrip, invalid-name rejection at every entry, missing-file delete, rename + missing-source no-op, list alphabetical, model fallback chain, empty-threads short-circuit, prompt shape (display name, thread formatting, roleplay section, size target), size_limit=0 omits size target, seed/modify label differences, modify refuses when no existing memory, short-response safety check + threshold, LLM-error preserves existing file, first-run placeholder.
+  - `tests/thread_memory_service.rs` (9 tests): empty new-messages short-circuit, chatbot uses chatbot prompt + injects persona memory, chatbot omits persona memory section when empty, roleplay uses roleplay prompt + ignores persona memory even if passed, short-response rejection, short-response accepted when no existing, LLM error → None, first-run placeholder, size_limit=0 omits size target.
+  - `tests/session.rs` (+4 tests): `list_persona_threads` filters persona + skips roleplay, per-thread message cap keeps most-recent, total-thread cap sorts newest-first by mtime, missing-dir returns empty.
+  - Module-level unit tests in `thread_memory.rs` (+5): settings resolver three-tier walk with all-None override no-op, filter_new_messages cutoff + empty + missing-timestamp, transcript role labeling, chatbot prompt persona-memory presence/absence, roleplay prompt omits perspective rules.
+  - Module-level unit tests in `memory.rs` (+2): display name formatting, model fallback chain (including "empty string is not set" Python-or semantics).
+- **No handler or worker wiring yet.** `AppState` unchanged. 5b adds the worker + its scheduler tasks, then 5c replaces the existing `stubs::not_implemented` routes for `/memory/*` and `/session/thread-memory/*`.
 
 ---
 

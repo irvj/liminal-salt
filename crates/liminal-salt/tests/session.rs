@@ -439,3 +439,120 @@ async fn list_sessions_sorts_newest_first_and_skips_non_json() {
     assert_eq!(list[0].id, "session_20260421_120016.json");
     assert_eq!(list[1].id, "session_20260421_120015.json");
 }
+
+// =============================================================================
+// list_persona_threads
+// =============================================================================
+
+async fn seed_session(
+    dir: &std::path::Path,
+    id: &str,
+    persona: &str,
+    mode: Mode,
+    messages: Vec<Message>,
+) {
+    session::create_session(dir, id, persona, "t", mode, messages)
+        .await
+        .expect("create");
+}
+
+#[tokio::test]
+async fn list_persona_threads_filters_persona_and_skips_roleplay() {
+    let tmp = tempfile::tempdir().unwrap();
+    seed_session(
+        tmp.path(),
+        "session_20260421_130001.json",
+        "riddler",
+        Mode::Chatbot,
+        vec![msg(Role::User, "match")],
+    )
+    .await;
+    seed_session(
+        tmp.path(),
+        "session_20260421_130002.json",
+        "other",
+        Mode::Chatbot,
+        vec![msg(Role::User, "skip - wrong persona")],
+    )
+    .await;
+    seed_session(
+        tmp.path(),
+        "session_20260421_130003.json",
+        "riddler",
+        Mode::Roleplay,
+        vec![msg(Role::User, "skip - roleplay")],
+    )
+    .await;
+    // Empty thread — should be skipped even though persona matches.
+    seed_session(
+        tmp.path(),
+        "session_20260421_130004.json",
+        "riddler",
+        Mode::Chatbot,
+        vec![],
+    )
+    .await;
+
+    let threads = session::list_persona_threads(tmp.path(), "riddler", None, None).await;
+    assert_eq!(threads.len(), 1);
+    assert_eq!(threads[0].persona, "riddler");
+    assert_eq!(threads[0].messages[0].content, "match");
+}
+
+#[tokio::test]
+async fn list_persona_threads_respects_per_thread_message_cap() {
+    let tmp = tempfile::tempdir().unwrap();
+    let msgs = vec![
+        msg(Role::User, "m1"),
+        msg(Role::Assistant, "m2"),
+        msg(Role::User, "m3"),
+        msg(Role::Assistant, "m4"),
+        msg(Role::User, "m5"),
+    ];
+    seed_session(
+        tmp.path(),
+        "session_20260421_140001.json",
+        "r",
+        Mode::Chatbot,
+        msgs,
+    )
+    .await;
+
+    let threads = session::list_persona_threads(tmp.path(), "r", None, Some(2)).await;
+    assert_eq!(threads.len(), 1);
+    assert_eq!(threads[0].messages.len(), 2);
+    // Cap keeps the most recent messages.
+    assert_eq!(threads[0].messages[0].content, "m4");
+    assert_eq!(threads[0].messages[1].content, "m5");
+}
+
+#[tokio::test]
+async fn list_persona_threads_caps_total_threads_newest_first() {
+    let tmp = tempfile::tempdir().unwrap();
+    for i in 1..=3u32 {
+        seed_session(
+            tmp.path(),
+            &format!("session_20260421_15000{i}.json"),
+            "r",
+            Mode::Chatbot,
+            vec![msg(Role::User, &format!("thread {i}"))],
+        )
+        .await;
+        // Space out mtimes so the sort is deterministic even on fast filesystems.
+        tokio::time::sleep(std::time::Duration::from_millis(15)).await;
+    }
+
+    let threads = session::list_persona_threads(tmp.path(), "r", Some(2), None).await;
+    assert_eq!(threads.len(), 2);
+    // Newest-mtime first: thread 3, then thread 2.
+    assert_eq!(threads[0].messages[0].content, "thread 3");
+    assert_eq!(threads[1].messages[0].content, "thread 2");
+}
+
+#[tokio::test]
+async fn list_persona_threads_missing_dir_returns_empty() {
+    let tmp = tempfile::tempdir().unwrap();
+    let nonexistent = tmp.path().join("never_created");
+    let threads = session::list_persona_threads(&nonexistent, "r", None, None).await;
+    assert!(threads.is_empty());
+}

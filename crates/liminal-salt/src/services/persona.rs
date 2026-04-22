@@ -19,7 +19,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 
-use crate::services::session;
+use crate::services::{memory, session};
 
 // =============================================================================
 // Validation
@@ -52,10 +52,6 @@ pub fn identity_file(data_dir: &Path, name: &str) -> PathBuf {
 
 pub fn config_file(data_dir: &Path, name: &str) -> PathBuf {
     persona_dir(data_dir, name).join("config.json")
-}
-
-fn memory_file(data_dir: &Path, name: &str) -> PathBuf {
-    data_dir.join("memory").join(format!("{name}.md"))
 }
 
 fn persona_user_context_dir(data_dir: &Path, name: &str) -> PathBuf {
@@ -300,13 +296,9 @@ pub async fn delete_persona(data_dir: &Path, name: &str) -> Result<(), PersonaEr
         return Err(PersonaError::Io(err));
     }
 
-    // Cascade: memory file (Phase 5 will add `memory_manager::delete_memory`;
-    // for now inline the best-effort remove).
-    let memory = memory_file(data_dir, name);
-    if tokio::fs::try_exists(&memory).await.unwrap_or(false)
-        && let Err(err) = tokio::fs::remove_file(&memory).await
-    {
-        tracing::warn!(persona = name, error = %err, "memory file delete failed");
+    // Cascade: memory file via its owning service.
+    if !memory::delete_memory(data_dir, name).await {
+        tracing::warn!(persona = name, "memory file delete failed");
     }
 
     // Cascade: persona user-context dir.
@@ -351,12 +343,9 @@ pub async fn rename_persona(
     // Step 1: directory rename. Fatal if this fails.
     tokio::fs::rename(&old_dir, &new_dir).await?;
 
-    // Step 2: memory file. Log and continue.
-    let old_memory = memory_file(data_dir, old_name);
-    if tokio::fs::try_exists(&old_memory).await.unwrap_or(false)
-        && let Err(err) = tokio::fs::rename(&old_memory, memory_file(data_dir, new_name)).await
-    {
-        tracing::warn!(old_name, new_name, error = %err, "memory rename failed");
+    // Step 2: memory file via its owning service. Log and continue.
+    if !memory::rename_memory(data_dir, old_name, new_name).await {
+        tracing::warn!(old_name, new_name, "memory rename failed");
     }
 
     // Step 3: persona user-context dir.
