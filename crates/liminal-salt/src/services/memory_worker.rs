@@ -29,7 +29,7 @@
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
-    sync::{Arc, Mutex as StdMutex},
+    sync::{Arc, Mutex as StdMutex, MutexGuard},
     time::{Duration, SystemTime},
 };
 
@@ -52,6 +52,21 @@ use crate::{
         thread_memory,
     },
 };
+
+/// `StdMutex` gets poisoned when a thread panics while holding the lock. In
+/// the memory worker all guarded state is either a lookup map or coordination
+/// metadata — any partial update a panicked task made is a recoverable nuisance,
+/// not a fatal invariant break. Extract the inner data and keep running so one
+/// buggy update doesn't freeze every future status query / scheduler tick.
+trait MutexRecover<T> {
+    fn lock_recover(&self) -> MutexGuard<'_, T>;
+}
+
+impl<T> MutexRecover<T> for StdMutex<T> {
+    fn lock_recover(&self) -> MutexGuard<'_, T> {
+        self.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
 
 /// Floor for "sleep until next scheduler tick" — never spin faster than this.
 const SCHEDULER_TICK_FLOOR: Duration = Duration::from_secs(10);
@@ -201,14 +216,14 @@ impl MemoryWorker {
     }
 
     fn persona_lock(&self, persona: &str) -> Arc<TokioMutex<()>> {
-        let mut map = self.inner.persona_locks.lock().unwrap();
+        let mut map = self.inner.persona_locks.lock_recover();
         map.entry(persona.to_string())
             .or_insert_with(|| Arc::new(TokioMutex::new(())))
             .clone()
     }
 
     fn session_lock(&self, session_id: &str) -> Arc<TokioMutex<()>> {
-        let mut map = self.inner.session_locks.lock().unwrap();
+        let mut map = self.inner.session_locks.lock_recover();
         map.entry(session_id.to_string())
             .or_insert_with(|| Arc::new(TokioMutex::new(())))
             .clone()
@@ -221,8 +236,7 @@ impl MemoryWorker {
     pub fn get_update_status(&self, persona: &str) -> Status {
         self.inner
             .persona_status
-            .lock()
-            .unwrap()
+            .lock_recover()
             .get(persona)
             .cloned()
             .unwrap_or_default()
@@ -231,8 +245,7 @@ impl MemoryWorker {
     pub fn get_thread_update_status(&self, session_id: &str) -> Status {
         self.inner
             .thread_status
-            .lock()
-            .unwrap()
+            .lock_recover()
             .get(session_id)
             .cloned()
             .unwrap_or_default()
@@ -241,16 +254,14 @@ impl MemoryWorker {
     fn set_persona_status(&self, persona: &str, status: Status) {
         self.inner
             .persona_status
-            .lock()
-            .unwrap()
+            .lock_recover()
             .insert(persona.to_string(), status);
     }
 
     fn set_thread_status(&self, session_id: &str, status: Status) {
         self.inner
             .thread_status
-            .lock()
-            .unwrap()
+            .lock_recover()
             .insert(session_id.to_string(), status);
     }
 
@@ -340,7 +351,7 @@ impl MemoryWorker {
     /// next fire is `now + new_interval`, not either "immediately" or
     /// "wait out the previous interval."
     pub fn reschedule_thread_next_fire(&self, session_id: &str, interval_minutes: u32) {
-        let mut map = self.inner.thread_next_fire.lock().unwrap();
+        let mut map = self.inner.thread_next_fire.lock_recover();
         if interval_minutes > 0 {
             let secs = (interval_clamp(interval_minutes) as u64) * 60;
             map.insert(session_id.to_string(), Instant::now() + Duration::from_secs(secs));
@@ -794,8 +805,7 @@ impl MemoryWorker {
             let due_at = self
                 .inner
                 .persona_next_fire
-                .lock()
-                .unwrap()
+                .lock_recover()
                 .get(&persona_name)
                 .copied();
             if let Some(at) = due_at
@@ -815,8 +825,7 @@ impl MemoryWorker {
                 let next = now + interval;
                 self.inner
                     .persona_next_fire
-                    .lock()
-                    .unwrap()
+                    .lock_recover()
                     .insert(persona_name.clone(), next);
                 next_due_times.push(next);
                 continue;
@@ -836,8 +845,7 @@ impl MemoryWorker {
             };
             self.inner
                 .persona_next_fire
-                .lock()
-                .unwrap()
+                .lock_recover()
                 .insert(persona_name, next);
             next_due_times.push(next);
         }
@@ -899,8 +907,7 @@ impl MemoryWorker {
             let due_at = self
                 .inner
                 .thread_next_fire
-                .lock()
-                .unwrap()
+                .lock_recover()
                 .get(&filename)
                 .copied();
             if let Some(at) = due_at
@@ -914,8 +921,7 @@ impl MemoryWorker {
                 let next = now + interval;
                 self.inner
                     .thread_next_fire
-                    .lock()
-                    .unwrap()
+                    .lock_recover()
                     .insert(filename.clone(), next);
                 next_due_times.push(next);
                 continue;
@@ -935,19 +941,18 @@ impl MemoryWorker {
             };
             self.inner
                 .thread_next_fire
-                .lock()
-                .unwrap()
+                .lock_recover()
                 .insert(filename.clone(), next);
             next_due_times.push(next);
         }
 
         // Prune deleted-session entries from both scheduler maps.
         {
-            let mut fire = self.inner.thread_next_fire.lock().unwrap();
+            let mut fire = self.inner.thread_next_fire.lock_recover();
             fire.retain(|k, _| live.contains(k));
         }
         {
-            let mut cache = self.inner.thread_scheduler_cache.lock().unwrap();
+            let mut cache = self.inner.thread_scheduler_cache.lock_recover();
             cache.retain(|k, _| live.contains(k));
         }
 
@@ -958,7 +963,7 @@ impl MemoryWorker {
         let mtime = tokio::fs::metadata(filepath).await.ok()?.modified().ok()?;
 
         {
-            let cache = self.inner.thread_scheduler_cache.lock().unwrap();
+            let cache = self.inner.thread_scheduler_cache.lock_recover();
             if let Some(entry) = cache.get(filename)
                 && entry.mtime == mtime
             {
@@ -989,8 +994,7 @@ impl MemoryWorker {
         };
         self.inner
             .thread_scheduler_cache
-            .lock()
-            .unwrap()
+            .lock_recover()
             .insert(filename.to_string(), entry);
         Some(view)
     }
@@ -1026,7 +1030,7 @@ impl MemoryWorker {
             // Cache peek — clone out because we can't hold the StdMutex guard
             // across the read-and-maybe-reparse branch.
             let cached = {
-                let cache = self.inner.persona_count_cache.lock().unwrap();
+                let cache = self.inner.persona_count_cache.lock_recover();
                 cache
                     .get(&filename)
                     .filter(|e| e.mtime == mtime)
@@ -1062,7 +1066,7 @@ impl MemoryWorker {
                     }
                     let p = data.persona.clone();
                     let mo = data.mode;
-                    self.inner.persona_count_cache.lock().unwrap().insert(
+                    self.inner.persona_count_cache.lock_recover().insert(
                         filename.clone(),
                         PersonaCountEntry {
                             mtime,
@@ -1102,7 +1106,7 @@ impl MemoryWorker {
             }
         }
 
-        let mut cache = self.inner.persona_count_cache.lock().unwrap();
+        let mut cache = self.inner.persona_count_cache.lock_recover();
         cache.retain(|k, _| live.contains(k));
 
         count
@@ -1114,12 +1118,12 @@ impl MemoryWorker {
 
     #[cfg(test)]
     pub fn persona_count_cache_size(&self) -> usize {
-        self.inner.persona_count_cache.lock().unwrap().len()
+        self.inner.persona_count_cache.lock_recover().len()
     }
 
     #[cfg(test)]
     pub fn thread_scheduler_cache_size(&self) -> usize {
-        self.inner.thread_scheduler_cache.lock().unwrap().len()
+        self.inner.thread_scheduler_cache.lock_recover().len()
     }
 }
 
