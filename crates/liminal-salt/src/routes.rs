@@ -44,7 +44,7 @@ pub fn build_router(state: AppState) -> Router {
             "/settings/clear-persona-thread-defaults/",
             post(handlers::persona::clear_persona_thread_defaults),
         )
-        .route("/settings/save/", post(handlers::persona::save_default_persona))
+        .route("/settings/save/", post(handlers::settings::save))
         // Memory page + ops (Phase 5c)
         .route("/memory/", get(handlers::memory::view))
         .route("/memory/update/", post(handlers::memory::update))
@@ -72,8 +72,20 @@ pub fn build_router(state: AppState) -> Router {
         .route("/context/local/toggle/", post(handlers::context::toggle_local_file))
         .route("/context/local/content/", get(handlers::context::get_local_file_content))
         .route("/context/local/refresh/", post(handlers::context::refresh_local_dir))
-        // Phase 6 placeholders for settings page (separate from /settings/save/).
-        .route("/settings/", get(handlers::stubs::page_not_yet))
+        // Settings page + AJAX mutations (Phase 6c).
+        .route("/settings/", get(handlers::settings::view))
+        .route(
+            "/settings/save-context-history-limit/",
+            post(handlers::settings::save_context_history_limit),
+        )
+        .route(
+            "/settings/validate-api-key/",
+            post(handlers::settings::validate_provider_api_key),
+        )
+        .route(
+            "/settings/save-provider-model/",
+            post(handlers::settings::save_provider_model),
+        )
         // Thread-memory endpoints (Phase 5c).
         .route("/session/thread-memory/update/", post(handlers::thread_memory::update))
         .route("/session/thread-memory/status/", get(handlers::thread_memory::status))

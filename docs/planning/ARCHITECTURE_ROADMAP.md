@@ -2,7 +2,7 @@
 
 **Created:** April 14, 2026
 **Updated:** April 22, 2026
-**Status:** Rust migration in progress — Phases 0–5 complete; Phase 6 (settings + setup wizard) up next
+**Status:** Rust migration in progress — Phases 0–6 complete; Phase 7 (cutover: delete Django) up next
 **Scope:** Python/Django → Rust (Axum + Tera) → Tauri desktop app
 
 ---
@@ -607,22 +607,20 @@ This is the single highest-risk phase. Allocate the most time. Review concurrenc
 
 ### Phase 6 — Settings + setup wizard + API + summarizer
 
-**Services:**
-- `services/summarizer.rs` — already drafted in Phase 3, complete it here. Title generation prompt, one-shot call.
+**Complete.** Split into three sub-commits matching the Phase 3/4/5 pattern:
 
-**Handlers:**
-- `/settings/*` — view, save, provider validation, per-provider model save, context history limit, global context file CRUD.
-- `/setup/*` — multi-step wizard (provider → model → agreement). Uses `tower-sessions` for step state.
-- `/api/themes/`, `/api/models/`
+- **6a (done 2026-04-22):** foundation + API endpoints — `services/openrouter.rs` (validate_api_key, fetch_available_models, format_model_pricing, get_formatted_model_list), `services/themes.rs` (list_themes, scans the themes dir), `services/config.rs::get_providers()` (static `[Provider]`). `handlers/api.rs` replaces the three Phase-3 stubs (`/api/themes/`, `/api/save-theme/`, `/settings/available-models/`). 14 new tests; 145 total. Live smoke: 16 themes listed, 346 models fetched from OpenRouter, theme save round-trips through config.json.
 
-**Templates:** `settings/*`, `setup/*`.
+- **6b (done 2026-04-22):** setup wizard + app-ready gate — `handlers/setup.rs` (3-step wizard with session-persisted step, back-button support, `initial_step` heuristic for beta-upgrade and agreement-reprompt paths), `middleware/app_ready.rs` (redirects non-exempt paths to `/setup/` when `is_app_ready(cfg)` is false; exempts `/setup/*`, `/static/*`, `/health`, `/api/themes/`). Setup templates ported (`step1.html`, `step2.html`, `step3.html`). `middleware/session_state.rs` grew `setup_step()`/`set_setup_step()`/`clear_setup_step()`. 5 new render tests + 2 middleware unit tests; 152 total. **Full wizard smoke pass**: `mv data data-bak` → boot → `/` redirects to `/setup/` → step 1 POST (real OpenRouter validation) → step 2 POST (real model fetch) → step 3 accept → `config.json` has `SETUP_COMPLETE=true, AGREEMENT_ACCEPTED=1.1` → `/chat/` returns 200. Restored original `data/`.
 
-**Gotchas:**
-- **Setup wizard state must survive a page reload.** Use `tower-sessions` with cookie store; don't try to pass state via hidden form fields alone.
-- **Agreement version check:** `is_app_ready()` already handles this in `config.rs` (Phase 2). Verify the redirect-to-setup path is wired.
-- **Provider validation** makes a live call to OpenRouter (`/api/v1/models`). Budget 10s timeout and a clear error path.
+- **6c (done 2026-04-22):** settings page + AJAX mutations — `handlers/settings.rs` owns `GET /settings/`, `POST /settings/save/` (with persona vs. settings redirect branches — pulled over from persona.rs's Phase 4a stub), `POST /settings/save-context-history-limit/`, `POST /settings/validate-api-key/`, `POST /settings/save-provider-model/` (with config-corruption guard matching Python). Settings template ported; `chat.html` gained a `page=="settings"` branch so `/settings/` is bookmarkable like `/persona/` and `/memory/`. 1 new render test; 153 total. Live smoke verified all 5 endpoints.
 
-**Done when:** fresh `data/` dir → launch app → redirected to /setup → walk through wizard → land in /chat/. Every settings page saves and reloads correctly.
+**Gotchas** (from the original scope — all resolved):
+- Setup wizard state survives page reload via `tower-sessions` (6b's `setup_step`).
+- Agreement version check piggybacks on `is_app_ready()` which 6b's middleware uses.
+- Provider validation uses `reqwest` with 10s timeout; failure path renders an inline error instead of bouncing back silently.
+
+**Note — roadmap's summarizer bullet:** the roadmap said "`services/summarizer.rs` — already drafted in Phase 3, complete it here." It was already complete at Phase 3b (one-shot title generation with fallback + artifact stripping + char-boundary-safe truncation). No additional work in Phase 6.
 
 ---
 

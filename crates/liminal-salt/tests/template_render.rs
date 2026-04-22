@@ -435,6 +435,52 @@ fn setup_step3_renders_agreement_and_accept() {
 }
 
 #[test]
+fn settings_main_renders_provider_model_and_context_sections() {
+    let tera = build_tera();
+    let mut ctx = base_context();
+    ctx.insert("model", "deepseek/deepseek-v3.2");
+    ctx.insert("provider", "openrouter");
+    ctx.insert(
+        "providers",
+        &json!([{
+            "id": "openrouter",
+            "name": "OpenRouter",
+            "api_key_url": "https://openrouter.ai/keys",
+            "api_key_placeholder": "sk-or-v1-..."
+        }]),
+    );
+    ctx.insert(
+        "providers_json",
+        r#"[{"id":"openrouter","name":"OpenRouter"}]"#,
+    );
+    ctx.insert("has_api_key", &true);
+    ctx.insert("context_history_limit", &50);
+    ctx.insert(
+        "context_files",
+        &json!([{"name": "notes.md", "enabled": true}]),
+    );
+    ctx.insert("context_local_dirs_json", "[]");
+    ctx.insert("context_badge_count", &1);
+    let none: Option<&str> = None;
+    ctx.insert("success", &none);
+    ctx.insert("error", &none);
+
+    let out = tera
+        .render("settings/settings_main.html", &ctx)
+        .expect("render settings");
+    assert!(out.contains("Settings"));
+    assert!(out.contains("Color Theme"));
+    assert!(out.contains("Provider & Model"));
+    assert!(out.contains("Context History Limit"));
+    // AJAX endpoints wired into the Alpine component's data-*.
+    assert!(out.contains(r#"data-validate-url="/settings/validate-api-key/""#));
+    assert!(out.contains(r#"data-save-url="/settings/save-provider-model/""#));
+    assert!(out.contains(r#"data-save-url="/settings/save-context-history-limit/""#));
+    // Badge count rendered.
+    assert!(out.contains(r#">1</span>"#));
+}
+
+#[test]
 fn setup_step3_hides_back_when_agreement_reprompt() {
     let tera = build_tera();
     let mut ctx = base_context();
