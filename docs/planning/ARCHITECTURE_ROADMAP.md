@@ -2,7 +2,7 @@
 
 **Created:** April 14, 2026
 **Updated:** April 21, 2026
-**Status:** Rust migration in progress — Phases 0, 1, 2, 3 complete; Phase 4 up next
+**Status:** Rust migration in progress — Phases 0, 1, 2, 3 complete; Phase 4 in progress (4a landed, 4b + 4c remaining)
 **Scope:** Python/Django → Rust (Axum + Tera) → Tauri desktop app
 
 ---
@@ -420,6 +420,13 @@ These three have no intra-layer dependencies and block everything else.
 
 ### Phase 4 — Personas + context files + local context
 
+**In progress.** Split into three sub-commits following the Phase 3 pattern:
+- **4a (done 2026-04-22):** service layer — `services/{persona,context_files,local_context}.rs` + expanded `services/prompt.rs`. Ownership audit: moved persona `config.json` from `context_manager` into `persona.rs` (fixed the historical Python split). 24 new integration tests; 69 tests total across the crate.
+- **4b (pending):** template port for `persona/*.html`, `memory/*.html`, `chat/context_files_modal.html`, `chat/dir_browser_modal.html`, `chat/local_dir_tab.html`; restore the 4 modals in `chat.html` that were stripped in Phase 3b.
+- **4c (pending):** handlers (`/persona/*`, `/memory/` view, `/context/local/*`) and browser smoke of full flow (create persona → upload context file → switch session → send → verify prompt in logs).
+
+**Ownership audit (2026-04-22):** CLAUDE.md's table had `data/personas/{name}/config.json` owned by `context_manager.save_persona_config` — a historical Python artifact where persona-scoped state was split across two services for no architectural reason. In the Rust port this moves to `persona.rs` alongside the directory it lives in. CLAUDE.md is not edited now because it still describes current Python reality; Phase 7's rewrite will capture the Rust convention from the actual code.
+
 **Services:**
 - `services/persona.rs` — CRUD, rename cascade, delete cleanup. **Owns** `data/personas/{name}/` and `identity.md`. Config.json goes through `context_manager::save_persona_config` (Python) → in Rust, `prompt::save_persona_config` (to match Python's owner: `context_manager.py`).
 - `services/context_files.rs` — `ContextFileManager` with `base_dir` + `scope_label`. Two instances at runtime: global + per-persona.
@@ -438,6 +445,19 @@ These three have no intra-layer dependencies and block everything else.
 - Sessions reference personas by folder name. A rename updates every session's `persona` field. This is a write-amplifier; `SessionManager::rename_persona_in_all_sessions` should exist and be called by `PersonaManager::rename_persona`.
 
 **Done when:** create a persona, upload a context file, switch a session to it, send a message; verify the system prompt (log it) includes the expected sections in the expected order.
+
+**Phase 4a outcome:**
+
+- **`services/persona.rs`** owns `data/personas/{name}/` — directory, identity markdown, **and** `config.json`. Public API: `valid_persona_name`, `list_personas`, `persona_exists`, `load_identity`, `get_preview`, `save_identity`, `create_persona`, `delete_persona`, `rename_persona`, `load_persona_config`, `save_persona_config`. Rename orchestrates the 4-way cascade (dir → memory file → persona user-context dir → sessions via `session::update_persona_across_sessions`); best-effort after step 1, logging warnings but not rolling back.
+- **`services/context_files.rs`** — `ContextScope` struct with `global(data_dir)` and `persona(data_dir, name)` constructors. Owns `config.json` under each scope, which unifies uploaded-file state AND local-directory state (matches Python; cleaner than splitting). Methods for upload / delete / toggle / get-content / save-content on uploaded files; add / remove / list / toggle / refresh / get-content on local directories. `load_enabled_context()` concatenates everything with the Django-matching header format (`--- USER CONTEXT FILES ---`, `--- filename ---`, etc.).
+- **`services/local_context.rs`** — stateless filesystem primitives: `validate_directory_path` (blocks paths inside `data/`), `scan_directory` (non-recursive, 200-file cap, `.md`/`.txt` only), `read_file` (`String::from_utf8_lossy` for robustness), `browse_directory` (for the directory-picker modal). Holds no persistent state — enabled flags live in context_files.rs's `ScopeConfig`.
+- **`services/prompt.rs` expanded** to the full CLAUDE.md context order: persona identity → persona context (uploaded + local) → global context (uploaded + local) → scenario (roleplay only) → thread memory → persona memory (chatbot only). Persona memory is a file read — writes come in Phase 5's `memory_manager`. Missing persona still emits the "Persona not found" warning sentinel Python produced.
+- **Return-convention consistency maintained:** service-layer functions follow the same Option/bool/Result<(),Error> pattern established in Phase 2. Persona uses `thiserror`-backed `PersonaError` for create/delete/rename because there are multiple distinct failure reasons callers may want to surface differently; context_files sticks with Option/bool because callers just log-and-ignore.
+- **Integration tests added (24 new, 69 total):**
+  - `tests/persona.rs` (9 tests): name validation, create/list/delete roundtrip, duplicate rejection, delete cascades memory + persona context, rename cascades directory + memory + context + sessions, config roundtrip preserves unknown keys and omits None fields, same-name rename no-op, target-collision rejection.
+  - `tests/context_files.rs` (10 tests): upload/list/toggle/delete, traversal sanitization, enabled-context header + bodies, disabled files excluded, persona-scope header label, empty scope empty output, content roundtrip, local-directory add/remove, local content in enabled context, toggled-off local file excluded.
+  - `tests/prompt_assembly.rs` (5 tests): chatbot has all six sections in CLAUDE.md order, roleplay suppresses persona memory even when the file exists, chatbot without memory file omits section, missing persona emits warning sentinel, empty scenario not emitted in roleplay.
+- **Handlers not yet wired** — `AppState` unchanged; 4c adds the chat/session handler integration and the new `/persona/*`, `/memory/`, `/context/local/*` endpoints.
 
 ---
 

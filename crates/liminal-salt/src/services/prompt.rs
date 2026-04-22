@@ -1,28 +1,44 @@
-//! System prompt assembly. Phase 3 implementation is a stub that concatenates
-//! persona identity `.md` files only. Phase 4 will add persona/global context
-//! files; Phase 5 (chatbot threads) will append per-persona memory and
-//! (roleplay threads) scenario + thread memory.
+//! System prompt assembly. Full implementation per the CLAUDE.md context
+//! order:
+//!
+//! 1. Persona identity `.md` files
+//! 2. Persona-scoped context files (uploaded + local dirs)
+//! 3. Global user context files (uploaded + local dirs)
+//! 4. Scenario — roleplay threads only
+//! 5. Thread memory — per-thread running summary
+//! 6. Persona memory — chatbot threads only (suppressed in roleplay)
+//!
+//! Persona memory writes are still the responsibility of a Phase 5 service
+//! (`memory_manager.rs`); this module only reads the resulting markdown file.
 
 use std::path::{Path, PathBuf};
 
-use crate::services::session::{Mode, Session};
+use crate::services::{
+    context_files::ContextScope,
+    persona,
+    session::{Mode, Session},
+};
 
-/// Location of a persona's identity directory under the data root.
+/// Location of a persona's identity directory under the data root. Kept for
+/// backward compatibility with callers that existed before Phase 4 moved
+/// persona CRUD into `services::persona`.
 pub fn persona_dir(data_dir: &Path, persona_name: &str) -> PathBuf {
-    data_dir.join("personas").join(persona_name)
+    persona::persona_dir(data_dir, persona_name)
 }
 
-/// Assemble the system prompt for a chat turn.
-///
-/// **Phase 3 stub scope:** persona identity `.md` files only, in alphabetical
-/// order, each wrapped with a `--- SYSTEM INSTRUCTION: filename ---` header.
-/// Other sections (context files, scenario, thread memory, persona memory) are
-/// deferred to later phases — see `docs/planning/ARCHITECTURE_ROADMAP.md`.
+/// Path to the persona memory markdown file. Writes go through Phase 5's
+/// `memory_manager`; reads happen here during prompt assembly.
+fn persona_memory_file(data_dir: &Path, persona_name: &str) -> PathBuf {
+    data_dir.join("memory").join(format!("{persona_name}.md"))
+}
+
+/// Build the full system prompt for a chat turn.
 pub async fn build_system_prompt(data_dir: &Path, session: &Session) -> String {
-    let persona_path = persona_dir(data_dir, &session.persona);
     let mut out = String::new();
 
-    match collect_identity_files(&persona_path).await {
+    // 1. Persona identity.
+    let identity_path = persona_dir(data_dir, &session.persona);
+    match collect_identity_files(&identity_path).await {
         Ok(files) if !files.is_empty() => {
             for (filename, body) in files {
                 out.push_str(&format!("--- SYSTEM INSTRUCTION: {filename} ---\n"));
@@ -31,16 +47,31 @@ pub async fn build_system_prompt(data_dir: &Path, session: &Session) -> String {
             }
         }
         _ => {
-            // Persona directory missing or empty — emit the same warning
-            // shape Python does so the LLM gets a clear signal.
             out.push_str("--- WARNING: Persona not found ---\n");
-            out.push_str(&format!("Expected directory: {}\n\n", persona_path.display()));
+            out.push_str(&format!(
+                "Expected directory: {}\n\n",
+                identity_path.display()
+            ));
         }
     }
 
-    // Even under the Phase 3 stub, roleplay threads should see their scenario
-    // so the test corpus for Phase 3c can exercise both modes. Persona memory
-    // is still suppressed — that section lands in Phase 5.
+    // 2. Persona-scoped context (uploaded + local).
+    let persona_scope = ContextScope::persona(data_dir, &session.persona);
+    let persona_ctx = persona_scope.load_enabled_context().await;
+    if !persona_ctx.is_empty() {
+        out.push_str(&persona_ctx);
+        out.push_str("\n\n");
+    }
+
+    // 3. Global user context (uploaded + local).
+    let global_scope = ContextScope::global(data_dir);
+    let global_ctx = global_scope.load_enabled_context().await;
+    if !global_ctx.is_empty() {
+        out.push_str(&global_ctx);
+        out.push_str("\n\n");
+    }
+
+    // 4. Scenario (roleplay only).
     if session.mode == Mode::Roleplay
         && session.scenario.as_deref().is_some_and(|s| !s.is_empty())
     {
@@ -53,6 +84,7 @@ pub async fn build_system_prompt(data_dir: &Path, session: &Session) -> String {
         out.push_str("\n\n");
     }
 
+    // 5. Thread memory.
     if !session.thread_memory.is_empty() {
         out.push_str("--- THREAD SUMMARY ---\n");
         out.push_str(
@@ -62,6 +94,26 @@ pub async fn build_system_prompt(data_dir: &Path, session: &Session) -> String {
         );
         out.push_str(&session.thread_memory);
         out.push_str("\n\n");
+    }
+
+    // 6. Persona memory (chatbot threads only — suppressed in roleplay to
+    //    preserve immersion; a fictional persona shouldn't know real-user
+    //    biographical facts mid-scene).
+    if session.mode == Mode::Chatbot {
+        let memory_path = persona_memory_file(data_dir, &session.persona);
+        if let Ok(body) = tokio::fs::read_to_string(&memory_path).await {
+            let trimmed = body.trim();
+            if !trimmed.is_empty() {
+                out.push_str("--- YOUR MEMORY ABOUT THIS USER ---\n");
+                out.push_str(
+                    "The following is your memory about the person you're talking to. \
+                     It is written to you, about them — these are things you know, \
+                     have observed, and carry from previous conversations.\n\n",
+                );
+                out.push_str(trimmed);
+                out.push_str("\n\n");
+            }
+        }
     }
 
     out.trim().to_string()
@@ -83,46 +135,14 @@ async fn collect_identity_files(persona_path: &Path) -> std::io::Result<Vec<(Str
 }
 
 /// Returns the directory names under `<data_dir>/personas/` that contain at
-/// least one `.md` file. Sorted alphabetically.
+/// least one `.md` file. Re-exported for handlers that still import this
+/// symbol from prompt; internally delegates to `persona::list_personas`.
 pub async fn available_personas(data_dir: &Path) -> Vec<String> {
-    let personas_root = data_dir.join("personas");
-    let mut entries = match tokio::fs::read_dir(&personas_root).await {
-        Ok(e) => e,
-        Err(_) => return Vec::new(),
-    };
-    let mut names = Vec::new();
-    while let Ok(Some(entry)) = entries.next_entry().await {
-        if !entry.file_type().await.map(|t| t.is_dir()).unwrap_or(false) {
-            continue;
-        }
-        let has_md = has_markdown(&entry.path()).await;
-        if has_md {
-            names.push(entry.file_name().to_string_lossy().to_string());
-        }
-    }
-    names.sort();
-    names
-}
-
-async fn has_markdown(dir: &Path) -> bool {
-    let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
-        return false;
-    };
-    while let Ok(Some(entry)) = entries.next_entry().await {
-        if entry
-            .file_name()
-            .to_string_lossy()
-            .ends_with(".md")
-        {
-            return true;
-        }
-    }
-    false
+    persona::list_personas(data_dir).await
 }
 
 /// On startup, copy bundled default personas from `chat/default_personas/` into
-/// `<data_dir>/personas/` if the persona doesn't already exist. Preserves the
-/// first-launch experience from Python.
+/// `<data_dir>/personas/` if the persona doesn't already exist.
 pub async fn seed_default_personas(data_dir: &Path, bundled_dir: &Path) {
     let target_root = data_dir.join("personas");
     if let Err(err) = tokio::fs::create_dir_all(&target_root).await {

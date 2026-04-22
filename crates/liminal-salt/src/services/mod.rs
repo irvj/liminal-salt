@@ -1,6 +1,9 @@
 pub mod chat;
 pub mod config;
+pub mod context_files;
 pub mod llm;
+pub mod local_context;
+pub mod persona;
 pub mod prompt;
 pub mod session;
 pub mod summarizer;
