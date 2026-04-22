@@ -104,8 +104,11 @@
     </nav>
 </div>
 
-<!-- Main Content Area -->
-<main class="flex-1 flex flex-col" id="main-content">
+<!-- Main Content Area. x-data creates an empty Alpine scope so @click / @input -->
+<!-- directives inside chat_main.html (folder, retry, edit, etc.) get bound -->
+<!-- during Alpine's initial DOM walk on fresh page load. Without it, they only -->
+<!-- bind after an HTMX swap via Alpine's MutationObserver. -->
+<main class="flex-1 flex flex-col" id="main-content" x-data>
     {% if show_home %}
         {% include "chat/chat_home.html" %}
     {% else %}

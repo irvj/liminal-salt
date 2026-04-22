@@ -2,7 +2,7 @@
 
 **Created:** April 14, 2026
 **Updated:** April 21, 2026
-**Status:** Rust migration in progress — Phases 0, 1, 2 complete; Phase 3 in progress (3a + 3b landed, 3c remaining)
+**Status:** Rust migration in progress — Phases 0, 1, 2, 3 complete; Phase 4 up next
 **Scope:** Python/Django → Rust (Axum + Tera) → Tauri desktop app
 
 ---
@@ -328,7 +328,7 @@ These three have no intra-layer dependencies and block everything else.
 **In progress.** Split into three sub-commits so HTMX-shape-drift and CSRF bugs (known hard spots #2 and #4) can be iterated against a narrower blast radius:
 - **3a (done 2026-04-21):** infrastructure + services (CSRF middleware, tower-sessions, Tera filters, AppState expansion, `services/{chat,prompt,summarizer}.rs`, ChatLlm trait, default-persona seeding).
 - **3b (done 2026-04-21):** templates port (Django → Tera): `base.html`, `chat/*`, `components/*`, `icons/*` as Tera macros. Phase 4+ modals stripped from `chat.html` (threadMemory / editPersona* / contextFiles × 2) — they'll come back as their owning phases land. `escapejs` Tera filter added to match Django's behavior. 9 render-smoke tests exercise every Phase 3 template.
-- **3c (pending):** handlers + browser smoke: wire every chat endpoint, exercise in a real browser, fix anything the browser surfaces.
+- **3c (done 2026-04-21):** handlers wired + end-to-end curl verified: `/chat/` renders home, `/chat/start/` creates session + triggers auto-send, `/chat/send/` calls the LLM and appends response, auto-title fires on first reply (`title_locked=true` set), session JSON round-trips. Phase 4+ endpoints stubbed so sidebar buttons surface "Coming soon" cleanly.
 
 **Deliverable:** The primary chat loop works end-to-end in a browser. Send a message, see a response, refresh, history persists.
 
@@ -357,6 +357,32 @@ These three have no intra-layer dependencies and block everything else.
 - Unit: `ChatCore::send` preserves `scenario`, `thread_memory`, `pinned`, `draft` through the RMW.
 
 **Done when:** manual smoke — open browser, send 3 messages, switch sessions, pin one, rename one, refresh; all persists. `chat_core.py` tests (if any) mirrored in Rust and green.
+
+**Phase 3c outcome:**
+
+- **Handler modules:** `src/handlers/{chat,session,stubs}.rs` + `handlers/mod.rs`. Each handler is thin — parse → call service → render → return. No file I/O, no direct LLM calls, all file ops go through `services::session` and all LLM ops through `services::chat` / `services::summarizer`.
+- **Route table** (`src/routes.rs`): 12 chat-flow routes + 2 session routes + 7 stub routes for Phase 4/5 endpoints the templates reference. Stubs return a "Coming soon" HTML placeholder for GETs and 501 for POSTs, plus minimal JSON for `/api/themes/` and `/api/save-theme/` so `utils.js` doesn't choke on page load.
+- **`AppConfig` keys updated** to match Python's actual config.json: `MODEL` (not `DEFAULT_MODEL`), `THEME_MODE`, `CONTEXT_HISTORY_LIMIT`. Renamed `AppConfig::default_model` → `AppConfig::model`, added `theme_mode` and `context_history_limit` fields.
+- **Sidebar grouping:** `grouped_sessions` passed to templates as `Vec<PersonaGroup { persona, sessions }>` rather than a map — Tera iterates the list cleanly (`{% for group in grouped_sessions %}`), preserves insertion order (newest-persona-first per Python semantics), and skips the `preserve_order` feature on `serde_json`.
+- **`LlmClient::with_http_client`** builder method added — handlers construct a fresh `LlmClient` per LLM call but share the `AppState::http` connection pool across all of them.
+- **Title generation** fires once at the end of `send` (after `chat_svc::send_message` returns successfully): read session fresh, check `title_locked`, call `summarizer::generate_title`, persist with `title_locked=true`. Handler sets `X-Chat-Title` and `X-Chat-Session-Id` response headers; the `base.html` script listens for these and updates the sidebar + header on the fly.
+- **Retry flow** (`/chat/retry/`): removes the last assistant message via `session::remove_last_assistant_message`, then delegates to `send` with `skip_user_save=true` so the user message isn't duplicated. One handler entry point, zero duplicated logic.
+- **Timezone persistence:** every chat POST persists `form.timezone` via `session_state::set_user_timezone`; subsequent sends pick it up from tower-sessions and pass it to `chat::build_payload` for the `[user's time]` prefix.
+- **`/chat/start/` flow:** creates session with initial user message, writes scenario if roleplay, stores `current_session`, renders `chat_main.html` with `pending_message` set — the template fires `hx-trigger="load"` POSTing to `/chat/send/` with `skip_user_save=true` so the user sees the thinking indicator while the LLM responds. Same UX as the Django version.
+- **End-to-end curl smoke** verified against a real OpenRouter call (`deepseek/deepseek-v3.2`, 2.8s roundtrip):
+  - GET `/chat/` → 46KB page, CSRF meta present, sidebar + home form rendered.
+  - POST `/chat/start/` with persona+mode+message → 200, returns `chat_main.html` with pending_message.
+  - POST `/chat/send/` with CSRF header + skip_user_save=true → 200, real LLM response rendered via `assistant_fragment.html`.
+  - Session file written to `data/sessions/session_20260421_234336.json` — valid JSON, two messages with RFC3339 timestamps, `title: "Smoke Test Explanation"`, `title_locked: true`.
+- **CSRF enforcement verified:** POST without `X-CSRFToken` → 403. POST with matching token → handler runs. Form-body fallback (`csrfmiddlewaretoken`) passes through the same path.
+- **Browser smoke (all 19 checklist items) passed.** Bugs caught and fixed during the smoke run:
+  1. **Session cookie rejected on `http://localhost`** — `tower-sessions` defaults to `Secure=true`, which some browsers silently drop on plain HTTP. Every request minted a fresh session, every POST 403'd on CSRF with no visible error. Fix: `SessionManagerLayer::with_secure(false)` in `main.rs`. (Known hard spot #3 from the roadmap; bit us exactly as documented.)
+  2. **First user message invisible after "new chat" submit** — `start_chat` was pre-saving the user message to the session but passing `messages=[]` to the template, so the thinking indicator + assistant response appeared with no user bubble above them. Fix: pass the pre-saved messages list (the auto-send already sets `skip_user_save=true` so no duplication).
+  3. **Home-page model name rendered as `deepseek&#x2F;deepseek-v3.2`** — Tera's `.html` templates auto-escape, so `{{ foo | escape }}` double-escapes (the `&` in `&#x2F;` becomes `&amp;#x2F;`, and the browser decodes one level). Fix: drop explicit `| escape` on three data attributes (`data-default-model`, `data-scenario`, `data-memory`); let auto-escape handle it once.
+  4. **Edit-message never saved** — `saveEditedMessage` submits via `fetch(FormData)` which is `multipart/form-data`, but (a) my CSRF middleware only parsed urlencoded bodies, and (b) the handler used `Form<_>` extractor which rejects multipart. Fix: added multipart parsing to `csrf.rs` (`multipart_field_matches` + `boundary_from` helpers + 2 tests) and switched `edit_message` handler to `axum::extract::Multipart`. Enabled axum's `multipart` feature in Cargo.toml (pulls `multer` transitively). Persona / context-file uploads in Phase 4 will benefit from the same plumbing.
+  5. **Scenario modal `@click` didn't fire on fresh page load** (but worked after navigation) — Alpine's initial DOM walk only processes directives on elements within an `x-data` scope; elements outside get picked up later via the MutationObserver on HTMX swaps. The folder button lives in `chat_main.html` under `<main>`, which had no `x-data`. Fix: added bare `x-data` to `<main id="main-content">` so Alpine gives it an empty scope. This also covers retry / edit / fork buttons on fresh page loads — they all relied on the same implicit scope.
+
+**Known hard spot #3 validated, #2 and #4 dodged.** The CSRF wiring worked first-try except for the `Secure` cookie flag; HTMX partial shapes held up across every interaction.
 
 **Phase 3b outcome:**
 

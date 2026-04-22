@@ -64,6 +64,10 @@ async fn main() -> anyhow::Result<()> {
     let session_store = MemoryStore::default();
     let session_layer = SessionManagerLayer::new(session_store)
         .with_name("liminal_salt_session")
+        // `Secure = true` (the default) would make browsers reject the cookie
+        // on plain http://localhost, silently breaking every POST because a
+        // fresh session (with a new CSRF token) gets created per request.
+        .with_secure(false)
         .with_expiry(Expiry::OnInactivity(CookieDuration::weeks(2)));
 
     let app = routes::build_router(state)

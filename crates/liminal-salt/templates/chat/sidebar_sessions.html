@@ -44,17 +44,17 @@
 </div>
 {% endif %}
 
-{% for persona, persona_sessions in grouped_sessions %}
+{% for group in grouped_sessions %}
     <!-- Using Alpine.js for collapsible groups -->
     <div x-data="{ open: true }">
         <button @click="open = !open" class="flex items-center gap-1 w-full p-2.5 mt-3 bg-surface-elevated text-foreground font-semibold rounded text-left text-sm cursor-pointer">
             <span x-show="open">{{ icons::chevron_down(class="w-4 h-4") }}</span>
             <span x-show="!open">{{ icons::chevron_right(class="w-4 h-4") }}</span>
-            {{ persona | display_name }} ({{ persona_sessions | length }})
+            {{ group.persona | display_name }} ({{ group.sessions | length }})
         </button>
 
         <div x-show="open">
-            {% for session in persona_sessions %}
+            {% for session in group.sessions %}
                 <div class="session-row flex items-stretch my-1 gap-0.5" data-session-id="{{ session.id }}">
                     <button hx-post="/chat/switch/"
                             hx-vals='{"session_id": "{{ session.id }}"}'

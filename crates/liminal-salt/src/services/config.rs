@@ -19,9 +19,11 @@ pub struct AppConfig {
     pub agreement_accepted: String,
     pub openrouter_api_key: String,
     pub provider: String,
-    pub default_model: String,
+    pub model: String,
     pub default_persona: String,
     pub theme: String,
+    pub theme_mode: String,
+    pub context_history_limit: u32,
 
     #[serde(flatten)]
     pub extras: BTreeMap<String, serde_json::Value>,

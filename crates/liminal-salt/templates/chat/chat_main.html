@@ -3,13 +3,13 @@
 <div data-session-id-for-draft="{{ session_id }}" class="hidden"></div>
 
 <!-- Scenario content source for the scenario modal -->
-<div id="scenario-data" class="hidden" data-session-id="{{ session_id }}" data-scenario="{{ scenario | default(value='') | escape }}"></div>
+<div id="scenario-data" class="hidden" data-session-id="{{ session_id }}" data-scenario="{{ scenario | default(value='') }}"></div>
 
 <!-- Thread memory data source for the thread-memory modal (wired up in Phase 5) -->
 <div id="thread-memory-data"
      class="hidden"
      data-session-id="{{ session_id }}"
-     data-memory="{{ thread_memory | default(value='') | escape }}"
+     data-memory="{{ thread_memory | default(value='') }}"
      data-updated-at="{{ thread_memory_updated_at | default(value='') }}"
      data-interval-minutes="{{ thread_memory_interval_minutes | default(value=0) }}"
      data-message-floor="{{ thread_memory_message_floor | default(value=4) }}"

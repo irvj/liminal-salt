@@ -87,6 +87,13 @@ impl LlmClient {
         self
     }
 
+    /// Replace the internal HTTP client. Use to share a single `reqwest::Client`
+    /// (and its connection pool) across multiple `LlmClient` instances.
+    pub fn with_http_client(mut self, client: Client) -> Self {
+        self.client = client;
+        self
+    }
+
     pub async fn call_llm(&self, messages: &[LlmMessage]) -> Result<String, LlmError> {
         if self.api_key.is_empty() {
             return Err(LlmError::NoApiKey);

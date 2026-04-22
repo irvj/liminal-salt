@@ -56,10 +56,7 @@ fn chat_home_renders_with_personas() {
     ctx.insert("default_persona", "assistant");
     ctx.insert("default_model", "anthropic/claude-opus-4-7");
     ctx.insert("pinned_sessions", &Vec::<serde_json::Value>::new());
-    ctx.insert(
-        "grouped_sessions",
-        &serde_json::Map::<String, serde_json::Value>::new(),
-    );
+    ctx.insert("grouped_sessions", &Vec::<serde_json::Value>::new());
     let out = tera.render("chat/chat.html", &ctx).expect("render home");
     assert!(out.contains("Liminal Salt"));
     assert!(out.contains("Select persona"));
@@ -88,10 +85,7 @@ fn chat_main_renders_session_with_messages() {
     ctx.insert("thread_memory", "");
     ctx.insert("thread_memory_updated_at", "");
     ctx.insert("pinned_sessions", &Vec::<serde_json::Value>::new());
-    ctx.insert(
-        "grouped_sessions",
-        &serde_json::Map::<String, serde_json::Value>::new(),
-    );
+    ctx.insert("grouped_sessions", &Vec::<serde_json::Value>::new());
 
     let out = tera.render("chat/chat.html", &ctx).expect("render main");
     assert!(out.contains("Evening chat"));
@@ -124,10 +118,7 @@ fn chat_main_renders_error_message_without_markdown() {
     ctx.insert("thread_memory", "");
     ctx.insert("thread_memory_updated_at", "");
     ctx.insert("pinned_sessions", &Vec::<serde_json::Value>::new());
-    ctx.insert(
-        "grouped_sessions",
-        &serde_json::Map::<String, serde_json::Value>::new(),
-    );
+    ctx.insert("grouped_sessions", &Vec::<serde_json::Value>::new());
 
     let out = tera.render("chat/chat.html", &ctx).expect("render error message");
     // "ERROR:" prefix triggers the error path — shows "Error:" heading and the
@@ -153,10 +144,7 @@ fn chat_main_roleplay_shows_scenario_button() {
     ctx.insert("thread_memory", "");
     ctx.insert("thread_memory_updated_at", "");
     ctx.insert("pinned_sessions", &Vec::<serde_json::Value>::new());
-    ctx.insert(
-        "grouped_sessions",
-        &serde_json::Map::<String, serde_json::Value>::new(),
-    );
+    ctx.insert("grouped_sessions", &Vec::<serde_json::Value>::new());
 
     let out = tera.render("chat/chat.html", &ctx).expect("render roleplay");
     // Roleplay mode: "Roleplay" label in header, scenario button instead of fork.
@@ -181,18 +169,20 @@ fn sidebar_sessions_renders_pinned_and_grouped() {
             }
         ]),
     );
-    // Tera's {% for persona, sessions in grouped %} needs a map.
-    let mut grouped = serde_json::Map::new();
-    grouped.insert(
-        "assistant".to_string(),
-        json!([{
-            "id": "session_20260421_140000.json",
-            "title": "Earlier session",
-            "persona": "assistant",
-            "mode": "chatbot"
-        }]),
+    ctx.insert(
+        "grouped_sessions",
+        &json!([
+            {
+                "persona": "assistant",
+                "sessions": [{
+                    "id": "session_20260421_140000.json",
+                    "title": "Earlier session",
+                    "persona": "assistant",
+                    "mode": "chatbot"
+                }]
+            }
+        ]),
     );
-    ctx.insert("grouped_sessions", &grouped);
 
     let out = tera
         .render("chat/sidebar_sessions.html", &ctx)
