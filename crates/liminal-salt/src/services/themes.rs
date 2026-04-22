@@ -1,4 +1,4 @@
-//! Theme listing — scans `chat/static/themes/*.json`, picks out the `id` + `name`
+//! Theme listing — scans `static/themes/*.json`, picks out the `id` + `name`
 //! fields, returns them sorted for the UI picker. The theme JSON itself is
 //! consumed client-side by the theme-picker JS; this module is just the
 //! directory-listing + metadata-extraction step.
@@ -21,11 +21,11 @@ struct ThemeFile {
     name: Option<String>,
 }
 
-/// The canonical theme directory. Under the Rust layout that's
-/// `<crate>/../../chat/static/themes/`; in M2 the Tauri build will embed
-/// these so the resolver changes to an `app_data_dir()` / embedded path.
+/// The canonical theme directory. Bundled inside the crate at
+/// `<crate>/static/themes/`; in M2 the Tauri build will embed these so the
+/// resolver changes to an `app_data_dir()` / embedded path.
 pub fn themes_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../chat/static/themes")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("static/themes")
 }
 
 /// List available themes. Reads each `.json` file in `themes_dir()`, pulls

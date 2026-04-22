@@ -126,8 +126,9 @@ pub async fn available_personas(data_dir: &Path) -> Vec<String> {
     persona::list_personas(data_dir).await
 }
 
-/// On startup, copy bundled default personas from `chat/default_personas/` into
-/// `<data_dir>/personas/` if the persona doesn't already exist.
+/// On startup, copy bundled default personas from the crate's
+/// `default_personas/` directory into `<data_dir>/personas/` if the persona
+/// doesn't already exist.
 pub async fn seed_default_personas(data_dir: &Path, bundled_dir: &Path) {
     let target_root = data_dir.join("personas");
     if let Err(err) = tokio::fs::create_dir_all(&target_root).await {

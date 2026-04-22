@@ -41,9 +41,9 @@ async fn main() -> anyhow::Result<()> {
     let sessions_dir = config::sessions_dir(&data_dir);
     tokio::fs::create_dir_all(&sessions_dir).await?;
 
-    // Bundled default personas still ship from the Django app directory in
-    // Phase 3 (the Django code is on this branch until Phase 7 deletes it).
-    let bundled_personas = manifest_dir.join("../../chat/default_personas");
+    // Bundled default personas ship inside the crate; `seed_default_personas`
+    // copies them into `<data_dir>/personas/` on first boot.
+    let bundled_personas = manifest_dir.join("default_personas");
     prompt::seed_default_personas(&data_dir, &bundled_personas).await;
 
     let state = AppState {
@@ -60,8 +60,11 @@ async fn main() -> anyhow::Result<()> {
     // so a scheduler mid-LLM-call gets to finish before the process exits.
     let scheduler_handles = state.memory.start_schedulers(state.clone());
 
-    // Static assets still live at the repo-root chat/static/ path (unchanged from Django).
-    let static_dir = manifest_dir.join("../../chat/static");
+    // Static assets (JS, CSS, themes, favicon) ship inside the crate and are
+    // served by tower-http's ServeDir at /static/. In M2 (Tauri) they'll get
+    // embedded via rust-embed; the resolver in `data_dir()` is the only other
+    // path literal that changes.
+    let static_dir = manifest_dir.join("static");
 
     // Session state (current session id, user timezone, CSRF token) lives in a
     // process-local memory store. Two-week cookie expiry matches Django's
