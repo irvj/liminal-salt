@@ -6,7 +6,6 @@ use std::{
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWriteExt;
 
 /// App configuration. Loaded from `<data_dir>/config.json` and re-saved whenever
 /// settings change. Field names serialize as `snake_case` (matches persona
@@ -70,23 +69,12 @@ pub async fn load_config(data_dir: &Path) -> AppConfig {
     }
 }
 
-/// Save config atomically-ish: write+flush+fsync into the target file. No rename
-/// dance, matching Python semantics.
+/// Save config atomically: write to `<path>.tmp`, fsync, rename. Concurrent
+/// per-request reads (`load_config`) never see a truncated file.
 pub async fn save_config(data_dir: &Path, config: &AppConfig) -> std::io::Result<()> {
-    if let Some(parent) = config_file(data_dir).parent() {
-        tokio::fs::create_dir_all(parent).await?;
-    }
     let bytes = serde_json::to_vec_pretty(config)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-    let mut f = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(config_file(data_dir))
-        .await?;
-    f.write_all(&bytes).await?;
-    f.sync_all().await?;
-    Ok(())
+    crate::services::fs::write_atomic(&config_file(data_dir), &bytes).await
 }
 
 pub async fn config_file_exists(data_dir: &Path) -> bool {

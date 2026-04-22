@@ -1,14 +1,10 @@
-//! PersonaManager — CRUD for `data/personas/{name}/`, ownership of both the
-//! persona directory (identity `.md` files) AND the per-persona `config.json`.
+//! Persona CRUD — owns `data/personas/{name}/` (identity `.md` files) and the
+//! per-persona `config.json`. All persona-scoped state lives here; write flows
+//! use `services::fs::write_atomic` so concurrent readers never see a
+//! truncated file.
 //!
-//! **Ownership note:** In Python, `config.json` was written by
-//! `context_manager.save_persona_config` while the directory itself was owned
-//! by `persona_manager`. That split was a historical artifact; in Rust all
-//! persona-scoped state lives here.
-//!
-//! Public functions are thin wrappers: validation → filesystem op → log on
-//! failure → return `bool` / `Option<_>`. Matches the Python return
-//! conventions so handler code stays simple.
+//! Public functions: validation → filesystem op via `fs::write_atomic` →
+//! typed `Result<_, PersonaError>`.
 
 use std::{
     path::{Path, PathBuf},
@@ -17,7 +13,6 @@ use std::{
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWriteExt;
 
 use crate::services::{memory, session};
 
@@ -241,7 +236,7 @@ pub async fn save_identity(data_dir: &Path, name: &str, content: &str) -> bool {
         tracing::error!(?dir, error = %err, "persona dir create failed");
         return false;
     }
-    write_file_durable(&identity_file(data_dir, name), content.as_bytes())
+    crate::services::fs::write_atomic(&identity_file(data_dir, name), content.as_bytes())
         .await
         .is_ok()
 }
@@ -276,7 +271,7 @@ pub async fn create_persona(
         return Err(PersonaError::AlreadyExists);
     }
     tokio::fs::create_dir_all(&dir).await?;
-    write_file_durable(&identity_file(data_dir, name), identity_content.as_bytes()).await?;
+    crate::services::fs::write_atomic(&identity_file(data_dir, name), identity_content.as_bytes()).await?;
     Ok(())
 }
 
@@ -406,7 +401,7 @@ pub async fn save_persona_config(
     tokio::fs::create_dir_all(&dir).await?;
     let bytes = serde_json::to_vec_pretty(config)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-    write_file_durable(&config_file(data_dir, name), &bytes).await?;
+    crate::services::fs::write_atomic(&config_file(data_dir, name), &bytes).await?;
     Ok(())
 }
 
@@ -414,20 +409,6 @@ pub async fn save_persona_config(
 // Shared writer
 // =============================================================================
 
-async fn write_file_durable(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent).await?;
-    }
-    let mut f = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(path)
-        .await?;
-    f.write_all(bytes).await?;
-    f.sync_all().await?;
-    Ok(())
-}
 
 #[cfg(test)]
 mod tests {

@@ -1,6 +1,7 @@
 pub mod chat;
 pub mod config;
 pub mod context_files;
+pub mod fs;
 pub mod llm;
 pub mod local_context;
 pub mod memory;

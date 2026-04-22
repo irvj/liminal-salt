@@ -14,7 +14,6 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWriteExt;
 
 use crate::services::local_context;
 
@@ -154,7 +153,7 @@ impl ContextScope {
         tokio::fs::create_dir_all(&self.base_dir).await?;
         let bytes = serde_json::to_vec_pretty(config)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        write_file_durable(&self.config_path(), &bytes).await?;
+        crate::services::fs::write_atomic(&self.config_path(), &bytes).await?;
         Ok(())
     }
 
@@ -185,7 +184,7 @@ impl ContextScope {
     ) -> Result<String, ContextScopeError> {
         let safe = sanitize_filename(filename).ok_or(ContextScopeError::InvalidFilename)?;
         tokio::fs::create_dir_all(&self.base_dir).await?;
-        write_file_durable(&self.base_dir.join(&safe), bytes).await?;
+        crate::services::fs::write_atomic(&self.base_dir.join(&safe), bytes).await?;
         let mut cfg = self.load_config().await;
         cfg.files.insert(safe.clone(), FileState { enabled: true });
         self.save_config(&cfg).await?;
@@ -234,7 +233,7 @@ impl ContextScope {
         content: &str,
     ) -> Result<(), ContextScopeError> {
         let safe = sanitize_filename(filename).ok_or(ContextScopeError::InvalidFilename)?;
-        write_file_durable(&self.base_dir.join(&safe), content.as_bytes()).await?;
+        crate::services::fs::write_atomic(&self.base_dir.join(&safe), content.as_bytes()).await?;
         Ok(())
     }
 
@@ -437,20 +436,6 @@ fn sanitize_filename(raw: &str) -> Option<String> {
     Some(base)
 }
 
-async fn write_file_durable(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent).await?;
-    }
-    let mut f = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(path)
-        .await?;
-    f.write_all(bytes).await?;
-    f.sync_all().await?;
-    Ok(())
-}
 
 /// Format the local-directory section of a scope config. Empty string if no
 /// enabled local files actually exist on disk.

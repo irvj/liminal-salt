@@ -20,7 +20,6 @@ use std::{
 use chrono::{SecondsFormat, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex as TokioMutex;
 
 // =============================================================================
@@ -219,20 +218,9 @@ async fn read_session(path: &Path, session_id: &str) -> Result<Session, SessionE
 }
 
 async fn write_session(path: &Path, session: &Session) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent).await?;
-    }
     let bytes = serde_json::to_vec_pretty(session)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-    let mut f = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(path)
-        .await?;
-    f.write_all(&bytes).await?;
-    f.sync_all().await?;
-    Ok(())
+    crate::services::fs::write_atomic(path, &bytes).await
 }
 
 // =============================================================================

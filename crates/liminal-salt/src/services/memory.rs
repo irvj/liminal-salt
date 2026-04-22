@@ -12,8 +12,6 @@
 
 use std::path::{Path, PathBuf};
 
-use tokio::io::AsyncWriteExt;
-
 use crate::services::{
     llm::{ChatLlm, LlmError, LlmMessage},
     persona::{self, PersonaConfig},
@@ -101,7 +99,8 @@ pub async fn get_memory_content(data_dir: &Path, persona_name: &str) -> String {
     }
 }
 
-/// Durable write (write → flush → fsync). Creates `memory/` if absent.
+/// Durable, atomic write (write to `.tmp`, fsync, rename). Creates `memory/`
+/// if absent.
 pub async fn save_memory_content(
     data_dir: &Path,
     persona_name: &str,
@@ -110,16 +109,8 @@ pub async fn save_memory_content(
     if !persona::valid_persona_name(persona_name) {
         return Err(MemoryError::InvalidPersonaName(persona_name.to_string()));
     }
-    tokio::fs::create_dir_all(memory_dir(data_dir)).await?;
-    let path = memory_file(data_dir, persona_name);
-    let mut f = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(&path)
+    crate::services::fs::write_atomic(&memory_file(data_dir, persona_name), content.as_bytes())
         .await?;
-    f.write_all(content.as_bytes()).await?;
-    f.sync_all().await?;
     Ok(())
 }
 
