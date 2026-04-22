@@ -297,8 +297,8 @@ pub async fn delete_persona(data_dir: &Path, name: &str) -> Result<(), PersonaEr
     }
 
     // Cascade: memory file via its owning service.
-    if !memory::delete_memory(data_dir, name).await {
-        tracing::warn!(persona = name, "memory file delete failed");
+    if let Err(err) = memory::delete_memory(data_dir, name).await {
+        tracing::warn!(persona = name, error = %err, "memory file delete failed");
     }
 
     // Cascade: persona user-context dir.
@@ -344,8 +344,8 @@ pub async fn rename_persona(
     tokio::fs::rename(&old_dir, &new_dir).await?;
 
     // Step 2: memory file via its owning service. Log and continue.
-    if !memory::rename_memory(data_dir, old_name, new_name).await {
-        tracing::warn!(old_name, new_name, "memory rename failed");
+    if let Err(err) = memory::rename_memory(data_dir, old_name, new_name).await {
+        tracing::warn!(old_name, new_name, error = %err, "memory rename failed");
     }
 
     // Step 3: persona user-context dir.

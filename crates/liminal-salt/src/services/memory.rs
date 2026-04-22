@@ -15,12 +15,37 @@ use std::path::{Path, PathBuf};
 use tokio::io::AsyncWriteExt;
 
 use crate::services::{
-    llm::{ChatLlm, LlmMessage},
+    llm::{ChatLlm, LlmError, LlmMessage},
     persona::{self, PersonaConfig},
     session::{Role, ThreadSnapshot},
 };
 
 pub const DEFAULT_MEMORY_SIZE_LIMIT: u32 = 8000;
+
+// =============================================================================
+// Errors
+// =============================================================================
+
+/// Why a memory operation didn't produce a file write. Handlers map variants to
+/// HTTP status codes; the memory worker turns them into user-facing status
+/// messages on the `/memory/status/` polling endpoint.
+#[derive(Debug, thiserror::Error)]
+pub enum MemoryError {
+    #[error("invalid persona name: {0}")]
+    InvalidPersonaName(String),
+    #[error("no existing memory to modify")]
+    NoExistingMemory,
+    #[error("no conversation threads to merge")]
+    NoThreads,
+    /// LLM returned something unusable — typically a response that's much
+    /// shorter than the existing memory we'd be replacing.
+    #[error("LLM response was unusable (too short)")]
+    UnusableResponse,
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("LLM error: {0}")]
+    Llm(#[from] LlmError),
+}
 
 // =============================================================================
 // Paths
@@ -77,77 +102,63 @@ pub async fn get_memory_content(data_dir: &Path, persona_name: &str) -> String {
 }
 
 /// Durable write (write → flush → fsync). Creates `memory/` if absent.
-pub async fn save_memory_content(data_dir: &Path, persona_name: &str, content: &str) -> bool {
+pub async fn save_memory_content(
+    data_dir: &Path,
+    persona_name: &str,
+    content: &str,
+) -> Result<(), MemoryError> {
     if !persona::valid_persona_name(persona_name) {
-        return false;
+        return Err(MemoryError::InvalidPersonaName(persona_name.to_string()));
     }
-    let dir = memory_dir(data_dir);
-    if let Err(err) = tokio::fs::create_dir_all(&dir).await {
-        tracing::error!(?dir, error = %err, "memory dir create failed");
-        return false;
-    }
+    tokio::fs::create_dir_all(memory_dir(data_dir)).await?;
     let path = memory_file(data_dir, persona_name);
-    let mut f = match tokio::fs::OpenOptions::new()
+    let mut f = tokio::fs::OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
         .open(&path)
-        .await
-    {
-        Ok(f) => f,
-        Err(err) => {
-            tracing::error!(?path, error = %err, "memory open failed");
-            return false;
-        }
-    };
-    if let Err(err) = f.write_all(content.as_bytes()).await {
-        tracing::error!(?path, error = %err, "memory write failed");
-        return false;
-    }
-    if let Err(err) = f.sync_all().await {
-        tracing::error!(?path, error = %err, "memory fsync failed");
-        return false;
-    }
-    true
+        .await?;
+    f.write_all(content.as_bytes()).await?;
+    f.sync_all().await?;
+    Ok(())
 }
 
 /// Delete a persona's memory file. Missing file is treated as success.
-pub async fn delete_memory(data_dir: &Path, persona_name: &str) -> bool {
+pub async fn delete_memory(data_dir: &Path, persona_name: &str) -> Result<(), MemoryError> {
     if !persona::valid_persona_name(persona_name) {
-        return false;
+        return Err(MemoryError::InvalidPersonaName(persona_name.to_string()));
     }
     let path = memory_file(data_dir, persona_name);
     match tokio::fs::remove_file(&path).await {
-        Ok(()) => true,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => true,
-        Err(err) => {
-            tracing::error!(?path, error = %err, "memory delete failed");
-            false
-        }
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(MemoryError::Io(err)),
     }
 }
 
 /// Rename memory on persona rename. Called from `persona::rename_persona`.
-/// Missing source → no-op (true); used alongside the best-effort cascade.
-pub async fn rename_memory(data_dir: &Path, old_name: &str, new_name: &str) -> bool {
-    if !persona::valid_persona_name(old_name) || !persona::valid_persona_name(new_name) {
-        return false;
+/// Missing source → no-op; used alongside the best-effort cascade.
+pub async fn rename_memory(
+    data_dir: &Path,
+    old_name: &str,
+    new_name: &str,
+) -> Result<(), MemoryError> {
+    if !persona::valid_persona_name(old_name) {
+        return Err(MemoryError::InvalidPersonaName(old_name.to_string()));
+    }
+    if !persona::valid_persona_name(new_name) {
+        return Err(MemoryError::InvalidPersonaName(new_name.to_string()));
     }
     let old_path = memory_file(data_dir, old_name);
     if !tokio::fs::try_exists(&old_path).await.unwrap_or(false) {
-        return true;
+        return Ok(());
     }
     let new_path = memory_file(data_dir, new_name);
     if let Some(parent) = new_path.parent() {
         let _ = tokio::fs::create_dir_all(parent).await;
     }
-    match tokio::fs::rename(&old_path, &new_path).await {
-        Ok(()) => true,
-        Err(err) => {
-            tracing::error!(old_name, new_name, error = %err, "memory rename failed");
-            false
-        }
-    }
+    tokio::fs::rename(&old_path, &new_path).await?;
+    Ok(())
 }
 
 /// List persona names that have a memory file on disk. Sorted alphabetically.
@@ -192,8 +203,8 @@ pub fn get_memory_model(
 // =============================================================================
 
 /// Merge recent conversation threads into this persona's cross-thread memory.
-/// Returns true on success; false when `threads` is empty, the LLM errors,
-/// or the response is suspiciously short relative to existing memory.
+/// `NoThreads` when there's nothing to aggregate; `Llm`/`UnusableResponse` when
+/// the merge LLM call fails quality gates.
 pub async fn update_memory<L: ChatLlm>(
     llm: &L,
     data_dir: &Path,
@@ -201,9 +212,9 @@ pub async fn update_memory<L: ChatLlm>(
     identity: &str,
     threads: &[ThreadSnapshot],
     size_limit: u32,
-) -> bool {
+) -> Result<(), MemoryError> {
     if threads.is_empty() {
-        return false;
+        return Err(MemoryError::NoThreads);
     }
     let display = display_persona_name(persona_name);
     let transcript = format_threads(&display, threads);
@@ -243,7 +254,7 @@ pub async fn seed_memory<L: ChatLlm>(
     identity: &str,
     seed_content: &str,
     size_limit: u32,
-) -> bool {
+) -> Result<(), MemoryError> {
     merge_memory(
         llm,
         data_dir,
@@ -265,7 +276,8 @@ pub async fn seed_memory<L: ChatLlm>(
 }
 
 /// Apply a natural-language user command to the persona's existing memory.
-/// Returns false immediately if there's no existing memory to modify.
+/// Returns `NoExistingMemory` if the file is missing or empty — `modify` has
+/// nothing to mutate.
 pub async fn modify_memory<L: ChatLlm>(
     llm: &L,
     data_dir: &Path,
@@ -273,9 +285,9 @@ pub async fn modify_memory<L: ChatLlm>(
     identity: &str,
     command: &str,
     size_limit: u32,
-) -> bool {
+) -> Result<(), MemoryError> {
     if get_memory_content(data_dir, persona_name).await.is_empty() {
-        return false;
+        return Err(MemoryError::NoExistingMemory);
     }
     merge_memory(
         llm,
@@ -358,7 +370,7 @@ async fn merge_memory<L: ChatLlm>(
     identity: &str,
     size_limit: u32,
     variant: Variant<'_>,
-) -> bool {
+) -> Result<(), MemoryError> {
     let Variant {
         new_data_label,
         new_data_content,
@@ -366,7 +378,7 @@ async fn merge_memory<L: ChatLlm>(
         extra_sections,
     } = variant;
     if !persona::valid_persona_name(persona_name) {
-        return false;
+        return Err(MemoryError::InvalidPersonaName(persona_name.to_string()));
     }
 
     let existing = get_memory_content(data_dir, persona_name).await;
@@ -451,16 +463,13 @@ async fn merge_memory<L: ChatLlm>(
          Return ONLY the updated memory content. No preamble, no explanation."
     );
 
-    let response = match llm
+    let response = llm
         .complete(&[LlmMessage::new(Role::User, prompt)])
         .await
-    {
-        Ok(r) => r,
-        Err(err) => {
+        .map_err(|err| {
             tracing::error!(persona = persona_name, error = %err, "memory merge LLM call failed");
-            return false;
-        }
-    };
+            MemoryError::from(err)
+        })?;
 
     // Safety: don't replace substantial memory with a suspiciously short output.
     if response.len() < 10 && existing.len() > 50 {
@@ -469,7 +478,7 @@ async fn merge_memory<L: ChatLlm>(
             response_len = response.len(),
             "memory merge rejected: response too short"
         );
-        return false;
+        return Err(MemoryError::UnusableResponse);
     }
 
     save_memory_content(data_dir, persona_name, &response).await

@@ -5,7 +5,7 @@
 use std::sync::{Arc, Mutex};
 
 use liminal_salt::services::llm::{ChatLlm, LlmError, LlmMessage};
-use liminal_salt::services::memory;
+use liminal_salt::services::memory::{self, MemoryError};
 use liminal_salt::services::persona::PersonaConfig;
 use liminal_salt::services::session::{Message, Role, ThreadSnapshot};
 
@@ -70,7 +70,9 @@ async fn save_then_get_round_trips() {
     let tmp = tempfile::tempdir().unwrap();
     assert!(memory::get_memory_content(tmp.path(), "assistant").await.is_empty());
 
-    assert!(memory::save_memory_content(tmp.path(), "assistant", "hello\nworld").await);
+    memory::save_memory_content(tmp.path(), "assistant", "hello\nworld")
+        .await
+        .unwrap();
 
     let got = memory::get_memory_content(tmp.path(), "assistant").await;
     assert_eq!(got, "hello\nworld");
@@ -79,13 +81,29 @@ async fn save_then_get_round_trips() {
 #[tokio::test]
 async fn invalid_persona_name_rejected_at_every_entry() {
     let tmp = tempfile::tempdir().unwrap();
-    // Traversal / empty / hyphen — all rejected, never touch the filesystem.
+    // Traversal / empty / hyphen — all rejected as InvalidPersonaName without
+    // touching the filesystem.
     assert!(memory::get_memory_content(tmp.path(), "../escape").await.is_empty());
-    assert!(!memory::save_memory_content(tmp.path(), "", "hi").await);
-    assert!(!memory::save_memory_content(tmp.path(), "has-hyphen", "hi").await);
-    assert!(!memory::delete_memory(tmp.path(), "../escape").await);
-    assert!(!memory::rename_memory(tmp.path(), "../a", "b").await);
-    assert!(!memory::rename_memory(tmp.path(), "a", "../b").await);
+    assert!(matches!(
+        memory::save_memory_content(tmp.path(), "", "hi").await,
+        Err(MemoryError::InvalidPersonaName(_))
+    ));
+    assert!(matches!(
+        memory::save_memory_content(tmp.path(), "has-hyphen", "hi").await,
+        Err(MemoryError::InvalidPersonaName(_))
+    ));
+    assert!(matches!(
+        memory::delete_memory(tmp.path(), "../escape").await,
+        Err(MemoryError::InvalidPersonaName(_))
+    ));
+    assert!(matches!(
+        memory::rename_memory(tmp.path(), "../a", "b").await,
+        Err(MemoryError::InvalidPersonaName(_))
+    ));
+    assert!(matches!(
+        memory::rename_memory(tmp.path(), "a", "../b").await,
+        Err(MemoryError::InvalidPersonaName(_))
+    ));
     // Memory dir should not have been created by any of those calls.
     assert!(!memory::memory_dir(tmp.path()).exists());
 }
@@ -93,28 +111,34 @@ async fn invalid_persona_name_rejected_at_every_entry() {
 #[tokio::test]
 async fn delete_missing_memory_is_ok() {
     let tmp = tempfile::tempdir().unwrap();
-    assert!(memory::delete_memory(tmp.path(), "ghost").await);
+    memory::delete_memory(tmp.path(), "ghost").await.unwrap();
 }
 
 #[tokio::test]
 async fn rename_moves_file_and_handles_missing_source() {
     let tmp = tempfile::tempdir().unwrap();
-    assert!(memory::save_memory_content(tmp.path(), "old_name", "body").await);
+    memory::save_memory_content(tmp.path(), "old_name", "body")
+        .await
+        .unwrap();
 
-    assert!(memory::rename_memory(tmp.path(), "old_name", "new_name").await);
+    memory::rename_memory(tmp.path(), "old_name", "new_name")
+        .await
+        .unwrap();
     assert!(memory::get_memory_content(tmp.path(), "old_name").await.is_empty());
     assert_eq!(memory::get_memory_content(tmp.path(), "new_name").await, "body");
 
     // Missing source → no-op success. Matches persona.rs rename's best-effort cascade.
-    assert!(memory::rename_memory(tmp.path(), "never_existed", "still_gone").await);
+    memory::rename_memory(tmp.path(), "never_existed", "still_gone")
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
 async fn list_persona_memories_sorts_and_strips_suffix() {
     let tmp = tempfile::tempdir().unwrap();
-    memory::save_memory_content(tmp.path(), "zebra", "x").await;
-    memory::save_memory_content(tmp.path(), "alpha", "x").await;
-    memory::save_memory_content(tmp.path(), "mike", "x").await;
+    memory::save_memory_content(tmp.path(), "zebra", "x").await.unwrap();
+    memory::save_memory_content(tmp.path(), "alpha", "x").await.unwrap();
+    memory::save_memory_content(tmp.path(), "mike", "x").await.unwrap();
 
     let names = memory::list_persona_memories(tmp.path()).await;
     assert_eq!(names, vec!["alpha", "mike", "zebra"]);
@@ -151,11 +175,13 @@ async fn get_memory_model_walks_fallback_chain() {
 // =============================================================================
 
 #[tokio::test]
-async fn update_memory_empty_threads_returns_false() {
+async fn update_memory_empty_threads_returns_no_threads() {
     let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("updated memory");
-    let ok = memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &[], 8000).await;
-    assert!(!ok);
+    assert!(matches!(
+        memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &[], 8000).await,
+        Err(MemoryError::NoThreads)
+    ));
     // Nothing was written.
     assert!(memory::get_memory_content(tmp.path(), "assistant").await.is_empty());
 }
@@ -174,7 +200,7 @@ async fn update_memory_writes_file_and_builds_expected_prompt() {
         ],
     }];
 
-    let ok = memory::update_memory(
+    memory::update_memory(
         &*llm,
         tmp.path(),
         "carl_sagan",
@@ -182,8 +208,8 @@ async fn update_memory_writes_file_and_builds_expected_prompt() {
         &threads,
         8000,
     )
-    .await;
-    assert!(ok);
+    .await
+    .unwrap();
 
     let written = memory::get_memory_content(tmp.path(), "carl_sagan").await;
     assert_eq!(written, "## Them\nThey like hiking.");
@@ -209,7 +235,9 @@ async fn update_memory_size_limit_zero_omits_size_target() {
         persona: "a".to_string(),
         messages: vec![msg(Role::User, "hi")],
     }];
-    memory::update_memory(&*llm, tmp.path(), "assistant", "id", &threads, 0).await;
+    memory::update_memory(&*llm, tmp.path(), "assistant", "id", &threads, 0)
+        .await
+        .unwrap();
     assert!(!llm.last_prompt().contains("SIZE TARGET"));
 }
 
@@ -217,7 +245,7 @@ async fn update_memory_size_limit_zero_omits_size_target() {
 async fn seed_memory_uses_seed_label_and_omits_roleplay_section() {
     let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("seeded body");
-    let ok = memory::seed_memory(
+    memory::seed_memory(
         &*llm,
         tmp.path(),
         "assistant",
@@ -225,8 +253,8 @@ async fn seed_memory_uses_seed_label_and_omits_roleplay_section() {
         "User bio: lives in Portland.",
         8000,
     )
-    .await;
-    assert!(ok);
+    .await
+    .unwrap();
     let p = llm.last_prompt();
     assert!(p.contains("NEW INFORMATION FROM THE USER"));
     assert!(p.contains("User bio: lives in Portland"));
@@ -239,16 +267,18 @@ async fn modify_memory_refuses_when_no_existing_memory() {
     let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("would-be new body");
 
-    let ok = memory::modify_memory(
-        &*llm,
-        tmp.path(),
-        "assistant",
-        "identity",
-        "Forget their birthday",
-        8000,
-    )
-    .await;
-    assert!(!ok);
+    assert!(matches!(
+        memory::modify_memory(
+            &*llm,
+            tmp.path(),
+            "assistant",
+            "identity",
+            "Forget their birthday",
+            8000,
+        )
+        .await,
+        Err(MemoryError::NoExistingMemory)
+    ));
     // LLM not invoked; no file written.
     assert!(llm.last_prompt().is_empty());
     assert!(memory::get_memory_content(tmp.path(), "assistant").await.is_empty());
@@ -257,10 +287,12 @@ async fn modify_memory_refuses_when_no_existing_memory() {
 #[tokio::test]
 async fn modify_memory_uses_command_label_when_memory_exists() {
     let tmp = tempfile::tempdir().unwrap();
-    memory::save_memory_content(tmp.path(), "assistant", "They love cats.").await;
+    memory::save_memory_content(tmp.path(), "assistant", "They love cats.")
+        .await
+        .unwrap();
 
     let llm = FakeLlm::new("They used to love cats.");
-    let ok = memory::modify_memory(
+    memory::modify_memory(
         &*llm,
         tmp.path(),
         "assistant",
@@ -268,8 +300,8 @@ async fn modify_memory_uses_command_label_when_memory_exists() {
         "They don't love cats anymore",
         8000,
     )
-    .await;
-    assert!(ok);
+    .await
+    .unwrap();
 
     let p = llm.last_prompt();
     assert!(p.contains("USER'S COMMAND"));
@@ -285,7 +317,9 @@ async fn modify_memory_uses_command_label_when_memory_exists() {
 async fn short_response_rejected_when_existing_memory_is_substantial() {
     let tmp = tempfile::tempdir().unwrap();
     let existing = "a".repeat(200);
-    memory::save_memory_content(tmp.path(), "assistant", &existing).await;
+    memory::save_memory_content(tmp.path(), "assistant", &existing)
+        .await
+        .unwrap();
 
     let llm = FakeLlm::new("oops"); // 4 chars — under the 10-char threshold.
     let threads = vec![ThreadSnapshot {
@@ -294,9 +328,10 @@ async fn short_response_rejected_when_existing_memory_is_substantial() {
         messages: vec![msg(Role::User, "hi")],
     }];
 
-    let ok =
-        memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &threads, 8000).await;
-    assert!(!ok, "short response should be rejected");
+    assert!(matches!(
+        memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &threads, 8000).await,
+        Err(MemoryError::UnusableResponse)
+    ));
 
     // Existing memory untouched.
     let still = memory::get_memory_content(tmp.path(), "assistant").await;
@@ -313,9 +348,9 @@ async fn short_response_accepted_when_existing_memory_is_empty() {
         messages: vec![msg(Role::User, "hi")],
     }];
 
-    let ok =
-        memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &threads, 8000).await;
-    assert!(ok);
+    memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &threads, 8000)
+        .await
+        .unwrap();
     assert_eq!(
         memory::get_memory_content(tmp.path(), "assistant").await,
         "tiny"
@@ -323,9 +358,11 @@ async fn short_response_accepted_when_existing_memory_is_empty() {
 }
 
 #[tokio::test]
-async fn llm_error_returns_false_and_preserves_existing_memory() {
+async fn llm_error_returns_llm_variant_and_preserves_existing_memory() {
     let tmp = tempfile::tempdir().unwrap();
-    memory::save_memory_content(tmp.path(), "assistant", "keep me").await;
+    memory::save_memory_content(tmp.path(), "assistant", "keep me")
+        .await
+        .unwrap();
 
     let threads = vec![ThreadSnapshot {
         title: "t".to_string(),
@@ -333,16 +370,18 @@ async fn llm_error_returns_false_and_preserves_existing_memory() {
         messages: vec![msg(Role::User, "hi")],
     }];
 
-    let ok = memory::update_memory(
-        &FailingLlm,
-        tmp.path(),
-        "assistant",
-        "identity",
-        &threads,
-        8000,
-    )
-    .await;
-    assert!(!ok);
+    assert!(matches!(
+        memory::update_memory(
+            &FailingLlm,
+            tmp.path(),
+            "assistant",
+            "identity",
+            &threads,
+            8000,
+        )
+        .await,
+        Err(MemoryError::Llm(_))
+    ));
     assert_eq!(
         memory::get_memory_content(tmp.path(), "assistant").await,
         "keep me"
@@ -352,7 +391,9 @@ async fn llm_error_returns_false_and_preserves_existing_memory() {
 #[tokio::test]
 async fn merge_includes_existing_memory_in_prompt() {
     let tmp = tempfile::tempdir().unwrap();
-    memory::save_memory_content(tmp.path(), "assistant", "They have a dog named Sam.").await;
+    memory::save_memory_content(tmp.path(), "assistant", "They have a dog named Sam.")
+        .await
+        .unwrap();
 
     let llm = FakeLlm::new("Updated with a cat now.");
     let threads = vec![ThreadSnapshot {
@@ -360,7 +401,9 @@ async fn merge_includes_existing_memory_in_prompt() {
         persona: "assistant".to_string(),
         messages: vec![msg(Role::User, "got a cat")],
     }];
-    memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &threads, 8000).await;
+    memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &threads, 8000)
+        .await
+        .unwrap();
 
     let p = llm.last_prompt();
     assert!(p.contains("--- YOUR EXISTING MEMORY ABOUT THE USER ---"));
@@ -376,7 +419,9 @@ async fn merge_first_run_uses_beginning_placeholder() {
         persona: "assistant".to_string(),
         messages: vec![msg(Role::User, "hi")],
     }];
-    memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &threads, 8000).await;
+    memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &threads, 8000)
+        .await
+        .unwrap();
 
     let p = llm.last_prompt();
     assert!(p.contains("You do not have any memories yet. This is the beginning."));

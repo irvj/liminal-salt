@@ -465,7 +465,8 @@ async fn thread_memory_roleplay_does_not_read_persona_memory_file() {
         "sir_evrard",
         "REAL USER FACT: the user lives in Seattle.",
     )
-    .await;
+    .await
+    .unwrap();
 
     let sid = "session_20260422_160001.json";
     session::create_session(

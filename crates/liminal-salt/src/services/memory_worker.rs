@@ -418,7 +418,7 @@ impl MemoryWorker {
             .memory_size_limit
             .unwrap_or(memory::DEFAULT_MEMORY_SIZE_LIMIT);
 
-        let ok = memory::update_memory(
+        let result = memory::update_memory(
             llm,
             &state.data_dir,
             persona,
@@ -428,7 +428,7 @@ impl MemoryWorker {
         )
         .await;
 
-        self.complete_persona(persona, ok, source.as_str());
+        self.complete_persona(persona, result, source.as_str());
         true
     }
 
@@ -461,7 +461,7 @@ impl MemoryWorker {
             .memory_size_limit
             .unwrap_or(memory::DEFAULT_MEMORY_SIZE_LIMIT);
 
-        let ok = memory::modify_memory(
+        let result = memory::modify_memory(
             llm,
             &state.data_dir,
             persona,
@@ -471,7 +471,7 @@ impl MemoryWorker {
         )
         .await;
 
-        self.complete_persona(persona, ok, "modify");
+        self.complete_persona(persona, result, "modify");
         true
     }
 
@@ -504,7 +504,7 @@ impl MemoryWorker {
             .memory_size_limit
             .unwrap_or(memory::DEFAULT_MEMORY_SIZE_LIMIT);
 
-        let ok = memory::seed_memory(
+        let result = memory::seed_memory(
             llm,
             &state.data_dir,
             persona,
@@ -514,33 +514,58 @@ impl MemoryWorker {
         )
         .await;
 
-        self.complete_persona(persona, ok, "seed");
+        self.complete_persona(persona, result, "seed");
         true
     }
 
-    fn complete_persona(&self, persona: &str, ok: bool, source: &str) {
+    fn complete_persona(&self, persona: &str, result: Result<(), memory::MemoryError>, source: &str) {
         let finished = Some(session::now_timestamp());
-        if ok {
-            self.set_persona_status(
-                persona,
-                Status {
-                    state: State::Completed,
-                    finished_at: finished,
-                    ..Default::default()
-                },
-            );
-            tracing::info!(persona, source, "memory update completed");
-        } else {
-            self.set_persona_status(
-                persona,
-                Status {
-                    state: State::Failed,
-                    finished_at: finished,
-                    error: Some("The model returned an unusable response.".into()),
-                    ..Default::default()
-                },
-            );
-            tracing::warn!(persona, source, "memory update failed: unusable response");
+        match result {
+            Ok(()) => {
+                self.set_persona_status(
+                    persona,
+                    Status {
+                        state: State::Completed,
+                        finished_at: finished,
+                        ..Default::default()
+                    },
+                );
+                tracing::info!(persona, source, "memory update completed");
+            }
+            Err(err) => {
+                // Map each variant to a user-facing status message; the old
+                // code collapsed everything to "unusable response".
+                let user_msg = match &err {
+                    memory::MemoryError::NoThreads => {
+                        "No conversations found for this persona.".to_string()
+                    }
+                    memory::MemoryError::NoExistingMemory => {
+                        "No existing memory to modify.".to_string()
+                    }
+                    memory::MemoryError::UnusableResponse => {
+                        "The model returned an unusable response.".to_string()
+                    }
+                    memory::MemoryError::Llm(_) => {
+                        "The model call failed. Try again.".to_string()
+                    }
+                    memory::MemoryError::Io(_) => {
+                        "Could not write memory to disk.".to_string()
+                    }
+                    memory::MemoryError::InvalidPersonaName(_) => {
+                        "Invalid persona name.".to_string()
+                    }
+                };
+                self.set_persona_status(
+                    persona,
+                    Status {
+                        state: State::Failed,
+                        finished_at: finished,
+                        error: Some(user_msg),
+                        ..Default::default()
+                    },
+                );
+                tracing::warn!(persona, source, error = %err, "memory update failed");
+            }
         }
     }
 

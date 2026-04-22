@@ -111,7 +111,9 @@ pub async fn wipe(
     Form(form): Form<PersonaForm>,
 ) -> Response {
     let selected = resolve_persona(&state, form.persona).await;
-    memory::delete_memory(&state.data_dir, &selected).await;
+    if let Err(err) = memory::delete_memory(&state.data_dir, &selected).await {
+        tracing::warn!(persona = %selected, error = %err, "memory delete failed");
+    }
 
     if is_htmx(&headers) {
         render_memory(
