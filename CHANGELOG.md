@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.20.3] - 2026-04-23
+
+### Changes
+- docs: mark M2 shipped in roadmap; refresh CLAUDE.md services table and chat-completions rule for Provider enum
+- refactor: route handlers + memory worker through Provider enum; drop transition re-exports and config::Provider duplicates
+- refactor: introduce Provider enum; move OpenRouter into services/providers/openrouter/
+- refactor: rename openrouter_api_key to api_key; drop unnecessary migration scaffolding (no users to migrate)
+- refactor: route config reads through api_key; write sites still target openrouter_api_key for this step
+- refactor: add provider-neutral api_key field with load-time migration from openrouter_api_key
+
 ## [0.20.2] - 2026-04-23
 
 ### Changes
