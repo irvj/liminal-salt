@@ -25,23 +25,12 @@ A self-hosted LLM chatbot with persistent per-persona memory, customizable perso
 ```bash
 git clone https://github.com/irvj/liminal-salt.git
 cd liminal-salt
-npm install            # one-time: frontend build toolchain
-npm run dev            # Tailwind watcher + cargo run, concurrent
+cargo run -p liminal-salt
 ```
 
 Open http://localhost:8420 and follow the setup wizard.
 
-Requires [Rust](https://rustup.rs/) (stable), [Node.js](https://nodejs.org/) (for Tailwind + vendored JS deps), and an [OpenRouter API key](https://openrouter.ai/).
-
-If you just want to run the server without the CSS watcher (e.g. the compiled `output.css` is already up to date):
-
-```bash
-cargo run -p liminal-salt
-```
-
-### Updating vendored JS deps
-
-HTMX and Alpine.js are pinned in `package.json` and vendored into `crates/liminal-salt/static/vendor/` so the app works offline and bundles cleanly into the eventual Tauri desktop build. To bump a version: edit the pin in `package.json`, then `npm install && npm run vendor`, and commit the updated files.
+Requires [Rust](https://rustup.rs/) (stable) and an [OpenRouter API key](https://openrouter.ai/).
 
 ---
 
@@ -81,6 +70,19 @@ Liminal Salt is a local application, not a hosted service. You run it on your ow
 ## User Agreement
 
 Using Liminal Salt means agreeing to the terms in [AGREEMENT.md](AGREEMENT.md) — short, plain-language, covers age, open source, non-determinism, provider terms, and responsibility for content submitted to and returned from the LLM. The app presents it once during setup.
+
+---
+
+## Development
+
+Working on templates, Tailwind classes, or the vendored JS deps requires [Node.js](https://nodejs.org/):
+
+```bash
+npm install
+npm run dev          # Tailwind watcher + cargo run, concurrent
+```
+
+Tests: `cargo test -p liminal-salt`. Conventions and the full dev workflow live in [CLAUDE.md](CLAUDE.md).
 
 ---
 

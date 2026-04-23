@@ -182,9 +182,11 @@ When in doubt: add a method to the owning service, call it from the caller. Neve
 ```bash
 cargo run -p liminal-salt                                    # run the server (port 8420)
 npm run dev                                                  # tailwind watcher + cargo run, concurrent
+npm run vendor                                               # copy pinned htmx + alpine from node_modules into static/vendor/
 cargo test -p liminal-salt                                   # integration + unit tests (tempdirs)
 cargo clippy -p liminal-salt --all-targets -- -D warnings
 node --check crates/liminal-salt/static/js/components.js     # JS syntax sanity
+./scripts/bump-version.sh {patch|minor|major|set X.Y.Z}      # bump Cargo.toml + package.json + README + CHANGELOG
 ```
 
 Setup wizard at `/setup/` on first launch.
