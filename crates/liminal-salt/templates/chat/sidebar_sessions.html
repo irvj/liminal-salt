@@ -1,0 +1,85 @@
+{% import "icons.html" as icons %}
+
+{% if pinned_sessions or grouped_sessions %}
+<div class="h-px bg-border my-3"></div>
+{% endif %}
+
+{% if pinned_sessions %}
+<!-- Pinned Section -->
+<div x-data="{ open: true }">
+    <button @click="open = !open" class="flex items-center gap-1 w-full p-2.5 mt-3 bg-surface-elevated text-foreground font-semibold rounded text-left text-sm cursor-pointer">
+        <span x-show="open">{{ icons::chevron_down(class="w-4 h-4") }}</span>
+        <span x-show="!open">{{ icons::chevron_right(class="w-4 h-4") }}</span>
+        {{ icons::star_filled(class="w-4 h-4") }} Pinned ({{ pinned_sessions | length }})
+    </button>
+
+    <div x-show="open">
+        {% for session in pinned_sessions %}
+            <div class="session-row flex items-stretch my-1 gap-0.5" data-session-id="{{ session.id }}">
+                <button hx-post="/chat/switch/"
+                        hx-vals='{"session_id": "{{ session.id }}"}'
+                        hx-target="#main-content"
+                        hx-swap="innerHTML"
+                        @click="saveDraftNow(); if (isMobile) collapsed = true; updateSidebarHighlight($el)"
+                        data-session-id="{{ session.id }}"
+                        class="group session-item flex-1 m-0 pl-5 p-2.5 text-sm rounded-l text-left cursor-pointer {% if session.id == current_session %}bg-accent text-foreground-on-accent font-bold{% else %}bg-surface-elevated text-foreground{% endif %} hover:bg-accent hover:text-foreground-on-accent">
+                    {{ session.title }}{% if session.mode == "roleplay" %} <span title="Roleplay thread" aria-label="Roleplay thread">{{ icons::drama(class="w-4 h-4 inline") }}</span>{% endif %} <span class="text-xs text-foreground-muted group-hover:text-foreground-on-accent/80 {% if session.id == current_session %}!text-foreground-on-accent/80{% endif %}">({{ session.persona | display_name }})</span>
+                </button>
+                <button hx-post="/chat/pin/"
+                        hx-vals='{"session_id": "{{ session.id }}"}'
+                        hx-target="#sidebar-sessions"
+                        hx-swap="innerHTML"
+                        class="w-8 p-0 m-0 bg-surface-elevated flex items-center justify-center cursor-pointer hover:opacity-80"
+                        title="Unpin chat">
+                    {{ icons::star_filled(class="w-4 h-4") }}
+                </button>
+                <button class="w-8 p-0 m-0 bg-surface-elevated rounded-r flex items-center justify-center opacity-60 hover:bg-danger hover:opacity-100 cursor-pointer"
+                        @click="deleteSessionWithConfirm('{{ session.id }}', '{{ session.title | escapejs }}')"
+                        title="Delete chat">
+                    {{ icons::trash(class="w-4 h-4") }}
+                </button>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% for group in grouped_sessions %}
+    <!-- Using Alpine.js for collapsible groups -->
+    <div x-data="{ open: true }">
+        <button @click="open = !open" class="flex items-center gap-1 w-full p-2.5 mt-3 bg-surface-elevated text-foreground font-semibold rounded text-left text-sm cursor-pointer">
+            <span x-show="open">{{ icons::chevron_down(class="w-4 h-4") }}</span>
+            <span x-show="!open">{{ icons::chevron_right(class="w-4 h-4") }}</span>
+            {{ group.persona | display_name }} ({{ group.sessions | length }})
+        </button>
+
+        <div x-show="open">
+            {% for session in group.sessions %}
+                <div class="session-row flex items-stretch my-1 gap-0.5" data-session-id="{{ session.id }}">
+                    <button hx-post="/chat/switch/"
+                            hx-vals='{"session_id": "{{ session.id }}"}'
+                            hx-target="#main-content"
+                            hx-swap="innerHTML"
+                            @click="saveDraftNow(); if (isMobile) collapsed = true; updateSidebarHighlight($el)"
+                            data-session-id="{{ session.id }}"
+                            class="session-item flex-1 m-0 pl-5 p-2.5 text-sm rounded-l text-left cursor-pointer {% if session.id == current_session %}bg-accent text-foreground-on-accent font-bold{% else %}bg-surface-elevated text-foreground{% endif %} hover:bg-accent hover:text-foreground-on-accent">
+                        {{ session.title }}{% if session.mode == "roleplay" %} <span title="Roleplay thread" aria-label="Roleplay thread">{{ icons::drama(class="w-4 h-4 inline") }}</span>{% endif %}
+                    </button>
+                    <button hx-post="/chat/pin/"
+                            hx-vals='{"session_id": "{{ session.id }}"}'
+                            hx-target="#sidebar-sessions"
+                            hx-swap="innerHTML"
+                            class="w-8 p-0 m-0 bg-surface-elevated flex items-center justify-center opacity-60 hover:opacity-100 cursor-pointer"
+                            title="Pin chat">
+                        {{ icons::star_outline(class="w-4 h-4") }}
+                    </button>
+                    <button class="w-8 p-0 m-0 bg-surface-elevated rounded-r flex items-center justify-center opacity-60 hover:bg-danger hover:opacity-100 cursor-pointer"
+                            @click="deleteSessionWithConfirm('{{ session.id }}', '{{ session.title | escapejs }}')"
+                            title="Delete chat">
+                        {{ icons::trash(class="w-4 h-4") }}
+                    </button>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+{% endfor %}

@@ -1,0 +1,15 @@
+pub mod chat;
+pub mod config;
+pub mod context_files;
+pub mod fs;
+pub mod llm;
+pub mod local_context;
+pub mod memory;
+pub mod memory_worker;
+pub mod openrouter;
+pub mod persona;
+pub mod prompt;
+pub mod session;
+pub mod summarizer;
+pub mod themes;
+pub mod thread_memory;

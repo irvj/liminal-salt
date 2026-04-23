@@ -1,0 +1,104 @@
+{% import "icons.html" as icons %}
+<!DOCTYPE html>
+<html lang="en" data-theme-mode="{{ theme_mode | default(value='dark') }}" data-color-theme="{{ color_theme | default(value='liminal-salt') }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Liminal Salt{% endblock %}</title>
+
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+
+    <!-- Load utils.js first for immediate theme initialization -->
+    <script src="/static/js/utils.js"></script>
+
+    <!-- Tailwind CSS -->
+    <link rel="stylesheet" href="/static/css/output.css">
+
+    <!-- HTMX - Dynamic HTML updates without page reloads -->
+    <script src="/static/vendor/htmx.min.js"></script>
+
+    <!-- CSRF token for HTMX requests -->
+    <meta name="csrf-token" content="{{ csrf_token }}">
+
+    <!-- Liminal Salt JavaScript -->
+    <script src="/static/js/components.js"></script>
+
+    <!-- Alpine.js - Lightweight reactivity for UI state -->
+    <script defer src="/static/vendor/alpinejs.min.js"></script>
+
+    {% block extra_head %}{% endblock %}
+
+    {% block extra_styles %}{% endblock %}
+</head>
+<body class="font-sans bg-surface text-foreground {% block body_class %}{% endblock %}">
+    <div id="app-urls" class="hidden"
+         data-themes-url="/api/themes/"
+         data-save-theme-url="/api/save-theme/"
+         data-themes-static-path="/static/themes"
+         data-save-draft-url="/chat/save-draft/"
+         data-retry-url="/chat/retry/"
+         data-edit-message-url="/chat/edit-message/"
+         data-chat-url="/chat/"
+         data-delete-chat-url="/chat/delete/"
+         data-wipe-memory-url="/memory/wipe/"
+         data-delete-persona-url="/persona/delete/"></div>
+    {% block body %}{% endblock %}
+
+    <!-- Confirmation dialog: global renderer. Trigger via confirmDialog(...) in utils.js. -->
+    <div x-data="confirmModal" x-cloak>
+        <div x-show="showModal"
+             @keydown.escape.window="cancel()"
+             class="fixed inset-0 bg-black/60 flex items-center justify-center z-confirm"
+             @click.self="cancel()">
+            <div class="bg-surface-secondary rounded-lg p-6 max-w-modal w-[90%] border border-border">
+                <h3 class="text-foreground mb-3" x-text="title"></h3>
+                <p class="text-foreground-secondary mb-5" x-text="message"></p>
+                <div class="flex gap-3 justify-end">
+                    <button type="button" @click="cancel()"
+                            class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent"
+                            x-text="cancelText"></button>
+                    <button type="button" @click="confirm()"
+                            :class="confirmType === 'danger' ? 'bg-danger hover:bg-danger-hover' : 'bg-accent hover:bg-accent-hover'"
+                            class="px-4 py-2 text-foreground-on-accent rounded font-medium cursor-pointer"
+                            x-text="confirmText"></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notifications: global renderer. Trigger via showToast(...) in utils.js. -->
+    <div x-data="toastContainer"
+         class="fixed top-5 right-5 z-toast flex flex-col gap-2 pointer-events-none"
+         role="region"
+         aria-label="Notifications"
+         aria-live="polite">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 translate-y-2"
+                 x-transition:enter-end="opacity-100 translate-y-0"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="opacity-100 translate-y-0"
+                 x-transition:leave-end="opacity-0 translate-y-2"
+                 :class="{
+                     'bg-success text-surface': toast.type === 'success',
+                     'bg-danger text-white': toast.type === 'error',
+                     'bg-surface-elevated text-foreground border border-border': toast.type !== 'success' && toast.type !== 'error'
+                 }"
+                 :role="toast.type === 'error' ? 'alert' : 'status'"
+                 class="flex items-start gap-2 px-4 py-3 rounded shadow-lg pointer-events-auto min-w-[240px] max-w-sm text-sm">
+                <span x-show="toast.type === 'success'" class="shrink-0 mt-0.5">{{ icons::check_circle(class="w-4 h-4") }}</span>
+                <span x-show="toast.type === 'error'" class="shrink-0 mt-0.5">{{ icons::alert(class="w-4 h-4") }}</span>
+                <span class="flex-1" x-text="toast.message"></span>
+                <button type="button"
+                        @click="dismiss(toast.id)"
+                        aria-label="Dismiss notification"
+                        class="shrink-0 opacity-70 hover:opacity-100 cursor-pointer">
+                    {{ icons::x(class="w-4 h-4") }}
+                </button>
+            </div>
+        </template>
+    </div>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% import "icons.html" as icons %}
+
+{% block body %}
+    <div class="max-w-xl mx-auto mt-12 p-5">
+        <h1 class="text-foreground text-2xl mb-4">Welcome to Liminal Salt</h1>
+
+        <h2 class="text-xl text-foreground mb-2">Step 2: Choose Your Preferences</h2>
+        <p class="text-foreground-secondary text-sm mb-4">Select a theme and model to get started</p>
+
+        {% if error %}
+        <div class="p-3 px-4 rounded mb-4 bg-danger text-white">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST"
+              x-data="modelPicker"
+              data-selected-model="{{ selected_model | default(value='') }}"
+              data-models='{{ available_models_json | safe }}'
+              @dropdown-select="onModelSelect($event.detail)">
+            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+
+            <!-- Theme Selection -->
+            <div class="mb-6"
+                 x-data="setupThemePicker"
+                 data-themes='{{ themes_json | safe }}'
+                 data-selected-theme="{{ selected_theme }}"
+                 data-selected-mode="{{ selected_mode }}">
+                <label class="block mb-2 font-medium">Theme:</label>
+                <input type="hidden" name="theme" :value="selectedTheme">
+                <input type="hidden" name="theme_mode" :value="selectedMode">
+
+                <div class="flex flex-col sm:flex-row gap-4 mb-4">
+                    <!-- Color Theme Dropdown -->
+                    <div class="flex-1" @dropdown-select="onThemeSelect($event.detail)">
+                        <div x-data="selectDropdown" :data-items="JSON.stringify(themeItems)" :data-selected="selectedTheme">
+                            {% set placeholder = "Select a theme..." %}
+                            {% include "components/select_dropdown.html" %}
+                        </div>
+                    </div>
+
+                    <!-- Dark/Light Mode Toggle -->
+                    <div class="flex gap-2">
+                        <button type="button" tabindex="0"
+                                @click="setMode('dark')"
+                                :class="selectedMode === 'dark' ? 'bg-accent text-foreground-on-accent' : 'bg-border text-foreground hover:bg-accent hover:text-foreground-on-accent'"
+                                class="flex items-center gap-2 px-4 py-2 rounded font-medium cursor-pointer">
+                            {{ icons::moon(class="w-5 h-5") }} Dark
+                        </button>
+                        <button type="button" tabindex="0"
+                                @click="setMode('light')"
+                                :class="selectedMode === 'light' ? 'bg-accent text-foreground-on-accent' : 'bg-border text-foreground hover:bg-accent hover:text-foreground-on-accent'"
+                                class="flex items-center gap-2 px-4 py-2 rounded font-medium cursor-pointer">
+                            {{ icons::sun(class="w-5 h-5") }} Light
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Selection -->
+            <div class="mb-5">
+                <label class="block mb-2 font-medium">Select a model:</label>
+                <div x-data="selectDropdown" :data-items="JSON.stringify(modelItems)" :data-selected="selectedId">
+                    {% set searchable = "true" %}
+                    {% set name = "model" %}
+                    {% set placeholder = "Search models..." %}
+                    {% include "components/select_dropdown.html" %}
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button type="submit"
+                        name="setup_action"
+                        value="back"
+                        tabindex="0"
+                        class="px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
+                    Back
+                </button>
+                <button type="submit"
+                        tabindex="0"
+                        :disabled="!selectedId"
+                        class="px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:bg-border disabled:text-foreground-muted disabled:cursor-not-allowed">
+                    Continue
+                </button>
+            </div>
+        </form>
+    </div>
+{% endblock body %}

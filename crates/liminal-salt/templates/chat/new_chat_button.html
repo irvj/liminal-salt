@@ -1,0 +1,6 @@
+{% import "icons.html" as icons %}
+<button hx-get="/chat/new/"
+        hx-target="#main-content"
+        hx-swap="innerHTML"
+        @click="if (isMobile) collapsed = true"
+        class="w-full p-2.5 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover flex items-center justify-center gap-1">{{ icons::circle_plus(class="w-5 h-5") }} New Chat</button>
