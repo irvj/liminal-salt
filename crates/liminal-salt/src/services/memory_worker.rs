@@ -1010,8 +1010,20 @@ impl MemoryWorker {
             }
         }
 
-        let bytes = tokio::fs::read(filepath).await.ok()?;
-        let session_data: session::Session = serde_json::from_slice(&bytes).ok()?;
+        let bytes = match tokio::fs::read(filepath).await {
+            Ok(b) => b,
+            Err(err) => {
+                tracing::warn!(file = %filename, error = %err, "cached_thread_view: read failed");
+                return None;
+            }
+        };
+        let session_data: session::Session = match serde_json::from_slice(&bytes) {
+            Ok(s) => s,
+            Err(err) => {
+                tracing::warn!(file = %filename, error = %err, "cached_thread_view: parse failed");
+                return None;
+            }
+        };
         let new_messages = thread_memory::filter_new_messages(
             &session_data.messages,
             &session_data.thread_memory_updated_at,
@@ -1084,11 +1096,17 @@ impl MemoryWorker {
                 None => {
                     let bytes = match tokio::fs::read(entry.path()).await {
                         Ok(b) => b,
-                        Err(_) => continue,
+                        Err(err) => {
+                            tracing::warn!(file = %filename, error = %err, "count_new_messages: read failed");
+                            continue;
+                        }
                     };
                     let data: session::Session = match serde_json::from_slice(&bytes) {
                         Ok(d) => d,
-                        Err(_) => continue,
+                        Err(err) => {
+                            tracing::warn!(file = %filename, error = %err, "count_new_messages: parse failed");
+                            continue;
+                        }
                     };
                     let mut ts: Vec<String> = Vec::new();
                     let mut missing: u32 = 0;
