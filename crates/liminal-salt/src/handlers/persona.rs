@@ -12,6 +12,7 @@ use tower_sessions::Session;
 
 use crate::{
     AppState,
+    handlers::status::persona_status,
     services::{
         context_files::ContextScope,
         persona::{self, PersonaConfig, PersonaError, ThreadMemoryDefaults},
@@ -243,7 +244,7 @@ pub async fn delete_persona(
 ) -> Response {
     if let Err(err) = persona::delete_persona(&state.data_dir, &form.persona).await {
         tracing::error!(error = %err, persona = %form.persona, "delete failed");
-        return (StatusCode::INTERNAL_SERVER_ERROR, "delete failed").into_response();
+        return (persona_status(&err), "delete failed").into_response();
     }
     // Also: if any session on disk pointed at this persona, it now references
     // a missing persona. Leave that state; switching to that session surfaces
@@ -404,7 +405,7 @@ pub async fn save_persona_thread_defaults(
 
     if let Err(err) = persona::save_persona_config(&state.data_dir, &form.persona, &cfg).await {
         tracing::error!(error = %err, persona = %form.persona, "save thread defaults failed");
-        return (StatusCode::INTERNAL_SERVER_ERROR, "save failed").into_response();
+        return (persona_status(&err), "save failed").into_response();
     }
 
     let has_defaults = cfg.default_mode.is_some() || cfg.default_thread_memory_settings.is_some();
@@ -438,7 +439,7 @@ pub async fn clear_persona_thread_defaults(
 
     if let Err(err) = persona::save_persona_config(&state.data_dir, &form.persona, &cfg).await {
         tracing::error!(error = %err, persona = %form.persona, "clear thread defaults failed");
-        return (StatusCode::INTERNAL_SERVER_ERROR, "clear failed").into_response();
+        return (persona_status(&err), "clear failed").into_response();
     }
 
     Json(ThreadDefaultsResponse {

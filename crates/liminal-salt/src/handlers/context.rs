@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     AppState,
+    handlers::status::context_scope_status,
     services::{
         context_files::{ContextScope, ContextScopeError},
         local_context::{self, ReadError},
@@ -130,19 +131,6 @@ where
         files: scope.list_files().await,
     })
     .into_response()
-}
-
-/// Map a `ContextScopeError` to the HTTP status the handler should surface.
-fn context_scope_status(err: &ContextScopeError) -> StatusCode {
-    match err {
-        ContextScopeError::InvalidFilename | ContextScopeError::InvalidPath(_) => {
-            StatusCode::BAD_REQUEST
-        }
-        ContextScopeError::NotTracked => StatusCode::NOT_FOUND,
-        ContextScopeError::Read(ReadError::InvalidUtf8) => StatusCode::UNPROCESSABLE_ENTITY,
-        ContextScopeError::Read(ReadError::Io(_)) => StatusCode::NOT_FOUND,
-        ContextScopeError::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
-    }
 }
 
 pub async fn toggle_file_global(

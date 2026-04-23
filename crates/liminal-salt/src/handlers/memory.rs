@@ -14,6 +14,7 @@ use tower_sessions::Session;
 
 use crate::{
     AppState,
+    handlers::status::persona_status,
     services::{
         config, memory,
         memory_worker::State as UpdateState,
@@ -300,11 +301,10 @@ pub async fn save_settings(State(state): State<AppState>, mut multipart: Multipa
     persona_cfg.auto_memory_interval = Some(auto_memory_interval);
     persona_cfg.auto_memory_message_floor = Some(auto_memory_message_floor);
 
-    if persona::save_persona_config(&state.data_dir, &selected, &persona_cfg)
-        .await
-        .is_err()
+    if let Err(err) = persona::save_persona_config(&state.data_dir, &selected, &persona_cfg).await
     {
-        return (StatusCode::INTERNAL_SERVER_ERROR, "save failed").into_response();
+        tracing::error!(error = %err, persona = %selected, "save memory settings failed");
+        return (persona_status(&err), "save failed").into_response();
     }
 
     Json(serde_json::json!({"success": true})).into_response()
