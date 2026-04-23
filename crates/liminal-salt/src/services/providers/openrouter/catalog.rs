@@ -1,10 +1,8 @@
-//! Direct HTTP to OpenRouter for the parts of the app that aren't LLM chat
-//! completions — API-key validation and the model catalog.
-//!
-//! `services/llm.rs` is still the single path to `/chat/completions`; this
-//! module handles `/auth/key` and `/models`. Keeping them separate means the
-//! chat path stays a tight, async-ChatLlm-shaped surface while the setup /
-//! settings flows get their own simple request→JSON helpers.
+//! OpenRouter's non-completion HTTP surface: API-key validation and the
+//! model catalog. `chat.rs` handles `/chat/completions` — this module handles
+//! `/auth/key` and `/models`. Keeping them split means the chat path stays a
+//! tight, async-ChatLlm-shaped surface while the setup / settings flows get
+//! their own simple request→JSON helpers.
 
 use std::time::Duration;
 
@@ -49,8 +47,9 @@ pub struct DisplayModel {
 // =============================================================================
 
 /// Validate an OpenRouter API key by hitting `/auth/key`. 200 → valid; any
-/// other status, network error, or timeout → false. Matches Python's
-/// `config_manager.validate_api_key` — log-and-return-bool, no error propagation.
+/// other status, network error, or timeout → false. Log-and-return-bool, no
+/// error propagation — the caller only needs to know whether to accept the
+/// key.
 pub async fn validate_api_key(http: &Client, api_key: &str) -> bool {
     if api_key.is_empty() {
         return false;
@@ -75,10 +74,9 @@ pub async fn validate_api_key(http: &Client, api_key: &str) -> bool {
     }
 }
 
-/// Fetch the full model catalog. Returns `None` on any failure — matches
-/// Python's "log the error, surface empty-list to the caller" behavior so
-/// the wizard / settings UI can show a generic "couldn't fetch" message
-/// instead of leaking HTTP internals.
+/// Fetch the full model catalog. Returns `None` on any failure so the caller
+/// can surface a generic "couldn't fetch" message instead of leaking HTTP
+/// internals.
 pub async fn fetch_available_models(http: &Client, api_key: &str) -> Option<Vec<Model>> {
     #[derive(Deserialize)]
     struct ModelsResponse {
@@ -118,8 +116,8 @@ pub async fn fetch_available_models(http: &Client, api_key: &str) -> Option<Vec<
 // =============================================================================
 
 /// Format a model's pricing as a human-readable per-1M-tokens string.
-/// Matches Python's `utils.format_model_pricing`: "Free" when both are zero,
-/// "$X/$Y per 1M" otherwise. 4-decimal precision below $0.01; 2 otherwise.
+/// "Free" when both are zero, "$X/$Y per 1M" otherwise. 4-decimal precision
+/// below $0.01; 2 otherwise.
 pub fn format_model_pricing(pricing: Option<&ModelPricing>) -> String {
     let Some(p) = pricing else { return String::new() };
     let prompt: f64 = p.prompt.parse().unwrap_or(0.0);
@@ -135,13 +133,9 @@ pub fn format_model_pricing(pricing: Option<&ModelPricing>) -> String {
     format!("{}/{} per 1M", fmt(per_m_prompt), fmt(per_m_completion))
 }
 
-/// One-shot "fetch and prepare for display" — matches Python's
-/// `utils.get_formatted_model_list`. Empty key or network failure → empty
-/// list, so the UI shows a clean "no models available" state.
-pub async fn get_formatted_model_list(
-    http: &Client,
-    api_key: &str,
-) -> Vec<DisplayModel> {
+/// One-shot "fetch and prepare for display". Empty key or network failure →
+/// empty list, so the UI shows a clean "no models available" state.
+pub async fn get_formatted_model_list(http: &Client, api_key: &str) -> Vec<DisplayModel> {
     if api_key.is_empty() {
         return Vec::new();
     }
@@ -180,8 +174,6 @@ fn format_models(models: &[Model]) -> Vec<DisplayModel> {
             .join(" ");
 
         for m in items {
-            // Skip the provider prefix if the model name already starts with it
-            // (matches Python's case-insensitive `startswith` check).
             let name = if m.name.to_lowercase().starts_with(&provider.to_lowercase()) {
                 m.name.clone()
             } else {
@@ -229,7 +221,6 @@ mod tests {
 
     #[test]
     fn format_pricing_dollars_per_million() {
-        // $3 per 1M prompt, $15 per 1M completion.
         let p = ModelPricing {
             prompt: "0.000003".into(),
             completion: "0.000015".into(),
@@ -239,12 +230,10 @@ mod tests {
 
     #[test]
     fn format_pricing_four_decimals_below_a_cent() {
-        // Tiny prompt cost — needs 4 decimals.
         let p = ModelPricing {
             prompt: "0.000000001".into(),
             completion: "0".into(),
         };
-        // $0.001/$0.00 — completion is zero but prompt isn't, so not "Free".
         assert_eq!(format_model_pricing(Some(&p)), "$0.0010/$0.0000 per 1M");
     }
 
@@ -262,7 +251,6 @@ mod tests {
             m("openai/gpt-3.5", "GPT-3.5", "0", "0"),
         ];
         let out = format_models(&models);
-        // BTreeMap sorts providers alphabetically: anthropic, openai.
         assert_eq!(out[0].id, "anthropic/claude");
         assert_eq!(out[1].id, "anthropic/claude-opus");
         assert_eq!(out[2].id, "openai/gpt-3.5");
@@ -271,11 +259,9 @@ mod tests {
 
     #[test]
     fn format_models_strips_redundant_provider_prefix() {
-        // Name already starts with provider → don't double-prefix.
         let models = vec![m("anthropic/claude", "Anthropic Claude Opus", "0", "0")];
         let out = format_models(&models);
         assert_eq!(out[0].display, "Anthropic Claude Opus - Free");
-        // Name doesn't start with provider → prefix added.
         let models = vec![m("openai/gpt-4", "GPT-4", "0", "0")];
         let out = format_models(&models);
         assert_eq!(out[0].display, "Openai: GPT-4 - Free");
