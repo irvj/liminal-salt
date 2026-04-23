@@ -7,7 +7,7 @@
 
 <!-- Memory Content -->
 <div class="flex-1 overflow-y-auto p-5">
-    {% if error %}<script>showToast("{{ error | escapejs }}", 'error');</script>{% endif %}
+    {% if error %}<div x-data="errorToast" data-error="{{ error | escapejs }}"></div>{% endif %}
 
     <!-- Persona Selector -->
     <div class="mb-5"
@@ -108,13 +108,13 @@
 
     <div class="text-xs text-foreground-secondary mb-4"
          id="memory-status-bar"
+         x-data="memoryView"
          data-status-url="/memory/update-status/"
          data-memory-url="/memory/"
          data-persona="{{ selected_persona }}"
          data-updating="{{ memory_updating | default(value=false) }}">
         {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update }}"></span>{% else %}No memory yet for {{ selected_persona | display_name }}{% endif %}<span id="memory-status" class="{% if not just_updated and not memory_updating %}hidden{% endif %}"> · {% if just_updated %}{{ icons::check_circle(class="w-4 h-4 inline") }} {{ success | default(value='') }}{% else %}Updating memory<span class="updating-dots"><span class="animate-blink">.</span><span class="animate-blink blink-2">.</span><span class="animate-blink blink-3">.</span></span>{% endif %}</span>
     </div>
-    <script>initMemoryView();</script>
 
     <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent">
         {% if memory_content %}

@@ -12,6 +12,8 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('collapsibleSection', collapsibleSection);
     Alpine.data('selectDropdown', selectDropdown);
     Alpine.data('toastContainer', toastContainer);
+    Alpine.data('errorToast', errorToast);
+    Alpine.data('memoryView', memoryView);
     Alpine.data('confirmModal', confirmModal);
 
     // Modal Components
@@ -82,6 +84,56 @@ function toastContainer() {
 
         dismiss(id) {
             this.toasts = this.toasts.filter(t => t.id !== id);
+        }
+    };
+}
+
+// =============================================================================
+// Reusable: Error Toast (server-rendered)
+// =============================================================================
+
+/**
+ * Server-rendered error surfacer. Templates that may receive an `error`
+ * variable mount this on a stub element with `data-error` set; on init it
+ * fires showToast(). Lets server-side error rendering stay declarative
+ * (no inline <script> with business logic in the template).
+ */
+function errorToast() {
+    return {
+        init() {
+            const msg = this.$el.dataset.error;
+            if (msg) showToast(msg, 'error');
+        }
+    };
+}
+
+// =============================================================================
+// Reusable: Memory View (HTMX-swap setup for the memory page)
+// =============================================================================
+
+/**
+ * Mounted on `#memory-status-bar` in memory_main.html. On init: formats the
+ * last-update timestamp into the user's locale, and starts the status
+ * poller if the page rendered with `data-updating="true"`. Exists as an
+ * Alpine component (rather than an inline init call) so HTMX-swapped
+ * fragments wire themselves up via Alpine's auto-init.
+ */
+function memoryView() {
+    return {
+        init() {
+            const tsEl = this.$el.querySelector('#last-update-time');
+            if (tsEl && tsEl.dataset.timestamp) {
+                const date = new Date(parseInt(tsEl.dataset.timestamp) * 1000);
+                tsEl.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                    + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            }
+            if (this.$el.dataset.updating === 'true') {
+                pollMemoryUpdateStatus(
+                    this.$el.dataset.persona,
+                    this.$el.dataset.statusUrl,
+                    this.$el.dataset.memoryUrl
+                );
+            }
         }
     };
 }

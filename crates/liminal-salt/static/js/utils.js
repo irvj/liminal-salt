@@ -662,26 +662,6 @@ function showMemoryUpdating() {
 }
 
 /**
- * Initialize memory view: format the last-update timestamp and start polling if updating.
- * Called after memory_main.html is loaded (initial or HTMX swap).
- */
-function initMemoryView() {
-    // Format last-update timestamp
-    const el = document.getElementById('last-update-time');
-    if (el && el.dataset.timestamp) {
-        const date = new Date(parseInt(el.dataset.timestamp) * 1000);
-        el.textContent = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-            + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    }
-
-    // Start polling if memory is currently updating
-    const bar = document.getElementById('memory-status-bar');
-    if (bar && bar.dataset.updating === 'true') {
-        pollMemoryUpdateStatus(bar.dataset.persona, bar.dataset.statusUrl, bar.dataset.memoryUrl);
-    }
-}
-
-/**
  * Poll the memory update status endpoint until complete or failed.
  * @param {string} persona - Persona name
  * @param {string} statusUrl - URL for the status endpoint

@@ -462,8 +462,8 @@ async fn render_memory(
         memory::get_memory_content(&state.data_dir, selected).await
     };
 
-    // JS `initMemoryView()` does `new Date(parseInt(timestamp) * 1000)` — it
-    // expects Unix seconds, not an ISO string.
+    // The `memoryView` Alpine component does `new Date(parseInt(timestamp) * 1000)`
+    // — it expects Unix seconds, not an ISO string.
     let last_update = if selected.is_empty() {
         String::new()
     } else {
