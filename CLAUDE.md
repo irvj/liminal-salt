@@ -4,7 +4,9 @@ Navigation + conventions for Claude working in this repo. Written for Claude, no
 
 ## What this is
 
-Liminal Salt — Rust + Axum + Tera web chatbot on top of OpenRouter. No database; state lives in JSON/Markdown files under `data/`. Single-process (hyper via Axum). HTMX + Alpine.js + Tailwind on the frontend. Milestone 2 will wrap this same binary in Tauri for native desktop distribution; Milestone 1 (this) is a browser-based Rust server.
+Liminal Salt — Rust + Axum + Tera web chatbot on top of OpenRouter. No database; state lives in JSON/Markdown files under `data/`. Single-process (hyper via Axum). HTMX + Alpine.js + Tailwind on the frontend. Current state is a browser-based Rust server; multi-provider LLM support, user-editable prompts, and Tauri desktop distribution are on the roadmap.
+
+See [`docs/planning/ARCHITECTURE_ROADMAP.md`](docs/planning/ARCHITECTURE_ROADMAP.md) for the milestone plan, ordering rationale, and what's deliberately out of scope.
 
 ## Directory layout
 
@@ -46,7 +48,7 @@ docs/planning/                Roadmap + phase history.
 | `local_context.rs` | Stateless FS primitives for user-configured directories. `read_file` returns `Result<String, ReadError>` — rejects invalid UTF-8 loudly instead of lossy-replace, so the prompt doesn't silently get U+FFFD. |
 | `persona.rs` | Persona CRUD + rename/delete cascade. Owns `data/personas/{name}/` **including** `config.json` (moved here from `context_manager` during Phase 4a). Returns `Result<_, PersonaError>`. |
 | `llm.rs` | `ChatLlm` trait + `LlmClient` impl (OpenRouter). `LlmError`. The only outbound chat-completions path. |
-| `config.rs` | `AppConfig` load/save, `is_app_ready`, agreement version parser. `data_dir()` is the **Tauri integration seam** — the one function that changes in M2. |
+| `config.rs` | `AppConfig` load/save, `is_app_ready`, agreement version parser. `data_dir()` is the **Tauri integration seam** — the one function that changes when wrapped in Tauri. |
 | `summarizer.rs` | Title generation (one-shot, first-exchange). |
 | `openrouter.rs` | Provider validation + model list fetch + pricing formatting. Uses the shared `AppState::http` client. |
 | `themes.rs` | Theme listing — scans `static/themes/*.json`. |
@@ -131,7 +133,7 @@ Written by `session.rs`. `skip_serializing_if = "Option::is_none"` keeps the on-
 
 Best-effort scans (`list_sessions`, `list_persona_threads`, `list_themes`, `list_files`) stay `Vec<T>` — individual failures shouldn't fail the whole list. Simple attribute reads (`get_memory_content`, `persona::load_identity`) return `String` with "" as the null-object value; no Option wrapping needed at that layer.
 
-**Tauri seam.** `config::data_dir()` is the single function that changes for M2 — Tauri will have it return `app_data_dir()`. No other path literal in the crate hard-codes the data root.
+**Tauri seam.** `config::data_dir()` is the single function that changes for the Tauri wrap — Tauri will have it return `app_data_dir()`. No other path literal in the crate hard-codes the data root.
 
 ## Separation of concerns — hard rules
 
@@ -190,6 +192,15 @@ node --check crates/liminal-salt/static/js/components.js     # JS syntax sanity
 ```
 
 Setup wizard at `/setup/` on first launch.
+
+## Git workflow
+
+At the end of a task or phase: propose a terse commit message in the repo's style and ask before committing. Once the user approves, the commit/push loop (stage → commit → push) is pre-authorized — don't ask a second time for the same approval.
+
+- **Commit style.** Lowercase first word. Optional conventional prefix (`docs:`, `fix:`, `refactor:`, `feat:`). Terse; focus on *why* when the *what* isn't self-evident from the diff. No `Co-Authored-By` trailer.
+- **Version bumping.** `./scripts/bump-version.sh {patch|minor|major}`. Ask which bump type if ambiguous; default to `patch` for internal work and bug fixes, `minor` for user-visible features. A version bump is its own commit, created by the script.
+- **One commit per logical unit.** If a task produced unrelated changes (e.g., a refactor plus an unrelated doc tweak), surface that and ask whether to split before committing.
+- **Never without an explicit ask.** Force push, `reset --hard`, `--amend` of a pushed commit, `--no-verify`, branch deletion. Pre-commit hook failure → fix the underlying issue and create a new commit; don't skip the hook.
 
 ## When touching this repo
 

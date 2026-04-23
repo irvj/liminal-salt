@@ -1,7 +1,22 @@
 # Liminal Salt — Architecture Roadmap
 
-**Updated:** 2026-04-22
-**Status:** Milestone 1 (Python → Rust) complete at v0.20.0. Milestone 2 (Tauri desktop) is next.
+**Updated:** 2026-04-23
+**Status:** M1 (Python → Rust) complete at v0.20.1. Architecture is mature; this roadmap tracks the refactors and milestones needed for the architecture to become immaterial to further product work.
+
+---
+
+## Guiding Principle
+
+> The architecture should get out of the way of the features.
+
+Further product development focuses on four directions:
+
+1. **Additional LLM providers** — the app is OpenRouter-only today; trait seam is partial.
+2. **User-editable prompts** — prompt engineering is the actual conceit of the app; users should be able to tune it in-app.
+3. **Tauri desktop distribution** — M1 was designed around this with `config::data_dir()` as the one-function seam.
+4. **Frontend UX refinement**, especially settings pages — organized, clear, obvious to non-technical users.
+
+Architectural work below is ordered to unblock those directions in the sequence that compounds best. Multi-provider and prompt externalization come before Tauri because they reshape service-layer boundaries; Tauri is plumbing once those boundaries are right. UX refinement is a cross-cutting thread, not a discrete milestone.
 
 ---
 
@@ -10,18 +25,109 @@
 - Rust + Axum + Tera backend; HTMX + Alpine + Tailwind frontend. Single-process server on port 8420.
 - Python/Django codebase removed. `cargo run -p liminal-salt` is the dev loop.
 - 159+ integration + unit tests; clippy clean under `-D warnings`.
-- [`CLAUDE.md`](../../CLAUDE.md) holds the architecture invariants, service ownership, and code standards.
-- [`CHANGELOG.md`](../../CHANGELOG.md) holds the commit-level history (the full Python → Rust story is aggregated under `v0.20.0`).
+- Architecture audit (2026-04-23): A on separation of concerns, locking discipline, file I/O durability, documentation; A− on Rust idioms and frontend discipline; B+ on handler thinness and error handling; B− on test coverage (services well covered; zero HTTP-layer tests).
+- [`CLAUDE.md`](../../CLAUDE.md) holds architecture invariants, service ownership, and code standards. The invariants are load-bearing, not scar tissue — each exists because the alternative breaks under the workload (LLM calls are slow; flat-file storage has no transaction manager; multiple writers touch the same session document).
+- [`CHANGELOG.md`](../../CHANGELOG.md) holds commit-level history.
 
-Persistent state lives under `data/`. `config::data_dir()` resolves this path and is the single function that changes for M2.
+Persistent state lives under `data/`. `config::data_dir()` resolves this path and is the single function that changes for Tauri.
 
 ---
 
-# Milestone 2: Tauri Desktop App
+## Immediate polish work
 
-Wrap the Rust backend in Tauri. Since M1 produced a Rust Axum server, Axum runs in-process — no child process, no bundled runtimes, no IPC bridge.
+Small fixes surfaced by the 2026-04-23 audit. Clear before the larger refactors so the current shape is consistent. All low-risk.
 
-## Architecture
+- **Move `build_llm()` out of the handler.** `handlers/chat.rs:259-262` constructs an `LlmClient` directly, violating the "no fresh `LlmClient` in handlers" rule in CLAUDE.md. Move to `services/llm.rs` as `llm::client_from_config(state, cfg)`; handlers call it.
+- **Log silent parse failures in `memory_worker.rs`.** Two sites — `cached_thread_view` (~line 1013) and `count_new_messages_for_persona` (~line 1085) — use `.ok()?` to swallow corrupt-JSON errors silently. Add `tracing::warn!` before returning `None` / `continue` so a malformed session file surfaces in logs.
+- **Standardize handler error mapping.** `handlers/context.rs` has a clean per-variant status mapper (`context_scope_status`). `handlers/memory.rs` and others collapse most service errors to 500, erasing the typed-error discrimination that services did carefully. Extract mappers for `MemoryError`, `PersonaError`, and any other service errors that aren't fully mapped.
+- **Move inline `<script>` blocks out of templates.** `templates/memory/memory_main.html` has two (line 10 for `showToast`, line 117 for `initMemoryView()`). Move to Alpine component init / event dispatch to match the CLAUDE.md "no inline script" rule enforced elsewhere.
+
+---
+
+## Milestone 2: Multi-provider LLM support
+
+Today the app is OpenRouter-only in everything but name. `ChatLlm` trait exists; everything around it is provider-specific. The highest-leverage refactor to do *before* adding a second provider — doing it after means touching every provider-aware site twice.
+
+### Current state
+
+| Area | Shape today |
+|------|-------------|
+| `services/llm.rs` | `ChatLlm` trait ✓. `LlmClient` concrete struct, OpenRouter request shape hard-coded. |
+| `services/openrouter.rs` | Provider-specific: key validation, model list fetch, pricing format. |
+| `AppConfig` | `openrouter_api_key` field (leaky name), `model`. |
+| Setup wizard | `handlers/setup.rs` is OpenRouter-shaped — 3-step flow assumes that provider. |
+| Handlers | Several reference OpenRouter directly. |
+
+### Target state
+
+- **`Provider` trait** alongside `ChatLlm`. Responsibilities: validate API key, list available models, format pricing. Per-provider impls under `services/providers/`.
+- **Provider-neutral config schema:** `provider: "openrouter" | "anthropic" | …`, `api_key`, `model`. Migration reads legacy `openrouter_api_key` into the new shape on first load after upgrade.
+- **Setup wizard becomes provider-agnostic** with a provider-picker step, then the existing key-validation + model-selection flow delegated to the selected provider's `Provider` impl.
+- **At least one additional provider** (Anthropic direct is the obvious second) implemented to prove the trait boundary is right. Adding a third later should be additive only.
+
+### Work items
+
+1. Define `Provider` trait; migrate `openrouter.rs` to implement it under `services/providers/openrouter.rs`.
+2. Generalize `AppConfig` with one-time migration from the old field name.
+3. Restructure setup wizard for provider-agnostic flow.
+4. Update handlers that mention OpenRouter to go through the trait.
+5. Add Anthropic provider impl as proof-of-boundary.
+6. Update `docs/planning/` + CLAUDE.md `services/` table accordingly.
+
+---
+
+## Milestone 3: User-editable prompts
+
+Make the app's prompts discoverable, editable, and resettable from inside the app. Designed for non-technical users — no variables, no templating, no placeholders in the user-facing surface. The user edits prose; the app owns the structural envelope that interpolates dynamic values (persona name, recent messages, size limit, etc.).
+
+### Design
+
+- **`crates/liminal-salt/default_prompts/*.md`** — bundled, plain prose, no variables. Source of truth for "reset to default."
+- **`data/prompts/*.md`** — user-editable copies. Seeded on first boot; newly-added prompt files are seeded on subsequent app updates; **existing files are never touched** once the user has them.
+- **`services/prompts.rs`** — owns `data/prompts/**`. Public API: `load`, `save`, `reset`, `list`, `seed_default_prompts`. Mirrors the `seed_default_personas` pattern in `prompt.rs`. ~100 LOC. No templating engine.
+- **Envelope pattern.** Prompt-using services (`thread_memory`, `memory`, `summarizer`) keep their `format!(...)` wrapping logic, which continues to inject structural values. The "instructions" block inside the wrapper is loaded from `prompts::load(name)` instead of being an inline string literal. Users see and edit only the instructions block; they never see or need to know about the wrapper or the variables it owns.
+
+### UI
+
+- Prompt-editor page lists each editable prompt by name + short description.
+- Each prompt: textarea with current user version; "View default" control shows the bundled default read-only (modal or side-by-side). "Save" persists; "Reset to default" is a button with a confirm dialog to guard against misclick on hard-won edits.
+- No "your prompt differs from default" indicator in v1 — copy-if-missing semantics make it a non-issue until we actually ship a default-prompt update.
+
+### Prompts to externalize (v1)
+
+1. Thread memory merge — chatbot variant (currently inline in `thread_memory.rs`)
+2. Thread memory merge — roleplay variant (currently inline in `thread_memory.rs`)
+3. Thread memory seed (currently inline in `thread_memory.rs`)
+4. Persona memory merge (currently inline in `memory.rs`)
+5. Persona memory seed (currently inline in `memory.rs`)
+6. Persona memory modify (currently inline in `memory.rs`)
+7. Title summarizer (currently inline in `summarizer.rs`)
+
+### Explicitly deferred
+
+- **Per-persona prompt overrides** — introduces a resolver cascade (per-persona → global → bundled) not needed in v1. Natural future extension.
+- **User-facing variables / templating** — target audience is non-technical. All interpolation stays app-side.
+- **"Default has changed" diff indicator** — copy-if-missing is sufficient until we actually ship a default-prompt update, and even then a manual "view default" viewing is enough.
+
+---
+
+## Handler test harness + LLM client tests
+
+Currently zero HTTP-layer tests. As UX churn accelerates (M3 prompt editor, post-M4 settings reorganization), handler tests catch CSRF / form-parsing / error-mapping regressions cheaply. Can run in parallel with M2/M3; depends only on the current-state handlers.
+
+- Add a test module using `tower::ServiceExt::oneshot` against the Axum `Router`.
+- Cover critical POST paths: `/chat/send/`, `/memory/update/`, `/session/fork-to-roleplay/`, CSRF token round-trip, multipart upload (`/settings/context/upload/`).
+- Target: ~10–15 tests; enough to catch error-mapping drift and middleware regressions, not enough to duplicate service-layer coverage.
+- Add `llm.rs` unit tests using `wiremock` — retry, timeout, bad-status, and JSON-parse-error paths are today untested. A network-regression here would be invisible until production.
+- Add minimal `config.rs` / `openrouter.rs` / `summarizer.rs` unit coverage (currently zero).
+
+---
+
+## Milestone 4: Tauri Desktop App
+
+Wrap the Rust backend in Tauri. Axum runs in-process — no child process, no bundled runtimes, no IPC bridge. This is plumbing once M2 and M3 have landed; all the service-layer shape should be right by this point.
+
+### Architecture
 
 ```
 ┌──────────────────────────────────────┐
@@ -42,7 +148,7 @@ Wrap the Rust backend in Tauri. Since M1 produced a Rust Axum server, Axum runs 
 └──────────────────────────────────────┘
 ```
 
-## Implementation Scope
+### Implementation scope
 
 | Task | Details |
 |------|---------|
@@ -51,11 +157,16 @@ Wrap the Rust backend in Tauri. Since M1 produced a Rust Axum server, Axum runs 
 | Window management | Single window → `http://127.0.0.1:{port}`. Disable dev tools in release. |
 | Lifecycle | Axum task spawned on Tauri setup; abort on window-close event. Clean shutdown via the same `tokio::signal::ctrl_c` equivalent the CLI server uses. |
 | Data directory | Swap `config::data_dir()` to return Tauri's `app_data_dir()`. This is the single seam M1 was designed around — no other path literal hard-codes the data root. |
-| Asset embedding | Use `rust-embed` (or `include_dir!`) to ship: `crates/liminal-salt/templates/`, `crates/liminal-salt/static/` (including `static/vendor/htmx.min.js`, `static/vendor/alpinejs.min.js`, and 16 theme JSONs), `crates/liminal-salt/default_personas/`, and `AGREEMENT.md`. On first launch, seed defaults into `app_data_dir()`. |
+| Asset embedding | Use `rust-embed` (or `include_dir!`) to ship: `crates/liminal-salt/templates/`, `crates/liminal-salt/static/` (including `static/vendor/htmx.min.js`, `static/vendor/alpinejs.min.js`, and the 16 theme JSONs), `crates/liminal-salt/default_personas/`, `crates/liminal-salt/default_prompts/` (new from M3), and `AGREEMENT.md`. On first launch, seed defaults into `app_data_dir()`. |
 | App icons | Generate `.icns` / `.ico` / `.png` via `cargo tauri icon`. |
 | Build | `cargo tauri build` per target platform. |
 
-## Data Directory
+### Open questions to resolve during M4
+
+- **Session store persistence.** Current `tower-sessions` `MemoryStore` loses state on restart — fine for a dev server, awkward in a desktop app. Decide: persist session state (file-backed store), or accept session reset on app restart (simpler; the only real cost is re-selecting the current chat).
+- **CSRF in a same-origin Tauri context.** Keep it (simpler than conditionally disabling), or make it conditional on "running outside Tauri." Default to keeping it — the overhead is negligible and the code is already there.
+
+### Data directory
 
 `app_data_dir()` resolves to:
 
@@ -65,19 +176,49 @@ Wrap the Rust backend in Tauri. Since M1 produced a Rust Axum server, Axum runs 
 | Windows | `C:\Users\<user>\AppData\Roaming\com.liminalsalt.app\` |
 | Linux | `~/.local/share/com.liminalsalt.app/` |
 
-Directory shape inside matches M1: `config.json`, `sessions/`, `personas/`, `memory/`, `user_context/`. Flat files, self-contained; the user can back up by copying the folder.
+Directory shape inside matches M1 plus M3's additions: `config.json`, `sessions/`, `personas/`, `memory/`, `user_context/`, `prompts/`. Flat files, self-contained; the user can back up by copying the folder.
 
-## Success Criteria
+### Success criteria
 
 - App launches as a native window (no browser, no address bar).
 - Single binary, no external dependencies.
 - Binary size < 20MB.
-- Native window controls.
-- App icon in taskbar / dock.
+- Native window controls; app icon in taskbar / dock.
 - Clean shutdown (Axum stops on window close).
 - Data persists in platform-appropriate location.
 - All functionality identical to the browser M1 version.
 - Builds for macOS, Windows, Linux.
+
+---
+
+## Ongoing: UX refinement
+
+Not a milestone — a thread that runs through M2, M3, and M4 and beyond. Driven by actual UI design, not speculation.
+
+- **Component primitives emerge from real surfaces.** M2's provider picker, M3's prompt editor, and M4's settings reorganization all surface common needs: labeled setting rows, collapsible sections, inline validation states, help tooltips, confirm modals. Build these as reusable Alpine components as they're needed — don't spec a library up front.
+- **Settings page reorganization** is the main non-techie surface. Group by intent ("conversation behavior," "memory," "appearance") rather than by implementation ("thread memory settings," "persona defaults"). Hide advanced controls behind disclosure. The "Custom" badge / resolver cascade today works correctly but is visually noisy for casual users — reduce the UI real estate it occupies.
+- **Frontend discipline rules in CLAUDE.md still apply.** No inline handlers, no inline styles, no business logic in templates. Alpine components registered in `alpine:init`. The two existing violations in `memory_main.html` get cleaned up in the Immediate polish work above.
+
+---
+
+## Ongoing: Prompt engineering
+
+Enabled by M3. Iterate on `default_prompts/*.md` bundled defaults; users' overrides are preserved. No architecture change required — this is the product work the architecture exists to serve.
+
+---
+
+## What we're deliberately NOT doing
+
+Explicit non-goals. Preventing drift toward nice-to-have refactors that don't earn their keep.
+
+- **Database migration.** Flat-files under `data/` are a feature (users back up by copying a folder; no migrations to ship across app versions). The invariants this forces — atomic writes, RMW preserving unknown fields — are cheap and already correct.
+- **Per-session actor pattern.** Current per-session `TokioMutex` with "no lock held across LLM `.await`" is correct and well-documented. Actor lifecycle management (spawn on demand, idle timeout, supervisor for cross-session ops) would be *more* complexity, not less.
+- **`SessionId` newtype refactor.** Genuinely a minor improvement over the "validate at every entry point" pattern, but not worth the churn unless in `session.rs` for another reason.
+- **Trait-object `AppState` for compile-time handler thinness.** Would hurt test ergonomics more than it helps at this size (tests currently call service functions directly, which is a feature).
+- **Splitting `memory_worker.rs`.** It's 1,218 lines but cohesive. Splitting would create cross-file coordination seams worse than the file size.
+- **Per-persona prompt overrides.** Deferred from M3. Power-user feature; adds a resolver cascade (per-persona → global → bundled) not needed in v1.
+- **User-facing variable templating in prompts.** Target audience is non-technical. The app owns all substitution; the user edits pure prose.
+- **Additional LLM providers beyond the M2 proof-of-boundary until M2 has landed.** Adding two providers before the trait is settled means doing the refactor three times instead of once.
 
 ---
 
@@ -92,3 +233,4 @@ Places where things can break in subtle ways. Consult this list when touching re
 5. **HTMX 2 error-response semantics.** HTMX 2 doesn't swap on 4xx/5xx by default. Handlers that return plain-text errors on failure don't propagate anything to the user UI — the client-side error display path in `utils.js` fills that gap, but custom swap behavior on error requires explicit config.
 6. **Orphan template URL attributes after refactors.** When renaming a route, the `data-*-url` attributes in templates and `getAppUrl` fallbacks in JS can go stale without breaking the build or tests. They're strings; the JS then fetches them and gets 404s. After any route rename, grep the new route literal across templates + JS and confirm old-path references got updated.
 7. **Persona rename cascade** is best-effort, not transactional. A mid-cascade failure leaves partial state (directory renamed but memory file didn't). Log-and-continue is accepted; recovery is manual if it happens.
+8. **Prompt envelope compatibility (M3 onward).** When a prompt-using service changes what structural values it injects (adds a new field to the envelope, removes one), the user's saved prompt doesn't break — it's pure prose, independent of the envelope. But the *bundled default* should be updated to reflect any new context the envelope exposes, or the LLM won't be instructed how to use it. Keep `default_prompts/*.md` in sync with service-side envelope changes.
