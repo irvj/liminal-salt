@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.20.2] - 2026-04-23
+
+### Changes
+- docs: drop completed polish section from roadmap; note audit items shipped
+- refactor: replace inline <script> blocks in memory_main.html with errorToast + memoryView Alpine components; drop the inline-script carve-out from CLAUDE.md
+- refactor: consolidate handler error->status mappers into handlers/status.rs; persona NotFound now 404 instead of 500
+- fix: warn instead of silently skipping corrupt session JSON in memory_worker scheduler
+- refactor: move LlmClient construction into LlmClient::from_config; handlers no longer build clients
+- docs: reorder milestones (M2 providers, M3 prompts, M4 Tauri); add CLAUDE.md git workflow
+
 ## [0.20.1] - 2026-04-22
 
 ### Changes
