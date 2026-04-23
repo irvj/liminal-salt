@@ -256,11 +256,6 @@ async fn persist_timezone(session: &Session, tz: Option<&str>) {
     }
 }
 
-fn build_llm(state: &AppState, cfg: &config::AppConfig) -> LlmClient {
-    LlmClient::new(cfg.openrouter_api_key.clone(), cfg.model.clone())
-        .with_http_client(state.http.clone())
-}
-
 // =============================================================================
 // Handlers
 // =============================================================================
@@ -428,7 +423,7 @@ pub async fn send(
     };
 
     let cfg = config::load_config(&state.data_dir).await;
-    let llm = build_llm(&state, &cfg);
+    let llm = LlmClient::from_config(&state.http, &cfg.openrouter_api_key, &cfg.model);
 
     let system_prompt = prompt::build_system_prompt(&state.data_dir, &existing).await;
 

@@ -94,6 +94,13 @@ impl LlmClient {
         self
     }
 
+    /// Convenience constructor that wires a config-derived `LlmClient` to the
+    /// app's shared `reqwest::Client`. Handlers must use this rather than
+    /// `LlmClient::new` directly (CLAUDE.md "Handlers do not do work").
+    pub fn from_config(http: &Client, api_key: &str, model: &str) -> Self {
+        Self::new(api_key, model).with_http_client(http.clone())
+    }
+
     pub async fn call_llm(&self, messages: &[LlmMessage]) -> Result<String, LlmError> {
         if self.api_key.is_empty() {
             return Err(LlmError::NoApiKey);
