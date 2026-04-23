@@ -33,35 +33,26 @@ Persistent state lives under `data/`. `config::data_dir()` resolves this path an
 
 ---
 
-## Milestone 2: Multi-provider LLM support
+## Milestone 2: Multi-provider LLM support — shipped
 
-Today the app is OpenRouter-only in everything but name. `ChatLlm` trait exists; everything around it is provider-specific. The highest-leverage refactor to do *before* adding a second provider — doing it after means touching every provider-aware site twice.
+Landed across six commits (`134ee37` → `40bfbcc`). Chose an **enum-with-match-arm dispatch** over a trait because the set of providers is compile-time-known; this avoids `async_trait` / `trait_variant` dependencies and the dyn-compat limitations of async-fn-in-trait, while the exhaustive `match` on each method gives compile-time coverage when a new variant is added.
 
-### Current state
+**What's in place:**
 
-| Area | Shape today |
-|------|-------------|
-| `services/llm.rs` | `ChatLlm` trait ✓. `LlmClient` concrete struct, OpenRouter request shape hard-coded. |
-| `services/openrouter.rs` | Provider-specific: key validation, model list fetch, pricing format. |
-| `AppConfig` | `openrouter_api_key` field (leaky name), `model`. |
-| Setup wizard | `handlers/setup.rs` is OpenRouter-shaped — 3-step flow assumes that provider. |
-| Handlers | Several reference OpenRouter directly. |
+- `services/providers/mod.rs` — `Provider` enum, `ProviderChatLlm` wrapper impling `ChatLlm`, `ProviderMetadata` (UI-facing), `by_id()`, `metadata_list()`, `ALL` slice.
+- `services/providers/openrouter/` — OpenRouter impl split into `catalog.rs` (key validation + model list) and `chat.rs` (`LlmClient` for `/v1/chat/completions`).
+- `AppConfig` — provider-neutral fields (`provider`, `api_key`). No migration code (no users to migrate).
+- Handlers (`chat`, `api`, `settings`, `setup`) dispatch through `Provider` methods; memory worker's `build_memory_llm` / `build_thread_memory_llm` return `ProviderChatLlm`.
+- `handlers/settings.rs`'s "unknown provider" gate now uses `providers::by_id(...).is_none()` — rejects anything not registered rather than hardcoding `"openrouter"`.
 
-### Target state
+**Remaining (future) — not scoped to this milestone:**
 
-- **`Provider` trait** alongside `ChatLlm`. Responsibilities: validate API key, list available models, format pricing. Per-provider impls under `services/providers/`.
-- **Provider-neutral config schema:** `provider: "openrouter" | "anthropic" | …`, `api_key`, `model`. Migration reads legacy `openrouter_api_key` into the new shape on first load after upgrade.
-- **Setup wizard becomes provider-agnostic** with a provider-picker step, then the existing key-validation + model-selection flow delegated to the selected provider's `Provider` impl.
-- **At least one additional provider** (Anthropic direct is the obvious second) implemented to prove the trait boundary is right. Adding a third later should be additive only.
+- **Anthropic impl** (`providers/anthropic/`). `/v1/messages` request shape differs from `/v1/chat/completions` (top-level `system`, different auth header); the reshape is confined to the `ChatLlm` impl and a new `Provider::Anthropic` variant. No other code changes.
+- **OpenAI impl** (`providers/openai/`). Almost a copy of the OpenRouter chat path minus the attribution headers.
+- **Setup-wizard UI** for the provider picker (currently renders a picker with OpenRouter as the only option — intentional, since no other providers are registered).
+- **Pricing-format policy** for providers that don't expose a pricing endpoint (OpenAI, Anthropic). Empty string is fine short-term.
 
-### Work items
-
-1. Define `Provider` trait; migrate `openrouter.rs` to implement it under `services/providers/openrouter.rs`.
-2. Generalize `AppConfig` with one-time migration from the old field name.
-3. Restructure setup wizard for provider-agnostic flow.
-4. Update handlers that mention OpenRouter to go through the trait.
-5. Add Anthropic provider impl as proof-of-boundary.
-6. Update `docs/planning/` + CLAUDE.md `services/` table accordingly.
+Adding a provider = new module under `services/providers/<name>/`, enum variant + match arms on `Provider` methods, `ProviderChatLlm` variant, `by_id` entry. The compiler enforces coverage; no other parts of the codebase change.
 
 ---
 

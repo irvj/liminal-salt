@@ -25,7 +25,7 @@ crates/liminal-salt/          Sole crate. Workspace root is the repo root.
   default_personas/           Bundled personas copied into data/personas/ on first boot.
   tests/                      Integration tests. One file per service area.
 data/                         Gitignored user state.
-  config.json                 App config (snake_case keys): openrouter_api_key, model, theme, setup_complete, agreement_accepted, etc.
+  config.json                 App config (snake_case keys): provider, api_key, model, theme, setup_complete, agreement_accepted, etc.
   sessions/session_*.json     Chat sessions.
   personas/{name}/            identity.md + config.json (model override, memory settings, thread defaults).
   memory/{name}.md            Per-persona cross-thread memory.
@@ -47,10 +47,10 @@ docs/planning/                Roadmap + phase history.
 | `context_files.rs` | `ContextScope { global, persona }`. Owns `data/user_context/**`. Uploaded files + local-directory refs unified under `ContextScopeError`. |
 | `local_context.rs` | Stateless FS primitives for user-configured directories. `read_file` returns `Result<String, ReadError>` — rejects invalid UTF-8 loudly instead of lossy-replace, so the prompt doesn't silently get U+FFFD. |
 | `persona.rs` | Persona CRUD + rename/delete cascade. Owns `data/personas/{name}/` **including** `config.json` (moved here from `context_manager` during Phase 4a). Returns `Result<_, PersonaError>`. |
-| `llm.rs` | `ChatLlm` trait + `LlmClient` impl (OpenRouter). `LlmError`. The only outbound chat-completions path. |
+| `llm.rs` | `ChatLlm` trait, `LlmMessage`, `LlmError`. Provider-neutral completion seam; concrete impls live under `providers/`. |
 | `config.rs` | `AppConfig` load/save, `is_app_ready`, agreement version parser. `data_dir()` is the **Tauri integration seam** — the one function that changes when wrapped in Tauri. |
 | `summarizer.rs` | Title generation (one-shot, first-exchange). |
-| `openrouter.rs` | Provider validation + model list fetch + pricing formatting. Uses the shared `AppState::http` client. |
+| `providers/` | `Provider` enum (one variant per backend) + `ProviderChatLlm` wrapper + `ProviderMetadata`. Adding a backend = add an enum variant + match arms in every method. OpenRouter impl under `providers/openrouter/{mod,catalog,chat}.rs` (catalog.rs = key validation + model list; chat.rs = `/chat/completions` `ChatLlm` impl). |
 | `themes.rs` | Theme listing — scans `static/themes/*.json`. |
 
 ## Handlers (`crates/liminal-salt/src/handlers/`)
@@ -155,7 +155,7 @@ Reads from any resource that might race with a writer go through that owner's pu
 
 **Services do not cross domains.** `memory.rs` does not read session JSON (inject `ThreadSnapshot`s instead). `thread_memory.rs` does not write files (it returns the merged text; the worker calls `session::save_thread_memory`). `chat.rs` does not touch session JSON directly. Cross-domain reads go through the owner's public API, not its private helpers — if you need a new accessor, add one to the owner.
 
-**`llm::LlmClient::complete` is the only chat-completions path.** No service imports `reqwest` to hit `/v1/chat/completions` directly. `openrouter.rs` is the exception for model-list + key-validation endpoints; it uses the shared `AppState::http` client.
+**`ChatLlm::complete` is the only chat-completions method.** `Provider::build_chat_llm` produces a `ProviderChatLlm` (a `ChatLlm` impl) that handlers and workers dispatch through. No service imports `reqwest` to hit a `/chat/completions` endpoint directly. `providers/openrouter/catalog.rs` is the exception for model-list + key-validation endpoints; it uses the shared `AppState::http` client.
 
 **Frontend mirrors the backend split.**
 - `utils.js` = shared utility functions (CSRF, URLs, DOM helpers, timestamp/draft/scroll). No Alpine components.
