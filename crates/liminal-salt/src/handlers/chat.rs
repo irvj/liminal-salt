@@ -423,7 +423,7 @@ pub async fn send(
     };
 
     let cfg = config::load_config(&state.data_dir).await;
-    let llm = LlmClient::from_config(&state.http, &cfg.openrouter_api_key, &cfg.model);
+    let llm = LlmClient::from_config(&state.http, &cfg.api_key, &cfg.model);
 
     let system_prompt = prompt::build_system_prompt(&state.data_dir, &existing).await;
 

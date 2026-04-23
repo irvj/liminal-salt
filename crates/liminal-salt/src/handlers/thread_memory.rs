@@ -46,7 +46,7 @@ pub async fn update(
     }
 
     let cfg = config::load_config(&state.data_dir).await;
-    if cfg.openrouter_api_key.is_empty() {
+    if cfg.api_key.is_empty() {
         return json_error(StatusCode::BAD_REQUEST, "API key not configured.");
     }
 

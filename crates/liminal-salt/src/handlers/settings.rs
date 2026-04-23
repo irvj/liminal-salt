@@ -162,7 +162,7 @@ pub async fn validate_provider_api_key(
     let api_key = if use_existing {
         let cfg = config::load_config(&state.data_dir).await;
         match provider.as_str() {
-            "openrouter" => cfg.openrouter_api_key,
+            "openrouter" => cfg.api_key,
             _ => String::new(),
         }
     } else {
@@ -254,7 +254,7 @@ pub async fn save_provider_model(
     // exist on disk, that's almost certainly a broken load (e.g. JSON parse
     // returned default). Refuse to clobber rather than save an empty key.
     if keep_existing_key
-        && cfg.openrouter_api_key.is_empty()
+        && cfg.api_key.is_empty()
         && config::config_file_exists(&state.data_dir).await
     {
         tracing::error!("Config appears corrupted — load returned empty but file exists");
@@ -306,7 +306,7 @@ async fn render_settings(
     let context_badge = badge_count(&ctx_files, &local_dirs);
 
     let providers = config::get_providers();
-    let has_api_key = !cfg.openrouter_api_key.is_empty();
+    let has_api_key = !cfg.api_key.is_empty();
     let providers_json = serde_json::to_string(providers).unwrap_or_else(|_| "[]".into());
     let local_dirs_json = serde_json::to_string(&local_dirs).unwrap_or_else(|_| "[]".into());
 

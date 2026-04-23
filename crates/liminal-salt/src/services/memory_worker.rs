@@ -819,7 +819,7 @@ impl MemoryWorker {
 
     async fn persona_scheduler_tick(&self, state: &AppState) -> Duration {
         let cfg = config::load_config(&state.data_dir).await;
-        if cfg.openrouter_api_key.is_empty() {
+        if cfg.api_key.is_empty() {
             return DEFAULT_POLL_WHEN_NO_WORK;
         }
 
@@ -890,7 +890,7 @@ impl MemoryWorker {
 
     async fn thread_memory_scheduler_tick(&self, state: &AppState) -> Duration {
         let cfg = config::load_config(&state.data_dir).await;
-        if cfg.openrouter_api_key.is_empty() {
+        if cfg.api_key.is_empty() {
             return DEFAULT_POLL_WHEN_NO_WORK;
         }
 
@@ -1216,7 +1216,7 @@ async fn build_memory_llm(state: &AppState, persona: &str) -> LlmClient {
     let persona_cfg = persona::load_persona_config(&state.data_dir, persona).await;
     let override_model = cfg.extras.get("MEMORY_MODEL").and_then(|v| v.as_str());
     let model = memory::get_memory_model(override_model, &persona_cfg, &cfg.model);
-    LlmClient::new(cfg.openrouter_api_key, model)
+    LlmClient::new(cfg.api_key, model)
         .with_http_client(state.http.clone())
         .with_timeout(Duration::from_secs(600))
 }
@@ -1230,7 +1230,7 @@ async fn build_thread_memory_llm(state: &AppState, session_id: &str) -> LlmClien
     let persona_cfg = persona::load_persona_config(&state.data_dir, &persona_name).await;
     let override_model = cfg.extras.get("MEMORY_MODEL").and_then(|v| v.as_str());
     let model = memory::get_memory_model(override_model, &persona_cfg, &cfg.model);
-    LlmClient::new(cfg.openrouter_api_key, model)
+    LlmClient::new(cfg.api_key, model)
         .with_http_client(state.http.clone())
         .with_timeout(Duration::from_secs(600))
 }

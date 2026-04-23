@@ -122,7 +122,7 @@ fn initial_step(cfg: &config::AppConfig) -> u8 {
     if cfg.setup_complete {
         return 3;
     }
-    if !cfg.openrouter_api_key.is_empty() && !cfg.model.is_empty() {
+    if !cfg.api_key.is_empty() && !cfg.model.is_empty() {
         return 3;
     }
     1
@@ -193,7 +193,7 @@ async fn step1(
     };
     render_step1(state, session, headers, StepArgs {
         provider: &provider,
-        api_key: &cfg.openrouter_api_key,
+        api_key: &cfg.api_key,
         error: None,
     })
     .await
@@ -233,7 +233,7 @@ async fn step2(
     form: Option<SetupForm>,
 ) -> Response {
     let mut cfg = config::load_config(&state.data_dir).await;
-    if cfg.openrouter_api_key.is_empty() {
+    if cfg.api_key.is_empty() {
         // Key went missing between steps — Python bounces back to step 1.
         tracing::error!("step2: no API key in config");
         session_state::set_setup_step(session, 1).await;
@@ -261,7 +261,7 @@ async fn step2(
                 session,
                 headers,
                 Step2Args {
-                    api_key: &cfg.openrouter_api_key,
+                    api_key: &cfg.api_key,
                     selected_model: &selected_model,
                     selected_theme: &selected_theme,
                     selected_mode: &selected_mode,
@@ -304,7 +304,7 @@ async fn step2(
         session,
         headers,
         Step2Args {
-            api_key: &cfg.openrouter_api_key,
+            api_key: &cfg.api_key,
             selected_model: &cfg.model,
             selected_theme: &selected_theme,
             selected_mode: &selected_mode,

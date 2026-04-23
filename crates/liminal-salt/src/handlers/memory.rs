@@ -83,7 +83,7 @@ pub async fn update(
     let selected = resolve_persona(&state, form.persona).await;
 
     let cfg = config::load_config(&state.data_dir).await;
-    if cfg.openrouter_api_key.is_empty() {
+    if cfg.api_key.is_empty() {
         return render_memory(
             &state,
             &session,
@@ -163,7 +163,7 @@ pub async fn modify(
     let selected = resolve_persona(&state, form.persona).await;
 
     let cfg = config::load_config(&state.data_dir).await;
-    if cfg.openrouter_api_key.is_empty() {
+    if cfg.api_key.is_empty() {
         return (StatusCode::INTERNAL_SERVER_ERROR, "Configuration not found").into_response();
     }
 
@@ -228,7 +228,7 @@ pub async fn seed(
     }
 
     let cfg = config::load_config(&state.data_dir).await;
-    if cfg.openrouter_api_key.is_empty() {
+    if cfg.api_key.is_empty() {
         return (StatusCode::INTERNAL_SERVER_ERROR, "Configuration not found").into_response();
     }
 

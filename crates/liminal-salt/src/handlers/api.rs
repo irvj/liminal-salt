@@ -73,14 +73,14 @@ pub async fn save_theme(
 
 pub async fn available_models(State(state): State<AppState>) -> Response {
     let cfg = config::load_config(&state.data_dir).await;
-    if cfg.openrouter_api_key.is_empty() {
+    if cfg.api_key.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"error": "No API key configured"})),
         )
             .into_response();
     }
-    let models = openrouter::get_formatted_model_list(&state.http, &cfg.openrouter_api_key).await;
+    let models = openrouter::get_formatted_model_list(&state.http, &cfg.api_key).await;
     if models.is_empty() {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
