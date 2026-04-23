@@ -16,7 +16,14 @@ use serde::{Deserialize, Serialize};
 pub struct AppConfig {
     pub setup_complete: bool,
     pub agreement_accepted: String,
+    /// Legacy field, kept during the multi-provider transition. Handlers still
+    /// write here; `load_config` mirrors its value into `api_key` on every load
+    /// so the provider-neutral read path stays in sync. Removed once writers
+    /// switch to `api_key` directly.
     pub openrouter_api_key: String,
+    /// Provider-neutral key field. Authoritative on read; populated from
+    /// `openrouter_api_key` by `migrate_legacy_fields` during the transition.
+    pub api_key: String,
     pub provider: String,
     pub model: String,
     pub default_persona: String,
@@ -26,6 +33,22 @@ pub struct AppConfig {
 
     #[serde(flatten)]
     pub extras: BTreeMap<String, serde_json::Value>,
+}
+
+/// Normalize a freshly-loaded config for the multi-provider transition:
+/// mirror the legacy `openrouter_api_key` into `api_key` when present, and
+/// backfill `provider` for configs that predate that field.
+///
+/// The legacy field wins on mismatch because writers still target it during
+/// this phase of the refactor. Once writers switch to `api_key` (commit 3),
+/// the legacy field is removed and this migration reads it out of `extras`.
+fn migrate_legacy_fields(cfg: &mut AppConfig) {
+    if !cfg.openrouter_api_key.is_empty() {
+        cfg.api_key = cfg.openrouter_api_key.clone();
+    }
+    if cfg.provider.is_empty() && !cfg.api_key.is_empty() {
+        cfg.provider = "openrouter".to_string();
+    }
 }
 
 /// App is accessible only when setup has finished AND the user has accepted the
@@ -61,7 +84,10 @@ pub async fn load_config(data_dir: &Path) -> AppConfig {
         }
     };
     match serde_json::from_slice::<AppConfig>(&bytes) {
-        Ok(cfg) => cfg,
+        Ok(mut cfg) => {
+            migrate_legacy_fields(&mut cfg);
+            cfg
+        }
         Err(err) => {
             tracing::error!(?path, error = %err, "config file corrupt");
             AppConfig::default()
@@ -158,4 +184,76 @@ pub fn get_providers() -> &'static [Provider] {
 
 pub fn get_provider_by_id(id: &str) -> Option<&'static Provider> {
     PROVIDERS.iter().find(|p| p.id == id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn migration_mirrors_legacy_key_and_backfills_provider() {
+        let mut cfg = AppConfig {
+            openrouter_api_key: "sk-or-test".to_string(),
+            ..Default::default()
+        };
+        migrate_legacy_fields(&mut cfg);
+        assert_eq!(cfg.api_key, "sk-or-test");
+        assert_eq!(cfg.openrouter_api_key, "sk-or-test");
+        assert_eq!(cfg.provider, "openrouter");
+    }
+
+    #[test]
+    fn migration_preserves_new_only_config_and_backfills_provider() {
+        let mut cfg = AppConfig {
+            api_key: "sk-new".to_string(),
+            ..Default::default()
+        };
+        migrate_legacy_fields(&mut cfg);
+        assert_eq!(cfg.api_key, "sk-new");
+        assert_eq!(cfg.openrouter_api_key, "");
+        assert_eq!(cfg.provider, "openrouter");
+    }
+
+    #[test]
+    fn migration_legacy_wins_during_transition() {
+        // Writers still target openrouter_api_key; a stale api_key on disk
+        // must be overwritten on load so reads stay in sync with writes.
+        let mut cfg = AppConfig {
+            openrouter_api_key: "sk-or-fresh".to_string(),
+            api_key: "sk-stale".to_string(),
+            ..Default::default()
+        };
+        migrate_legacy_fields(&mut cfg);
+        assert_eq!(cfg.api_key, "sk-or-fresh");
+    }
+
+    #[test]
+    fn migration_no_op_on_empty_config() {
+        let mut cfg = AppConfig::default();
+        migrate_legacy_fields(&mut cfg);
+        assert_eq!(cfg.api_key, "");
+        assert_eq!(cfg.openrouter_api_key, "");
+        assert_eq!(cfg.provider, "");
+    }
+
+    #[tokio::test]
+    async fn load_config_migrates_legacy_openrouter_key_from_disk() {
+        let tmp = tempfile::tempdir().unwrap();
+        let legacy_json = r#"{
+            "setup_complete": true,
+            "agreement_accepted": "1.0",
+            "openrouter_api_key": "sk-or-legacy",
+            "model": "anthropic/claude-opus-4"
+        }"#;
+        tokio::fs::write(tmp.path().join("config.json"), legacy_json)
+            .await
+            .unwrap();
+
+        let cfg = load_config(tmp.path()).await;
+        assert_eq!(cfg.api_key, "sk-or-legacy");
+        assert_eq!(cfg.openrouter_api_key, "sk-or-legacy");
+        assert_eq!(cfg.provider, "openrouter");
+        assert_eq!(cfg.model, "anthropic/claude-opus-4");
+        assert!(cfg.setup_complete);
+    }
 }
