@@ -25,22 +25,11 @@ Architectural work below is ordered to unblock those directions in the sequence 
 - Rust + Axum + Tera backend; HTMX + Alpine + Tailwind frontend. Single-process server on port 8420.
 - Python/Django codebase removed. `cargo run -p liminal-salt` is the dev loop.
 - 159+ integration + unit tests; clippy clean under `-D warnings`.
-- Architecture audit (2026-04-23): A on separation of concerns, locking discipline, file I/O durability, documentation; A− on Rust idioms and frontend discipline; B+ on handler thinness and error handling; B− on test coverage (services well covered; zero HTTP-layer tests).
+- Architecture audit (2026-04-23): A on separation of concerns, locking discipline, file I/O durability, documentation; A− on Rust idioms and frontend discipline; polish items from that audit have landed (LlmClient construction out of handlers, scheduler parse warnings, per-error-type status mappers, inline-script removal). Remaining gap: B− on test coverage — services well covered; zero HTTP-layer tests.
 - [`CLAUDE.md`](../../CLAUDE.md) holds architecture invariants, service ownership, and code standards. The invariants are load-bearing, not scar tissue — each exists because the alternative breaks under the workload (LLM calls are slow; flat-file storage has no transaction manager; multiple writers touch the same session document).
 - [`CHANGELOG.md`](../../CHANGELOG.md) holds commit-level history.
 
 Persistent state lives under `data/`. `config::data_dir()` resolves this path and is the single function that changes for Tauri.
-
----
-
-## Immediate polish work
-
-Small fixes surfaced by the 2026-04-23 audit. Clear before the larger refactors so the current shape is consistent. All low-risk.
-
-- **Move `build_llm()` out of the handler.** `handlers/chat.rs:259-262` constructs an `LlmClient` directly, violating the "no fresh `LlmClient` in handlers" rule in CLAUDE.md. Move to `services/llm.rs` as `llm::client_from_config(state, cfg)`; handlers call it.
-- **Log silent parse failures in `memory_worker.rs`.** Two sites — `cached_thread_view` (~line 1013) and `count_new_messages_for_persona` (~line 1085) — use `.ok()?` to swallow corrupt-JSON errors silently. Add `tracing::warn!` before returning `None` / `continue` so a malformed session file surfaces in logs.
-- **Standardize handler error mapping.** `handlers/context.rs` has a clean per-variant status mapper (`context_scope_status`). `handlers/memory.rs` and others collapse most service errors to 500, erasing the typed-error discrimination that services did carefully. Extract mappers for `MemoryError`, `PersonaError`, and any other service errors that aren't fully mapped.
-- **Move inline `<script>` blocks out of templates.** `templates/memory/memory_main.html` has two (line 10 for `showToast`, line 117 for `initMemoryView()`). Move to Alpine component init / event dispatch to match the CLAUDE.md "no inline script" rule enforced elsewhere.
 
 ---
 
