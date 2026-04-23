@@ -18,7 +18,7 @@ use crate::{
     AppState,
     middleware::session_state,
     services::{
-        chat as chat_svc, config, llm::LlmClient, persona as persona_svc, prompt,
+        chat as chat_svc, config, persona as persona_svc, prompt, providers,
         session as session_svc, summarizer, thread_memory,
     },
 };
@@ -423,7 +423,11 @@ pub async fn send(
     };
 
     let cfg = config::load_config(&state.data_dir).await;
-    let llm = LlmClient::from_config(&state.http, &cfg.api_key, &cfg.model);
+    let Some(provider) = providers::by_id(&cfg.provider) else {
+        tracing::error!(provider = %cfg.provider, "unknown provider in config");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "unknown provider").into_response();
+    };
+    let llm = provider.build_chat_llm(&state.http, &cfg.api_key, &cfg.model);
 
     let system_prompt = prompt::build_system_prompt(&state.data_dir, &existing).await;
 

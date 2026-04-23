@@ -9,10 +9,6 @@ use serde::Serialize;
 
 use crate::services::session::Role;
 
-// Re-exported for backward compatibility with `use services::llm::LlmClient`.
-// The concrete impl lives in `services/providers/openrouter/chat.rs`.
-pub use crate::services::providers::openrouter::chat::LlmClient;
-
 #[derive(Debug, thiserror::Error)]
 pub enum LlmError {
     #[error("no API key configured")]

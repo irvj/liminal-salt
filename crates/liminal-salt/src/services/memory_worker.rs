@@ -45,9 +45,10 @@ use crate::{
     AppState,
     services::{
         config,
-        llm::{ChatLlm, LlmClient},
+        llm::ChatLlm,
         memory,
         persona,
+        providers::{self, Provider, ProviderChatLlm},
         session::{self, Mode},
         thread_memory,
     },
@@ -1211,17 +1212,18 @@ fn display_persona_name(persona: &str) -> String {
         .join(" ")
 }
 
-async fn build_memory_llm(state: &AppState, persona: &str) -> LlmClient {
+async fn build_memory_llm(state: &AppState, persona: &str) -> ProviderChatLlm {
     let cfg = config::load_config(&state.data_dir).await;
     let persona_cfg = persona::load_persona_config(&state.data_dir, persona).await;
     let override_model = cfg.extras.get("MEMORY_MODEL").and_then(|v| v.as_str());
     let model = memory::get_memory_model(override_model, &persona_cfg, &cfg.model);
-    LlmClient::new(cfg.api_key, model)
-        .with_http_client(state.http.clone())
+    let provider = providers::by_id(&cfg.provider).unwrap_or(Provider::OpenRouter);
+    provider
+        .build_chat_llm(&state.http, &cfg.api_key, &model)
         .with_timeout(Duration::from_secs(600))
 }
 
-async fn build_thread_memory_llm(state: &AppState, session_id: &str) -> LlmClient {
+async fn build_thread_memory_llm(state: &AppState, session_id: &str) -> ProviderChatLlm {
     let cfg = config::load_config(&state.data_dir).await;
     let persona_name = session::load_session(&state.sessions_dir, session_id)
         .await
@@ -1230,7 +1232,8 @@ async fn build_thread_memory_llm(state: &AppState, session_id: &str) -> LlmClien
     let persona_cfg = persona::load_persona_config(&state.data_dir, &persona_name).await;
     let override_model = cfg.extras.get("MEMORY_MODEL").and_then(|v| v.as_str());
     let model = memory::get_memory_model(override_model, &persona_cfg, &cfg.model);
-    LlmClient::new(cfg.api_key, model)
-        .with_http_client(state.http.clone())
+    let provider = providers::by_id(&cfg.provider).unwrap_or(Provider::OpenRouter);
+    provider
+        .build_chat_llm(&state.http, &cfg.api_key, &model)
         .with_timeout(Duration::from_secs(600))
 }

@@ -14,7 +14,7 @@ use serde::Deserialize;
 
 use crate::{
     AppState,
-    services::{config, openrouter, themes},
+    services::{config, providers, themes},
 };
 
 // =============================================================================
@@ -80,7 +80,14 @@ pub async fn available_models(State(state): State<AppState>) -> Response {
         )
             .into_response();
     }
-    let models = openrouter::get_formatted_model_list(&state.http, &cfg.api_key).await;
+    let Some(provider) = providers::by_id(&cfg.provider) else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Unknown provider"})),
+        )
+            .into_response();
+    };
+    let models = provider.list_models(&state.http, &cfg.api_key).await;
     if models.is_empty() {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,

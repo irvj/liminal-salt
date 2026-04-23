@@ -20,7 +20,7 @@ use tower_sessions::Session;
 use crate::{
     AppState,
     middleware::session_state,
-    services::{config, openrouter, themes},
+    services::{config, providers, themes},
 };
 
 // =============================================================================
@@ -157,7 +157,15 @@ async fn step1(
             .await;
         }
 
-        if provider == "openrouter" && !openrouter::validate_api_key(&state.http, &api_key).await {
+        let Some(provider_enum) = providers::by_id(&provider) else {
+            return render_step1(state, session, headers, StepArgs {
+                provider: &provider,
+                api_key: &api_key,
+                error: Some("Unknown provider."),
+            })
+            .await;
+        };
+        if !provider_enum.validate_key(&state.http, &api_key).await {
             tracing::error!("API key validation failed");
             return render_step1(state, session, headers, StepArgs {
                 provider: &provider,
@@ -212,8 +220,8 @@ async fn render_step1(
     args: StepArgs<'_>,
 ) -> Response {
     let mut ctx = base_ctx(session).await;
-    let providers = config::get_providers();
-    ctx.insert("providers", providers);
+    let provider_list = providers::metadata_list();
+    ctx.insert("providers", &provider_list);
     ctx.insert("selected_provider", args.provider);
     ctx.insert("api_key", args.api_key);
     if let Some(e) = args.error {
@@ -332,7 +340,9 @@ async fn render_step2(
 
     // Fetch models. Failure is a distinct error path — matches Python's
     // "could not fetch, go back and check the key" branch.
-    let models = openrouter::get_formatted_model_list(&state.http, args.api_key).await;
+    let cfg = config::load_config(&state.data_dir).await;
+    let provider = providers::by_id(&cfg.provider).unwrap_or(providers::Provider::OpenRouter);
+    let models = provider.list_models(&state.http, args.api_key).await;
     let themes_list = themes::list_themes().await;
     let models_json = serde_json::to_string(&models).unwrap_or_else(|_| "[]".into());
     let themes_json = serde_json::to_string(&themes_list).unwrap_or_else(|_| "[]".into());

@@ -18,7 +18,7 @@ use tower_sessions::Session;
 use crate::{
     AppState,
     services::{
-        config, context_files::ContextScope, openrouter,
+        config, context_files::ContextScope, providers,
     },
 };
 
@@ -177,16 +177,16 @@ pub async fn validate_provider_api_key(
         .into_response();
     }
 
-    if provider != "openrouter" {
+    let Some(provider_enum) = providers::by_id(&provider) else {
         return Json(serde_json::json!({
             "valid": false,
             "error": "Unknown provider",
         }))
         .into_response();
-    }
+    };
 
     // Validate unless re-using a previously-validated key.
-    if !use_existing && !openrouter::validate_api_key(&state.http, &api_key).await {
+    if !use_existing && !provider_enum.validate_key(&state.http, &api_key).await {
         return Json(serde_json::json!({
             "valid": false,
             "error": "Invalid API key",
@@ -194,7 +194,7 @@ pub async fn validate_provider_api_key(
         .into_response();
     }
 
-    let models = openrouter::get_formatted_model_list(&state.http, &api_key).await;
+    let models = provider_enum.list_models(&state.http, &api_key).await;
     if models.is_empty() {
         return Json(serde_json::json!({
             "valid": false,
@@ -305,9 +305,9 @@ async fn render_settings(
     let local_dirs = scope.list_local_directories().await;
     let context_badge = badge_count(&ctx_files, &local_dirs);
 
-    let providers = config::get_providers();
+    let provider_list = providers::metadata_list();
     let has_api_key = !cfg.api_key.is_empty();
-    let providers_json = serde_json::to_string(providers).unwrap_or_else(|_| "[]".into());
+    let providers_json = serde_json::to_string(&provider_list).unwrap_or_else(|_| "[]".into());
     let local_dirs_json = serde_json::to_string(&local_dirs).unwrap_or_else(|_| "[]".into());
 
     let mut ctx = super::chat::base_chat_context(state, session).await;
@@ -315,7 +315,7 @@ async fn render_settings(
     ctx.insert("show_home", &false);
     ctx.insert("model", &cfg.model);
     ctx.insert("provider", &cfg.provider);
-    ctx.insert("providers", providers);
+    ctx.insert("providers", &provider_list);
     ctx.insert("providers_json", &providers_json);
     ctx.insert("has_api_key", &has_api_key);
     ctx.insert("context_history_limit", &cfg.context_history_limit);

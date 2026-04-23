@@ -13,7 +13,3 @@ pub mod session;
 pub mod summarizer;
 pub mod themes;
 pub mod thread_memory;
-
-// Transition re-export so existing `use crate::services::openrouter::*` call
-// sites keep compiling while commit 5 migrates them onto `Provider` methods.
-pub use providers::openrouter;

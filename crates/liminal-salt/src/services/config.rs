@@ -131,31 +131,3 @@ pub fn current_agreement_version() -> &'static str {
     AGREEMENT.version.as_str()
 }
 
-// =============================================================================
-// Providers
-// =============================================================================
-
-/// Available API providers. Currently just OpenRouter; the setup/settings UI
-/// treats this as the canonical list, so new providers only need adding here.
-#[derive(Clone, Debug, Serialize)]
-pub struct Provider {
-    pub id: &'static str,
-    pub name: &'static str,
-    pub api_key_url: &'static str,
-    pub api_key_placeholder: &'static str,
-}
-
-pub const PROVIDERS: &[Provider] = &[Provider {
-    id: "openrouter",
-    name: "OpenRouter",
-    api_key_url: "https://openrouter.ai/keys",
-    api_key_placeholder: "sk-or-v1-...",
-}];
-
-pub fn get_providers() -> &'static [Provider] {
-    PROVIDERS
-}
-
-pub fn get_provider_by_id(id: &str) -> Option<&'static Provider> {
-    PROVIDERS.iter().find(|p| p.id == id)
-}
