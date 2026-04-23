@@ -13,7 +13,7 @@ use liminal_salt::services::{
 #[test]
 fn name_validation() {
     assert!(valid_persona_name("assistant"));
-    assert!(valid_persona_name("riddler_2"));
+    assert!(valid_persona_name("test_persona_2"));
     assert!(!valid_persona_name(""));
     assert!(!valid_persona_name("with space"));
     assert!(!valid_persona_name("../escape"));

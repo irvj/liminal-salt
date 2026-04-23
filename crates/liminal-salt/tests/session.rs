@@ -43,7 +43,7 @@ async fn create_then_load_round_trips_core_fields() {
     let written = session::create_session(
         tmp.path(),
         id,
-        "riddler",
+        "test_persona",
         "New Chat",
         Mode::Chatbot,
         vec![],
@@ -55,7 +55,7 @@ async fn create_then_load_round_trips_core_fields() {
         .await
         .expect("load");
     assert_eq!(loaded.title, written.title);
-    assert_eq!(loaded.persona, "riddler");
+    assert_eq!(loaded.persona, "test_persona");
     assert_eq!(loaded.mode, Mode::Chatbot);
     assert!(loaded.messages.is_empty());
     // Optional fields stay absent on create.
@@ -474,7 +474,7 @@ async fn list_persona_threads_filters_persona_and_skips_roleplay() {
     seed_session(
         tmp.path(),
         "session_20260421_130001.json",
-        "riddler",
+        "test_persona",
         Mode::Chatbot,
         vec![msg(Role::User, "match")],
     )
@@ -490,7 +490,7 @@ async fn list_persona_threads_filters_persona_and_skips_roleplay() {
     seed_session(
         tmp.path(),
         "session_20260421_130003.json",
-        "riddler",
+        "test_persona",
         Mode::Roleplay,
         vec![msg(Role::User, "skip - roleplay")],
     )
@@ -499,15 +499,15 @@ async fn list_persona_threads_filters_persona_and_skips_roleplay() {
     seed_session(
         tmp.path(),
         "session_20260421_130004.json",
-        "riddler",
+        "test_persona",
         Mode::Chatbot,
         vec![],
     )
     .await;
 
-    let threads = session::list_persona_threads(tmp.path(), "riddler", None, None).await;
+    let threads = session::list_persona_threads(tmp.path(), "test_persona", None, None).await;
     assert_eq!(threads.len(), 1);
-    assert_eq!(threads[0].persona, "riddler");
+    assert_eq!(threads[0].persona, "test_persona");
     assert_eq!(threads[0].messages[0].content, "match");
 }
 

@@ -51,7 +51,7 @@ fn chat_home_renders_with_personas() {
     ctx.insert("show_home", &true);
     ctx.insert(
         "personas",
-        &vec!["assistant".to_string(), "riddler".to_string()],
+        &vec!["assistant".to_string(), "test_persona".to_string()],
     );
     ctx.insert("default_persona", "assistant");
     ctx.insert("default_model", "anthropic/claude-opus-4-7");
@@ -70,7 +70,7 @@ fn chat_main_renders_session_with_messages() {
     ctx.insert("show_home", &false);
     ctx.insert("session_id", "session_20260421_150000.json");
     ctx.insert("title", "Evening chat");
-    ctx.insert("persona", "riddler");
+    ctx.insert("persona", "test_persona");
     ctx.insert("model", "anthropic/claude-opus-4-7");
     ctx.insert("mode", "chatbot");
     ctx.insert("draft", "");
@@ -159,7 +159,7 @@ fn chat_main_roleplay_shows_scenario_button() {
     ctx.insert("show_home", &false);
     ctx.insert("session_id", "session_20260421_150002.json");
     ctx.insert("title", "The Gate");
-    ctx.insert("persona", "riddler");
+    ctx.insert("persona", "test_persona");
     ctx.insert("model", "m/id");
     ctx.insert("mode", "roleplay");
     ctx.insert("scenario", "a foggy graveyard");
@@ -188,7 +188,7 @@ fn sidebar_sessions_renders_pinned_and_grouped() {
             {
                 "id": "session_20260421_150000.json",
                 "title": "Evening chat",
-                "persona": "riddler",
+                "persona": "test_persona",
                 "mode": "chatbot"
             }
         ]),
@@ -251,7 +251,7 @@ fn persona_page_renders_with_personas() {
     ctx.insert("show_home", &false);
     ctx.insert(
         "personas",
-        &vec!["assistant".to_string(), "riddler".to_string()],
+        &vec!["assistant".to_string(), "test_persona".to_string()],
     );
     ctx.insert("default_persona", "assistant");
     ctx.insert("selected_persona", "assistant");
@@ -280,7 +280,7 @@ fn memory_page_renders_with_empty_memory() {
     ctx.insert("selected_persona", "assistant");
     ctx.insert(
         "available_personas",
-        &vec!["assistant".to_string(), "riddler".to_string()],
+        &vec!["assistant".to_string(), "test_persona".to_string()],
     );
     ctx.insert("model", "anthropic/claude-opus-4-7");
     ctx.insert("memory_content", "");
