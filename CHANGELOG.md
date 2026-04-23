@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.20.1] - 2026-04-22
+
+### Changes
+- docs: delete Python-era AUDIT-FIXES.md; trim roadmap to forward-looking Tauri plan + lessons
+- rename riddler -> test_persona in test fixtures
+- remove riddler from bundled default_personas
+- audit README: cargo-run default, drop vendor-deps docs, add Development section; mirror in CLAUDE.md
+- print version + ctrl-c hint on server start instead of the tracing log
+
 ## [0.20.0] - 2026-04-22
 
 ### Changes
