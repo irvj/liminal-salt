@@ -170,7 +170,7 @@ async fn step1(
         // Preserve any prior keys — matches Python's `setdefault` semantics —
         // so a partial re-run doesn't clobber fields the user already set.
         cfg.provider = provider;
-        cfg.openrouter_api_key = api_key;
+        cfg.api_key = api_key;
         if cfg.default_persona.is_empty() {
             cfg.default_persona = "assistant".to_string();
         }

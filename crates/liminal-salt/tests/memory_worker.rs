@@ -739,7 +739,8 @@ async fn thread_memory_settings_resolve_through_persona_default() {
 async fn write_config(data_dir: &Path, api_key: &str) {
     use liminal_salt::services::config;
     let cfg = config::AppConfig {
-        openrouter_api_key: api_key.to_string(),
+        api_key: api_key.to_string(),
+        provider: "openrouter".to_string(),
         model: "test/model".to_string(),
         default_persona: "assistant".to_string(),
         ..Default::default()

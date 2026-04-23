@@ -267,7 +267,7 @@ pub async fn save_provider_model(
 
     cfg.provider = provider.clone();
     if !keep_existing_key && !api_key.is_empty() && provider == "openrouter" {
-        cfg.openrouter_api_key = api_key;
+        cfg.api_key = api_key;
     }
     cfg.model = model.clone();
 
