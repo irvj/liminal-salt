@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.20.4] - 2026-04-24
+
+### Changes
+- fix: honor persona model override in chat send, header, and title generation
+
 ## [0.20.3] - 2026-04-23
 
 ### Changes
