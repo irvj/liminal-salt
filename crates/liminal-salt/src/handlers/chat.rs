@@ -148,7 +148,14 @@ async fn render_view(state: &AppState, session: &Session, headers: &HeaderMap) -
         };
         ctx.insert("mode", mode_str);
         ctx.insert("messages", &data.messages);
-        ctx.insert("model", &cfg.model);
+        let persona_cfg =
+            persona_svc::load_persona_config(&state.data_dir, &data.persona).await;
+        let effective_model = persona_cfg
+            .model
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .unwrap_or(&cfg.model);
+        ctx.insert("model", effective_model);
         ctx.insert("draft", &data.draft.clone().unwrap_or_default());
         ctx.insert("scenario", &data.scenario.clone().unwrap_or_default());
         ctx.insert("thread_memory", &data.thread_memory);
@@ -157,8 +164,6 @@ async fn render_view(state: &AppState, session: &Session, headers: &HeaderMap) -
         // default → global fallback) so the modal shows the right initial
         // values on page load. Without this, users see 0/4/4000 until they
         // save/reset once to re-sync the DOM data attributes.
-        let persona_cfg =
-            persona_svc::load_persona_config(&state.data_dir, &data.persona).await;
         let effective = thread_memory::resolve_settings(Some(&data), &persona_cfg);
         ctx.insert("thread_memory_interval_minutes", &effective.interval_minutes);
         ctx.insert("thread_memory_message_floor", &effective.message_floor);
@@ -369,7 +374,13 @@ pub async fn start_chat(
     // The auto-send fires with `skip_user_save=true` so it won't be double-appended.
     ctx.insert("messages", &initial_messages);
     let cfg = config::load_config(&state.data_dir).await;
-    ctx.insert("model", &cfg.model);
+    let persona_cfg = persona_svc::load_persona_config(&state.data_dir, &form.persona).await;
+    let effective_model = persona_cfg
+        .model
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&cfg.model);
+    ctx.insert("model", effective_model);
     ctx.insert("draft", "");
     ctx.insert("scenario", &form.scenario);
     ctx.insert("thread_memory", "");
@@ -427,7 +438,13 @@ pub async fn send(
         tracing::error!(provider = %cfg.provider, "unknown provider in config");
         return (StatusCode::INTERNAL_SERVER_ERROR, "unknown provider").into_response();
     };
-    let llm = provider.build_chat_llm(&state.http, &cfg.api_key, &cfg.model);
+    let persona_cfg = persona_svc::load_persona_config(&state.data_dir, &existing.persona).await;
+    let effective_model = persona_cfg
+        .model
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&cfg.model);
+    let llm = provider.build_chat_llm(&state.http, &cfg.api_key, effective_model);
 
     let system_prompt = prompt::build_system_prompt(&state.data_dir, &existing).await;
 
