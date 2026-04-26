@@ -52,39 +52,8 @@
             {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update }}"></span>{% else %}No memory yet for {{ selected_persona | display_name }}{% endif %}<span id="memory-status" class="{% if not just_updated and not memory_updating %}hidden{% endif %}"> · {% if just_updated %}{{ icons::check_circle(class="w-4 h-4 inline") }} {{ success | default(value='') }}{% else %}Updating memory<span class="updating-dots"><span class="animate-blink">.</span><span class="animate-blink blink-2">.</span><span class="animate-blink blink-3">.</span></span>{% endif %}</span>
         </div>
 
-        <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent">
-            {% if memory_content %}
-            <div class="prose prose-invert max-w-none !text-foreground-secondary prose-headings:!text-foreground-secondary">{{ memory_content | markdown | safe }}</div>
-            {% else %}
-                <div class="text-center text-foreground-secondary py-10 px-5">
-                    <strong>No memory yet for {{ selected_persona | display_name }}.</strong><br>
-                    Memory will be created after your first update.
-                </div>
-            {% endif %}
-        </div>
-
-        <!-- Memory Modification Input -->
-        <div class="bg-surface-secondary p-5 border-t border-border mt-5">
-            <form hx-post="/memory/modify/"
-                  hx-target="#main-content"
-                  hx-swap="innerHTML"
-                  hx-on::before-request="showMemoryModifying(event)"
-                  class="flex gap-3 items-end">
-                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-                <input type="hidden" name="persona" value="{{ selected_persona }}">
-                <input type="text"
-                       name="command"
-                       id="memory-command-input"
-                       placeholder="Tell {{ selected_persona | display_name }} to remember or forget something..."
-                       required
-                       autocomplete="off"
-                       class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-secondary">
-                <button type="submit" tabindex="0" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Update</button>
-            </form>
-        </div>
-
         <!-- Long-term memory settings (collapsible) -->
-        <details class="mt-6 group"
+        <details class="mb-4 group"
                  x-data="memorySettings"
                  data-persona="{{ selected_persona }}"
                  data-save-url="/memory/save-settings/"
@@ -195,6 +164,45 @@
                     <span x-show="saving">Saving…</span>
                 </button>
                 <span class="text-xs text-foreground-muted">You have unsaved changes.</span>
+            </div>
+        </details>
+
+        <!-- Memory contents (collapsible; auto-opens when empty so the modify input is visible). -->
+        <details class="mb-4 group"{% if not memory_content %} open{% endif %}>
+            <summary class="flex items-center gap-2 cursor-pointer list-none select-none py-2 text-foreground hover:text-accent-secondary [&::-webkit-details-marker]:hidden">
+                <span class="transition-transform group-open:rotate-90">{{ icons::chevron_right(class="w-4 h-4") }}</span>
+                <span class="text-base">Memory contents</span>
+            </summary>
+
+            <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent mt-2">
+                {% if memory_content %}
+                <div class="prose prose-invert max-w-none !text-foreground-secondary prose-headings:!text-foreground-secondary">{{ memory_content | markdown | safe }}</div>
+                {% else %}
+                <div class="text-center text-foreground-secondary py-6 px-5">
+                    <strong>No memory yet for {{ selected_persona | display_name }}.</strong><br>
+                    Memory will be created after your first update.
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Memory Modification Input -->
+            <div class="bg-surface-secondary p-5 rounded-lg mt-3">
+                <form hx-post="/memory/modify/"
+                      hx-target="#main-content"
+                      hx-swap="innerHTML"
+                      hx-on::before-request="showMemoryModifying(event)"
+                      class="flex gap-3 items-end">
+                    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                    <input type="hidden" name="persona" value="{{ selected_persona }}">
+                    <input type="text"
+                           name="command"
+                           id="memory-command-input"
+                           placeholder="Tell {{ selected_persona | display_name }} to remember or forget something..."
+                           required
+                           autocomplete="off"
+                           class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-secondary">
+                    <button type="submit" tabindex="0" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Update</button>
+                </form>
             </div>
         </details>
     </section>
