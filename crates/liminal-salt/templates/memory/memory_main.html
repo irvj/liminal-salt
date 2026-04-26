@@ -54,6 +54,8 @@
 
         <!-- Long-term memory settings (collapsible) -->
         <details class="mb-4 group"
+                 id="long-term-memory-settings"
+                 data-persist-state
                  x-data="memorySettings"
                  data-persona="{{ selected_persona }}"
                  data-save-url="/memory/save-settings/"
@@ -168,7 +170,10 @@
         </details>
 
         <!-- Memory contents (collapsible; auto-opens when empty so the modify input is visible). -->
-        <details class="mb-4 group"{% if not memory_content %} open{% endif %}>
+        <details class="mb-4 group"
+                 id="memory-contents"
+                 data-persist-state
+                 {% if not memory_content %}open{% endif %}>
             <summary class="flex items-center gap-2 cursor-pointer list-none select-none py-2 text-foreground hover:text-accent-secondary [&::-webkit-details-marker]:hidden">
                 <span class="transition-transform group-open:rotate-90">{{ icons::chevron_right(class="w-4 h-4") }}</span>
                 <span class="text-base">Memory contents</span>
@@ -215,6 +220,8 @@
         </p>
 
         <details class="mt-2 group"
+                 id="per-chat-memory-settings"
+                 data-persist-state
                  x-data="personaThreadMemoryDefaults"
                  data-persona="{{ selected_persona }}"
                  data-interval-minutes="{{ persona_thread_interval_minutes | default(value=0) }}"

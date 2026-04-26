@@ -43,6 +43,39 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // =============================================================================
+// Persist <details> open state across HTMX swaps
+//
+// HTMX replaces #main-content wholesale, which means any <details> elements
+// inside it get rebuilt from server-rendered defaults — so a collapsible the
+// user had expanded snaps closed after an Update Memory or similar action.
+// Opt elements in by giving them an id and `data-persist-state`. We snapshot
+// open-state at htmx:beforeSwap (old DOM still present) and restore at
+// htmx:afterSwap (new DOM in place).
+// =============================================================================
+
+let _detailsStateSnapshot = null;
+
+document.addEventListener('htmx:beforeSwap', function(event) {
+    const target = event.detail && event.detail.target;
+    if (!target || typeof target.querySelectorAll !== 'function') return;
+    _detailsStateSnapshot = {};
+    target.querySelectorAll('details[data-persist-state][id]').forEach(el => {
+        _detailsStateSnapshot[el.id] = el.open;
+    });
+});
+
+document.addEventListener('htmx:afterSwap', function(event) {
+    if (!_detailsStateSnapshot) return;
+    const snapshot = _detailsStateSnapshot;
+    _detailsStateSnapshot = null;
+    const target = event.detail && event.detail.target;
+    if (!target || typeof target.querySelectorAll !== 'function') return;
+    target.querySelectorAll('details[data-persist-state][id]').forEach(el => {
+        if (el.id in snapshot) el.open = snapshot[el.id];
+    });
+});
+
+// =============================================================================
 // URL Configuration (read from data attributes set by Django templates)
 // =============================================================================
 
