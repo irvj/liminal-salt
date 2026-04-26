@@ -603,7 +603,8 @@ async fn render_memory(
     ctx.insert("page", "memory");
     ctx.insert("show_home", &false);
     ctx.insert("selected_persona", &selected);
-    ctx.insert("available_personas", &personas);
+    ctx.insert("personas", &personas);
+    ctx.insert("default_persona", &cfg.default_persona);
     ctx.insert("model", &cfg.model);
     ctx.insert("memory_content", &memory_content);
     ctx.insert("last_update", &last_update);

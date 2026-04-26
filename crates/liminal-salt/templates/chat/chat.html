@@ -65,22 +65,13 @@
                         title="New Chat">
                     {{ icons::circle_plus(class="w-6 h-6") }}
                 </button>
-                <!-- Memory -->
-                <button hx-get="/memory/"
-                        hx-target="#main-content"
-                        hx-swap="innerHTML"
-                        @click="saveDraftNow(); clearSidebarHighlight(); if (isMobile) collapsed = true"
-                        class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
-                        title="User Memory">
-                    {{ icons::brain_cog(class="w-6 h-6") }}
-                </button>
-                <!-- Persona -->
+                <!-- Persona (lands on Persona tab; Memory tab is a click away) -->
                 <button hx-get="/persona/"
                         hx-target="#main-content"
                         hx-swap="innerHTML"
                         @click="saveDraftNow(); clearSidebarHighlight(); if (isMobile) collapsed = true"
                         class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
-                        title="Persona Settings">
+                        title="Persona">
                     {{ icons::user_pen(class="w-6 h-6") }}
                 </button>
                 <!-- Settings -->

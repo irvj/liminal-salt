@@ -1,32 +1,12 @@
 {% import "icons.html" as icons %}
-<!-- Header -->
-<header class="bg-surface-secondary px-5 py-4 border-b border-border">
-    <h1 class="text-2xl text-foreground">{{ selected_persona | display_name }}'s Memory</h1>
-    <div class="text-xs text-foreground-secondary mt-1">Model: {{ model | default(value='') }}</div>
-</header>
+{% set active_tab = "memory" %}
+{% include "components/persona_header.html" %}
 
 <!-- Memory Content -->
 <div class="flex-1 overflow-y-auto p-5">
     {% if error %}<div x-data="errorToast" data-error="{{ error | escapejs }}"></div>{% endif %}
 
-    <!-- Persona Selector -->
-    <div class="mb-5"
-         x-data="memoryPersonaPicker"
-         data-selected-persona="{{ selected_persona }}"
-         data-memory-url="/memory/"
-         data-personas='[{% for p in available_personas %}{ "id": "{{ p }}", "display": "{{ p | display_name | escapejs }}" }{% if not loop.last %}, {% endif %}{% endfor %}]'
-         @dropdown-select="onPersonaSelect($event.detail)">
-        <label class="block mb-2 font-medium text-foreground">Persona:</label>
-        <div class="w-full md:max-w-md">
-            <div x-data="selectDropdown" :data-items="JSON.stringify(personaItems)" :data-selected="selectedPersona">
-                {% set searchable = "true" %}
-                {% set placeholder = "Search personas..." %}
-                {% include "components/select_dropdown.html" %}
-            </div>
-        </div>
-    </div>
-
-    <div class="flex flex-col md:flex-row gap-3 my-5">
+    <div class="flex flex-col md:flex-row gap-3 mb-5">
         <form hx-post="/memory/update/"
               hx-target="#main-content"
               hx-swap="innerHTML"

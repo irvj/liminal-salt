@@ -262,7 +262,7 @@ fn persona_page_renders_with_personas() {
     ctx.insert("grouped_sessions", &Vec::<serde_json::Value>::new());
 
     let out = tera.render("chat/chat.html", &ctx).expect("render persona");
-    assert!(out.contains("Persona Settings"));
+    assert!(out.contains(">Persona<"));
     assert!(out.contains("Set as Default"));
     assert!(out.contains("assistant"));
     // Persona modals present.
@@ -279,16 +279,16 @@ fn memory_page_renders_with_empty_memory() {
     ctx.insert("show_home", &false);
     ctx.insert("selected_persona", "assistant");
     ctx.insert(
-        "available_personas",
+        "personas",
         &vec!["assistant".to_string(), "test_persona".to_string()],
     );
+    ctx.insert("default_persona", "assistant");
     ctx.insert("model", "anthropic/claude-opus-4-7");
     ctx.insert("memory_content", "");
     ctx.insert("pinned_sessions", &Vec::<serde_json::Value>::new());
     ctx.insert("grouped_sessions", &Vec::<serde_json::Value>::new());
 
     let out = tera.render("chat/chat.html", &ctx).expect("render memory");
-    assert!(out.contains("Assistant's Memory"));
     assert!(out.contains("Update Memory"));
     assert!(out.contains("Seed Memory"));
     assert!(out.contains("Wipe Memory"));
@@ -304,7 +304,8 @@ fn memory_page_renders_with_content() {
     ctx.insert("page", "memory");
     ctx.insert("show_home", &false);
     ctx.insert("selected_persona", "assistant");
-    ctx.insert("available_personas", &vec!["assistant".to_string()]);
+    ctx.insert("personas", &vec!["assistant".to_string()]);
+    ctx.insert("default_persona", "assistant");
     ctx.insert("model", "m/id");
     ctx.insert("memory_content", "- prefers pineapple on pizza");
     ctx.insert("pinned_sessions", &Vec::<serde_json::Value>::new());

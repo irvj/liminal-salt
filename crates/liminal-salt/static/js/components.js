@@ -28,8 +28,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('sidebarState', sidebarState);
     Alpine.data('providerModelSettings', providerModelSettings);
     Alpine.data('homePersonaPicker', homePersonaPicker);
-    Alpine.data('memoryPersonaPicker', memoryPersonaPicker);
-    Alpine.data('personaSettingsPicker', personaSettingsPicker);
+    Alpine.data('personaScopePicker', personaScopePicker);
     Alpine.data('personaThreadDefaults', personaThreadDefaults);
     Alpine.data('providerPicker', providerPicker);
     Alpine.data('modelPicker', modelPicker);
@@ -1637,50 +1636,26 @@ function homePersonaPicker() {
 // Memory Persona Picker Component
 // =============================================================================
 
-function memoryPersonaPicker() {
+// Shared between the Persona tab and the Memory tab. `data-active-tab`
+// determines which page the dropdown navigates to; selection on either
+// tab swaps `#main-content` for the same tab on the new persona,
+// preserving scroll on the Persona tab where the identity preview makes
+// scroll-jumping noticeable.
+function personaScopePicker() {
     return {
         selectedPersona: '',
         personaItems: [],
-        memoryUrl: '',
+        activeTab: 'persona',
 
         onPersonaSelect(detail) {
             this.selectedPersona = detail.id;
-            htmx.ajax('GET', this.memoryUrl + '?persona=' + detail.id, {target: '#main-content', swap: 'innerHTML'});
-        },
-
-        init() {
-            const el = this.$el;
-
-            try {
-                const personas = JSON.parse(el.dataset.personas || '[]');
-                this.personaItems = personas.map(p => ({ id: p.id, label: p.display }));
-            } catch (e) {
-                this.personaItems = [];
-            }
-
-            this.selectedPersona = el.dataset.selectedPersona || '';
-            this.memoryUrl = el.dataset.memoryUrl || '/memory/';
-        }
-    };
-}
-
-// =============================================================================
-// Persona Settings Picker Component
-// =============================================================================
-
-function personaSettingsPicker() {
-    return {
-        selectedPersona: '',
-        personaItems: [],
-        settingsUrl: '',
-
-        onPersonaSelect(detail) {
-            this.selectedPersona = detail.id;
-            // Trigger HTMX preview (preserve scroll position)
+            const url = this.activeTab === 'memory'
+                ? '/memory/?persona=' + encodeURIComponent(detail.id)
+                : '/persona/?persona=' + encodeURIComponent(detail.id);
             const scrollContainer = document.querySelector('#main-content .overflow-y-auto');
             const scrollPos = scrollContainer ? scrollContainer.scrollTop : 0;
-            htmx.ajax('GET', this.settingsUrl + '?preview=' + detail.id, {target: '#main-content', swap: 'innerHTML'}).then(() => {
-                if (scrollContainer) {
+            htmx.ajax('GET', url, {target: '#main-content', swap: 'innerHTML'}).then(() => {
+                if (this.activeTab === 'persona' && scrollContainer) {
                     const newScrollContainer = document.querySelector('#main-content .overflow-y-auto');
                     if (newScrollContainer) newScrollContainer.scrollTop = scrollPos;
                 }
@@ -1689,17 +1664,14 @@ function personaSettingsPicker() {
 
         init() {
             const el = this.$el;
-
-            // Parse personas from data attribute and convert to {id, label}
             try {
                 const personas = JSON.parse(el.dataset.personas || '[]');
                 this.personaItems = personas.map(p => ({ id: p.id, label: p.display }));
             } catch (e) {
                 this.personaItems = [];
             }
-
             this.selectedPersona = el.dataset.selectedPersona || '';
-            this.settingsUrl = el.dataset.settingsUrl || '/persona/';
+            this.activeTab = el.dataset.activeTab === 'memory' ? 'memory' : 'persona';
         }
     };
 }

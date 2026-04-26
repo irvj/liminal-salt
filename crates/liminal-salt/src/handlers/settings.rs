@@ -74,20 +74,31 @@ pub async fn save(
         success_msg = Some("Default persona updated");
     }
 
-    if form.redirect_to == "persona" {
-        // Persona page owns that render. Delegate.
-        super::persona::view(
-            State(state),
-            session,
-            headers,
-            axum::extract::Query(super::persona::PersonaQuery {
-                persona: Some(selected_persona),
-                preview: None,
-            }),
-        )
-        .await
-    } else {
-        render_settings(&state, &session, &headers, success_msg, None).await
+    match form.redirect_to.as_str() {
+        "persona" => {
+            super::persona::view(
+                State(state),
+                session,
+                headers,
+                axum::extract::Query(super::persona::PersonaQuery {
+                    persona: Some(selected_persona),
+                    preview: None,
+                }),
+            )
+            .await
+        }
+        "memory" => {
+            super::memory::view(
+                State(state),
+                session,
+                headers,
+                axum::extract::Query(super::memory::MemoryQuery {
+                    persona: Some(selected_persona),
+                }),
+            )
+            .await
+        }
+        _ => render_settings(&state, &session, &headers, success_msg, None).await,
     }
 }
 
