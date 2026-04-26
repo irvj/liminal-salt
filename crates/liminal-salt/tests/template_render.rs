@@ -262,9 +262,18 @@ fn persona_page_renders_with_personas() {
     ctx.insert("grouped_sessions", &Vec::<serde_json::Value>::new());
 
     let out = tera.render("chat/chat.html", &ctx).expect("render persona");
-    assert!(out.contains(">Persona<"));
+    // Header (renamed in the persona/memory consolidation).
+    assert!(out.contains("Persona Settings"));
+    // Set-as-Default form lives in the shared header.
     assert!(out.contains("Set as Default"));
     assert!(out.contains("assistant"));
+    // Tab strip — Persona tab is active.
+    assert!(out.contains(r#"href="/persona/?persona=assistant""#));
+    assert!(out.contains(r#"href="/memory/?persona=assistant""#));
+    // Settings section + the two collapsibles inside it.
+    assert!(out.contains(">Settings</h2>"));
+    assert!(out.contains(r#"id="persona-default-mode""#));
+    assert!(out.contains(r#"id="persona-content""#));
     // Persona modals present.
     assert!(out.contains("editPersonaModal"));
     assert!(out.contains("editPersonaModelModal"));
@@ -293,6 +302,20 @@ fn memory_page_renders_with_empty_memory() {
     assert!(out.contains("Seed Memory"));
     assert!(out.contains("Wipe Memory"));
     assert!(out.contains("No memory yet for Assistant"));
+    // Section subheads added in the memory tab restructure.
+    assert!(out.contains(">Long-term memory</h2>"));
+    assert!(out.contains(">Per-chat memory</h2>"));
+    // Three persisted collapsibles.
+    assert!(out.contains(r#"id="long-term-memory-settings""#));
+    assert!(out.contains(r#"id="memory-contents""#));
+    assert!(out.contains(r#"id="per-chat-memory-settings""#));
+    // Empty memory → contents collapsible auto-opens so the modify input is visible.
+    assert!(out.contains(r#"id="memory-contents""#));
+    assert!(out.contains("open"));
+    // Update button is enabled when no operation is in flight.
+    assert!(!out.contains(r#"id="update-memory-btn"{% if memory_updating %} disabled{% endif %}"#));
+    let btn_segment = &out[out.find(r#"id="update-memory-btn""#).expect("update-memory-btn present")..];
+    assert!(!btn_segment[..200].contains(" disabled"));
     // Context file modals reachable.
     assert!(out.contains("context-files-data") || out.contains("persona-context-files-data"));
 }
@@ -315,6 +338,34 @@ fn memory_page_renders_with_content() {
     assert!(out.contains("pineapple on pizza"));
     // Body rendered via markdown filter — should contain a list item.
     assert!(out.contains("<li>"));
+    // Memory contents collapsible label rendered.
+    assert!(out.contains(">Memory contents</span>"));
+}
+
+#[test]
+fn memory_page_disables_update_button_while_updating() {
+    // Server reports memory_updating=true after a mutate action; the Update
+    // Memory button must render with the `disabled` attribute so the user
+    // can't fire a second update mid-roundtrip.
+    let tera = build_tera();
+    let mut ctx = base_context();
+    ctx.insert("page", "memory");
+    ctx.insert("show_home", &false);
+    ctx.insert("selected_persona", "assistant");
+    ctx.insert("personas", &vec!["assistant".to_string()]);
+    ctx.insert("default_persona", "assistant");
+    ctx.insert("model", "m/id");
+    ctx.insert("memory_content", "");
+    ctx.insert("memory_updating", &true);
+    ctx.insert("pinned_sessions", &Vec::<serde_json::Value>::new());
+    ctx.insert("grouped_sessions", &Vec::<serde_json::Value>::new());
+
+    let out = tera.render("chat/chat.html", &ctx).expect("render memory");
+    let btn_segment = &out[out.find(r#"id="update-memory-btn""#).expect("update-memory-btn present")..];
+    assert!(
+        btn_segment[..200].contains(" disabled"),
+        "Update Memory button should have `disabled` while memory_updating is true",
+    );
 }
 
 #[test]
