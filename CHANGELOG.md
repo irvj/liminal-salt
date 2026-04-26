@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.21.0] - 2026-04-26
+
+### Changes
+- docs: update CLAUDE.md for persona/memory tab consolidation, endpoint split, and <details>-persist convention
+- test: cover persona/memory tab restructure (sections, collapsible ids, update-button disabled state)
+- rename: clarify headers and sidebar tooltips to Persona Settings + App Settings
+- refactor: wrap persona tab in a Settings section to mirror memory tab structure
+- fix: disable Update Memory button while a memory operation is in flight
+- fix: persist <details> open state across HTMX swaps on the memory tab
+- refactor: collapse memory contents (auto-open when empty); nest modify input; unify summary styling with settings
+- refactor: regroup persona/memory tab bodies (inline default mode on persona tab; long-term + per-chat memory sections on memory tab)
+- refactor: shared persona/memory header with tab strip; drop separate sidebar memory button
+- refactor: split persona thread-defaults into per-tab endpoints (default-mode under /persona/, thread-memory-defaults under /memory/)
+- refactor: regroup memory + thread-defaults settings into collapsible sections with plain-English descriptions
+
 ## [0.20.4] - 2026-04-24
 
 ### Changes

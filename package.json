@@ -1,6 +1,6 @@
 {
   "name": "liminal-salt",
-  "version": "0.20.4",
+  "version": "0.21.0",
   "description": "Frontend build tooling for Liminal Salt (Tailwind + vendored JS deps).",
   "main": "index.js",
   "scripts": {
