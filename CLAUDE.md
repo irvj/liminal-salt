@@ -58,8 +58,8 @@ docs/planning/                Roadmap + phase history.
 - **chat.rs** — chat/send/switch/new/start/delete/pin/rename/save-draft/retry/edit, plus render helpers (`render_view`, `render_sidebar_fragment`, `base_chat_context`).
 - **session.rs** — `/session/scenario/save/`, `/session/fork-to-roleplay/`.
 - **thread_memory.rs** — `/session/thread-memory/{update,status,settings/save,settings/reset}`.
-- **memory.rs** — persona memory page + update/wipe/modify/seed/save-settings/update-status.
-- **persona.rs** — persona page + save/create/delete/save-model/save-thread-defaults/clear-thread-defaults.
+- **memory.rs** — memory tab (long-term + per-chat) + update/wipe/modify/seed/save-settings/update-status; per-chat memory defaults under `/memory/thread-memory-defaults/{save,reset}/` (writes persona config via `persona::save_persona_config`).
+- **persona.rs** — persona tab + save/create/delete/save-model; default thread mode under `/persona/{save,reset}-default-mode/`.
 - **context.rs** — uploaded files (global + persona) + local-directory ops. `scope_for(&state, persona)` picks the scope from an optional form field.
 - **settings.rs** — settings page + save/validate-api-key/save-provider-model/save-context-history-limit.
 - **setup.rs** — 3-step wizard. Uses `session_state::setup_step()` for page-refresh persistence.
@@ -69,8 +69,8 @@ docs/planning/                Roadmap + phase history.
 
 - `/chat/*` — chat lifecycle
 - `/session/*` — per-session ops (scenario, thread memory, fork)
-- `/memory/*` — persona memory + its context files
-- `/persona/*` — persona CRUD + persona context files
+- `/memory/*` — memory tab: long-term (persona) memory ops + per-chat memory defaults
+- `/persona/*` — persona tab: persona CRUD + default thread mode + persona context files
 - `/settings/*` — app settings + global context files
 - `/context/local/*` — local-directory context (shared across scopes via optional `persona` form param)
 - `/api/*` — JSON endpoints (themes, models)
@@ -113,7 +113,13 @@ Written by `session.rs`. `skip_serializing_if = "Option::is_none"` keeps the on-
 
 **Thread memory ≠ persona memory.** Thread memory is per-session, stored inline on the session JSON, persisted via `session::save_thread_memory` (called by the worker). Persona memory is cross-thread, stored in `data/memory/{persona}.md`, written by `memory::save_memory_content`. Roleplay sessions are excluded from persona-memory aggregation and don't get persona memory injected into their prompt.
 
-**Settings resolver pattern.** `thread_memory::resolve_settings(session, persona_config)` merges per-thread override → persona default (`default_thread_memory_settings`) → global fallback. Save endpoints compare submitted values to the resolved defaults and clear the override rather than persist a no-op (prevents the "Custom" badge from lighting up for identical-to-default values). Same pattern applies to persona `default_mode` — only `"roleplay"` is persisted as an override.
+**Settings resolver pattern.** `thread_memory::resolve_settings(session, persona_config)` merges per-thread override → persona default (`default_thread_memory_settings`) → global fallback. Save endpoints compare submitted values to the resolved defaults and clear the override rather than persist a no-op (prevents the "custom for this persona" cue from lighting up for identical-to-default values). Same pattern applies to persona `default_mode` — only `"roleplay"` is persisted as an override.
+
+**Persona/Memory tabs share a header.** `/persona/` and `/memory/` are two tabs of the same conceptual page. `templates/components/persona_header.html` is included by both `persona/persona_main.html` and `memory/memory_main.html`; each sets `{% set active_tab = "persona" | "memory" %}` before the include. The shared header carries the persona selector, "Set as Default" form, and the tab strip. The sidebar has one entry that lands on the Persona tab.
+
+**User-facing memory terminology ↔ services.** "Long-term memory" (Memory tab subhead) is the cross-thread persona memory owned by `services/memory.rs` (`data/memory/{name}.md`). "Per-chat memory" (Memory tab subhead) is the per-thread running summary handled by `services/thread_memory.rs` (stored inline on session JSON). Don't conflate; the two have different lifecycle, scope, and prompt-injection rules.
+
+**Persisted `<details>` across HTMX swaps.** `utils.js` snapshots `<details data-persist-state>` open-state at `htmx:beforeSwap` and restores at `htmx:afterSwap`, keyed by `id`. Otherwise the swap of `#main-content` would reset every collapsible to its server-rendered default and the user loses their place after Update Memory / Save / Reset.
 
 **App-access gate.** `middleware/app_ready.rs` redirects any non-exempt request to `/setup/` when `config::is_app_ready(&cfg)` is false — both `setup_complete == true` AND `agreement_accepted == current_agreement_version()` must hold. Exempt paths: `/setup/*`, `/static/*`, `/health`, `/api/themes/`. A missing or broken API key does NOT gate access; it surfaces as an in-chat error when the user tries to send.
 
@@ -150,6 +156,8 @@ Drift here breaks every other invariant (locks bypassed, ids unvalidated, fields
 | `data/config.json` | `config::save_config` |
 
 Reads from any resource that might race with a writer go through that owner's public API (with lock acquisition). Reads that tolerate brief staleness (sidebar listing, scheduler scans) can read directly — but ONLY for best-effort summaries, never for data feeding an LLM call.
+
+**URL namespace tracks the UI tab, not the data owner.** `/memory/save-settings/` and `/memory/thread-memory-defaults/save/` both write to persona config (owned by `persona.rs`) — that's intentional because the user edits these from the Memory tab. Handlers in `handlers/memory.rs` call `persona::save_persona_config` through its public API. The owner-writer rule applies at the service layer; URLs/handler modules follow the user-visible structure.
 
 **Handlers do not do work.** Handlers parse requests, call a service, render a response. Forbidden in `handlers/`: `tokio::fs`, `serde_json::from_slice`/`to_vec` on data paths, direct `reqwest`, direct `LlmClient` instantiation, business-logic loops. If a handler needs something that's not in services yet, add it to the appropriate service.
 
@@ -210,3 +218,5 @@ At the end of a task or phase: propose a terse commit message in the repo's styl
 - New Alpine component? Register in `components.js` under `alpine:init`. Template passes config via `data-*`; component stores those in `init()`.
 - New persona-config key? Add it to `resolve_*` if it has a global fallback + persona-override shape, and clear it on save when submitted equals default.
 - New service error variant? Add it to the enum via `thiserror`, then extend the handler `match` for a proper status code. Don't log-and-return-default unless the variant genuinely has no handler remediation.
+- New `<details>` collapsible inside `#main-content`? Give it a stable `id` and `data-persist-state` if you want the open/closed state to survive HTMX swaps (Save, Update, persona switch).
+- New endpoint that writes persona config from the Memory tab UI? Put the handler in `handlers/memory.rs` and route it under `/memory/...`. The handler calls `persona::save_persona_config` (or a more specific service fn) through its public API — file ownership stays with `persona.rs`.
