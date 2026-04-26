@@ -65,22 +65,22 @@
                         title="New Chat">
                     {{ icons::circle_plus(class="w-6 h-6") }}
                 </button>
-                <!-- Persona (lands on Persona tab; Memory tab is a click away) -->
+                <!-- Persona Settings (lands on Persona tab; Memory tab is a click away) -->
                 <button hx-get="/persona/"
                         hx-target="#main-content"
                         hx-swap="innerHTML"
                         @click="saveDraftNow(); clearSidebarHighlight(); if (isMobile) collapsed = true"
                         class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
-                        title="Persona">
+                        title="Persona Settings">
                     {{ icons::user_pen(class="w-6 h-6") }}
                 </button>
-                <!-- Settings -->
+                <!-- App Settings -->
                 <button hx-get="/settings/"
                         hx-target="#main-content"
                         hx-swap="innerHTML"
                         @click="saveDraftNow(); clearSidebarHighlight(); if (isMobile) collapsed = true"
                         class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
-                        title="Settings">
+                        title="App Settings">
                     {{ icons::settings(class="w-6 h-6") }}
                 </button>
                 <!-- Theme Toggle -->
