@@ -18,7 +18,12 @@ use crate::{
     services::{
         config, memory,
         memory_worker::State as UpdateState,
-        persona,
+        persona::{self, ThreadMemoryDefaults},
+        thread_memory::{
+            DEFAULT_THREAD_MEMORY_INTERVAL_MINUTES as DEFAULT_INTERVAL_MINUTES,
+            DEFAULT_THREAD_MEMORY_MESSAGE_FLOOR as DEFAULT_MESSAGE_FLOOR,
+            DEFAULT_THREAD_MEMORY_SIZE as DEFAULT_SIZE_LIMIT,
+        },
     },
 };
 
@@ -357,6 +362,121 @@ pub async fn update_status(
 ) -> Response {
     let status = state.memory.get_update_status(&q.persona);
     Json(status).into_response()
+}
+
+// =============================================================================
+// POST /memory/thread-memory-defaults/save/  (and /reset/)
+// =============================================================================
+//
+// Persona-level defaults for the per-thread memory summary. Writes to persona
+// config (owned by `persona.rs`); URL is memory-namespaced because the user
+// edits these from the Memory tab.
+
+#[derive(Deserialize)]
+pub struct ThreadMemoryDefaultsForm {
+    persona: String,
+    /// Values arrive as integers; blank fields become None.
+    #[serde(default)]
+    interval_minutes: Option<i64>,
+    #[serde(default)]
+    message_floor: Option<i64>,
+    #[serde(default)]
+    size_limit: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub struct ThreadMemoryDefaultsResponse {
+    effective: EffectiveThreadMemoryDefaults,
+    has_override: bool,
+}
+
+#[derive(Serialize)]
+pub struct EffectiveThreadMemoryDefaults {
+    interval_minutes: u32,
+    message_floor: u32,
+    size_limit: u32,
+}
+
+fn clamp_thread_interval(n: i64) -> u32 {
+    if n <= 0 { 0 } else { n.clamp(5, 1440) as u32 }
+}
+fn clamp_thread_message_floor(n: i64) -> u32 {
+    n.clamp(1, 1000) as u32
+}
+fn clamp_thread_size_limit(n: i64) -> u32 {
+    n.clamp(0, 100_000) as u32
+}
+
+pub async fn save_thread_memory_defaults(
+    State(state): State<AppState>,
+    Form(form): Form<ThreadMemoryDefaultsForm>,
+) -> Response {
+    let mut cfg = persona::load_persona_config(&state.data_dir, &form.persona).await;
+
+    let interval = form.interval_minutes.map(clamp_thread_interval);
+    let floor = form.message_floor.map(clamp_thread_message_floor);
+    let size = form.size_limit.map(clamp_thread_size_limit);
+
+    // Only persist fields that differ from the global defaults — keeps the
+    // "Custom" badge from lighting up when the user types in the default.
+    let settings = ThreadMemoryDefaults {
+        interval_minutes: interval.filter(|v| *v != DEFAULT_INTERVAL_MINUTES),
+        message_floor: floor.filter(|v| *v != DEFAULT_MESSAGE_FLOOR),
+        size_limit: size.filter(|v| *v != DEFAULT_SIZE_LIMIT),
+    };
+    cfg.default_thread_memory_settings = if settings.interval_minutes.is_none()
+        && settings.message_floor.is_none()
+        && settings.size_limit.is_none()
+    {
+        None
+    } else {
+        Some(settings)
+    };
+
+    if let Err(err) = persona::save_persona_config(&state.data_dir, &form.persona, &cfg).await {
+        tracing::error!(error = %err, persona = %form.persona, "save thread memory defaults failed");
+        return (persona_status(&err), "save failed").into_response();
+    }
+
+    let has_override = cfg.default_thread_memory_settings.is_some();
+    let eff = cfg.default_thread_memory_settings.unwrap_or_default();
+    Json(ThreadMemoryDefaultsResponse {
+        effective: EffectiveThreadMemoryDefaults {
+            interval_minutes: eff.interval_minutes.unwrap_or(DEFAULT_INTERVAL_MINUTES),
+            message_floor: eff.message_floor.unwrap_or(DEFAULT_MESSAGE_FLOOR),
+            size_limit: eff.size_limit.unwrap_or(DEFAULT_SIZE_LIMIT),
+        },
+        has_override,
+    })
+    .into_response()
+}
+
+#[derive(Deserialize)]
+pub struct ResetThreadMemoryDefaultsForm {
+    persona: String,
+}
+
+pub async fn reset_thread_memory_defaults(
+    State(state): State<AppState>,
+    Form(form): Form<ResetThreadMemoryDefaultsForm>,
+) -> Response {
+    let mut cfg = persona::load_persona_config(&state.data_dir, &form.persona).await;
+    cfg.default_thread_memory_settings = None;
+
+    if let Err(err) = persona::save_persona_config(&state.data_dir, &form.persona, &cfg).await {
+        tracing::error!(error = %err, persona = %form.persona, "reset thread memory defaults failed");
+        return (persona_status(&err), "reset failed").into_response();
+    }
+
+    Json(ThreadMemoryDefaultsResponse {
+        effective: EffectiveThreadMemoryDefaults {
+            interval_minutes: DEFAULT_INTERVAL_MINUTES,
+            message_floor: DEFAULT_MESSAGE_FLOOR,
+            size_limit: DEFAULT_SIZE_LIMIT,
+        },
+        has_override: false,
+    })
+    .into_response()
 }
 
 // =============================================================================

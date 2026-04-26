@@ -81,8 +81,10 @@
              data-message-floor="{{ persona_default_message_floor | default(value=4) }}"
              data-size-limit="{{ persona_default_size_limit | default(value=4000) }}"
              data-has-thread-defaults="{{ persona_has_thread_defaults | default(value=false) }}"
-             data-save-url="/persona/save-thread-defaults/"
-             data-clear-url="/persona/clear-thread-defaults/">
+             data-save-mode-url="/persona/save-default-mode/"
+             data-reset-mode-url="/persona/reset-default-mode/"
+             data-save-thread-memory-url="/memory/thread-memory-defaults/save/"
+             data-reset-thread-memory-url="/memory/thread-memory-defaults/reset/">
         <summary class="flex items-center gap-2 cursor-pointer list-none select-none py-2 text-foreground hover:text-accent-secondary [&::-webkit-details-marker]:hidden">
             <span class="transition-transform group-open:rotate-90">{{ icons::chevron_right(class="w-4 h-4") }}</span>
             <span class="text-lg">Thread Defaults</span>

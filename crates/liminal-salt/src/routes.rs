@@ -37,12 +37,12 @@ pub fn build_router(state: AppState) -> Router {
         .route("/persona/delete/", post(handlers::persona::delete_persona))
         .route("/persona/save-model/", post(handlers::persona::save_persona_model))
         .route(
-            "/persona/save-thread-defaults/",
-            post(handlers::persona::save_persona_thread_defaults),
+            "/persona/save-default-mode/",
+            post(handlers::persona::save_persona_default_mode),
         )
         .route(
-            "/persona/clear-thread-defaults/",
-            post(handlers::persona::clear_persona_thread_defaults),
+            "/persona/reset-default-mode/",
+            post(handlers::persona::reset_persona_default_mode),
         )
         .route("/settings/save/", post(handlers::settings::save))
         // Memory page + ops
@@ -53,6 +53,14 @@ pub fn build_router(state: AppState) -> Router {
         .route("/memory/seed/", post(handlers::memory::seed))
         .route("/memory/save-settings/", post(handlers::memory::save_settings))
         .route("/memory/update-status/", get(handlers::memory::update_status))
+        .route(
+            "/memory/thread-memory-defaults/save/",
+            post(handlers::memory::save_thread_memory_defaults),
+        )
+        .route(
+            "/memory/thread-memory-defaults/reset/",
+            post(handlers::memory::reset_thread_memory_defaults),
+        )
         // Context files — global scope
         .route("/settings/context/upload/", post(handlers::context::upload_global))
         .route("/settings/context/delete/", post(handlers::context::delete_file_global))

@@ -15,7 +15,7 @@ use crate::{
     handlers::status::persona_status,
     services::{
         context_files::ContextScope,
-        persona::{self, PersonaConfig, PersonaError, ThreadMemoryDefaults},
+        persona::{self, PersonaConfig, PersonaError},
         thread_memory::{
             DEFAULT_THREAD_MEMORY_INTERVAL_MINUTES as DEFAULT_INTERVAL_MINUTES,
             DEFAULT_THREAD_MEMORY_MESSAGE_FLOOR as DEFAULT_MESSAGE_FLOOR,
@@ -325,57 +325,27 @@ pub async fn save_persona_model(
 }
 
 // =============================================================================
-// Per-persona thread defaults
+// Per-persona default thread mode
 // =============================================================================
 
 #[derive(Deserialize)]
-pub struct ThreadDefaultsForm {
+pub struct DefaultModeForm {
     persona: String,
     #[serde(default)]
     default_mode: String,
-    /// Values come in as strings; blank means "leave unset / disabled".
-    #[serde(default)]
-    interval_minutes: Option<i64>,
-    #[serde(default)]
-    message_floor: Option<i64>,
-    #[serde(default)]
-    size_limit: Option<i64>,
 }
 
 #[derive(Serialize)]
-pub struct ThreadDefaultsResponse {
+pub struct DefaultModeResponse {
     default_mode_raw: String,
-    effective: EffectiveDefaults,
-    has_thread_defaults: bool,
+    has_override: bool,
 }
 
-#[derive(Serialize)]
-pub struct EffectiveDefaults {
-    interval_minutes: u32,
-    message_floor: u32,
-    size_limit: u32,
-}
-
-fn clamp_interval(n: i64) -> u32 {
-    if n <= 0 {
-        0
-    } else {
-        n.clamp(5, 1440) as u32
-    }
-}
-fn clamp_message_floor(n: i64) -> u32 {
-    n.clamp(1, 1000) as u32
-}
-fn clamp_size_limit(n: i64) -> u32 {
-    n.clamp(0, 100000) as u32
-}
-
-pub async fn save_persona_thread_defaults(
+pub async fn save_persona_default_mode(
     State(state): State<AppState>,
-    Form(form): Form<ThreadDefaultsForm>,
+    Form(form): Form<DefaultModeForm>,
 ) -> Response {
     let mut cfg = persona::load_persona_config(&state.data_dir, &form.persona).await;
-
     // Only persist "roleplay" as a mode override; "chatbot" is the baseline.
     cfg.default_mode = if form.default_mode == "roleplay" {
         Some("roleplay".to_string())
@@ -383,73 +353,39 @@ pub async fn save_persona_thread_defaults(
         None
     };
 
-    let interval = form.interval_minutes.map(clamp_interval);
-    let floor = form.message_floor.map(clamp_message_floor);
-    let size = form.size_limit.map(clamp_size_limit);
-
-    // Only persist fields that differ from the (hardcoded) global defaults.
-    // Matches Python's "save override only when it's not a no-op" semantics.
-    let settings = ThreadMemoryDefaults {
-        interval_minutes: interval.filter(|v| *v != DEFAULT_INTERVAL_MINUTES),
-        message_floor: floor.filter(|v| *v != DEFAULT_MESSAGE_FLOOR),
-        size_limit: size.filter(|v| *v != DEFAULT_SIZE_LIMIT),
-    };
-    cfg.default_thread_memory_settings = if settings.interval_minutes.is_none()
-        && settings.message_floor.is_none()
-        && settings.size_limit.is_none()
-    {
-        None
-    } else {
-        Some(settings)
-    };
-
     if let Err(err) = persona::save_persona_config(&state.data_dir, &form.persona, &cfg).await {
-        tracing::error!(error = %err, persona = %form.persona, "save thread defaults failed");
+        tracing::error!(error = %err, persona = %form.persona, "save default mode failed");
         return (persona_status(&err), "save failed").into_response();
     }
 
-    let has_defaults = cfg.default_mode.is_some() || cfg.default_thread_memory_settings.is_some();
-    let eff = cfg
-        .default_thread_memory_settings
-        .unwrap_or_default();
-    Json(ThreadDefaultsResponse {
-        default_mode_raw: cfg.default_mode.unwrap_or_default(),
-        effective: EffectiveDefaults {
-            interval_minutes: eff.interval_minutes.unwrap_or(DEFAULT_INTERVAL_MINUTES),
-            message_floor: eff.message_floor.unwrap_or(DEFAULT_MESSAGE_FLOOR),
-            size_limit: eff.size_limit.unwrap_or(DEFAULT_SIZE_LIMIT),
-        },
-        has_thread_defaults: has_defaults,
+    let raw = cfg.default_mode.unwrap_or_default();
+    Json(DefaultModeResponse {
+        has_override: !raw.is_empty(),
+        default_mode_raw: raw,
     })
     .into_response()
 }
 
 #[derive(Deserialize)]
-pub struct ClearThreadDefaultsForm {
+pub struct ResetDefaultModeForm {
     persona: String,
 }
 
-pub async fn clear_persona_thread_defaults(
+pub async fn reset_persona_default_mode(
     State(state): State<AppState>,
-    Form(form): Form<ClearThreadDefaultsForm>,
+    Form(form): Form<ResetDefaultModeForm>,
 ) -> Response {
     let mut cfg = persona::load_persona_config(&state.data_dir, &form.persona).await;
     cfg.default_mode = None;
-    cfg.default_thread_memory_settings = None;
 
     if let Err(err) = persona::save_persona_config(&state.data_dir, &form.persona, &cfg).await {
-        tracing::error!(error = %err, persona = %form.persona, "clear thread defaults failed");
-        return (persona_status(&err), "clear failed").into_response();
+        tracing::error!(error = %err, persona = %form.persona, "reset default mode failed");
+        return (persona_status(&err), "reset failed").into_response();
     }
 
-    Json(ThreadDefaultsResponse {
+    Json(DefaultModeResponse {
         default_mode_raw: String::new(),
-        effective: EffectiveDefaults {
-            interval_minutes: DEFAULT_INTERVAL_MINUTES,
-            message_floor: DEFAULT_MESSAGE_FLOOR,
-            size_limit: DEFAULT_SIZE_LIMIT,
-        },
-        has_thread_defaults: false,
+        has_override: false,
     })
     .into_response()
 }

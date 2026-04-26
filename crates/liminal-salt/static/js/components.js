@@ -1955,12 +1955,13 @@ function personaThreadDefaults() {
             { id: 'chatbot', label: 'Chatbot' },
             { id: 'roleplay', label: 'Roleplay' },
         ],
-        _saveUrl: '',
-        _clearUrl: '',
+        _saveModeUrl: '',
+        _resetModeUrl: '',
+        _saveThreadMemoryUrl: '',
+        _resetThreadMemoryUrl: '',
 
-        // Match server-side clamping (chat.views.personas.save_persona_thread_defaults)
-        // so the displayed value reflects what would be saved. Applied on @change
-        // so the user sees the snap before Save.
+        // Match server-side clamping so the displayed value reflects what would
+        // be saved. Applied on @change so the user sees the snap before Save.
         clampInterval(v) {
             const n = Number.isFinite(v) ? v : 0;
             if (n <= 0) return 0;
@@ -1984,8 +1985,10 @@ function personaThreadDefaults() {
             this.messageFloor = parseInt(el.dataset.messageFloor) || 4;
             this.sizeLimit = parseInt(el.dataset.sizeLimit) || 4000;
             this.hasDefaults = el.dataset.hasThreadDefaults === 'true';
-            this._saveUrl = el.dataset.saveUrl;
-            this._clearUrl = el.dataset.clearUrl;
+            this._saveModeUrl = el.dataset.saveModeUrl;
+            this._resetModeUrl = el.dataset.resetModeUrl;
+            this._saveThreadMemoryUrl = el.dataset.saveThreadMemoryUrl;
+            this._resetThreadMemoryUrl = el.dataset.resetThreadMemoryUrl;
         },
 
         onModeSelect(detail) {
@@ -1995,17 +1998,36 @@ function personaThreadDefaults() {
             this.dirty = true;
         },
 
-        _applyResponse(data) {
+        _applyModeResponse(data) {
             if (!data) return;
-            // Backend returns 'roleplay' or ''. Chatbot is baseline.
             const rawMode = (data.default_mode_raw === 'roleplay') ? 'roleplay' : 'chatbot';
             this.defaultMode = rawMode;
+            return !!data.has_override;
+        },
+
+        _applyThreadMemoryResponse(data) {
+            if (!data) return false;
             const eff = data.effective || {};
             if (typeof eff.interval_minutes === 'number') this.intervalMinutes = eff.interval_minutes;
             if (typeof eff.message_floor === 'number') this.messageFloor = eff.message_floor;
             if (typeof eff.size_limit === 'number') this.sizeLimit = eff.size_limit;
-            this.hasDefaults = !!data.has_thread_defaults;
-            this.dirty = false;
+            return !!data.has_override;
+        },
+
+        async _post(url, body) {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken(),
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: body.toString(),
+            });
+            if (!resp.ok) {
+                const data = await resp.json().catch(() => ({}));
+                throw new Error(data.error || `${resp.status}`);
+            }
+            return await resp.json();
         },
 
         async save() {
@@ -2017,29 +2039,26 @@ function personaThreadDefaults() {
             this.messageFloor = this.clampMessageFloor(this.messageFloor);
             this.sizeLimit = this.clampSizeLimit(this.sizeLimit);
 
-            const body = new URLSearchParams();
-            body.append('persona', this.persona);
-            body.append('default_mode', this.defaultMode || '');
-            body.append('interval_minutes', String(this.intervalMinutes));
-            body.append('message_floor', String(this.messageFloor));
-            body.append('size_limit', String(this.sizeLimit));
+            const modeBody = new URLSearchParams();
+            modeBody.append('persona', this.persona);
+            modeBody.append('default_mode', this.defaultMode || '');
+
+            const tmBody = new URLSearchParams();
+            tmBody.append('persona', this.persona);
+            tmBody.append('interval_minutes', String(this.intervalMinutes));
+            tmBody.append('message_floor', String(this.messageFloor));
+            tmBody.append('size_limit', String(this.sizeLimit));
+
             try {
-                const resp = await fetch(this._saveUrl, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCsrfToken(),
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: body.toString(),
-                });
-                if (resp.ok) {
-                    const data = await resp.json();
-                    this._applyResponse(data);
-                    showToast('Defaults saved.', 'success');
-                } else {
-                    const data = await resp.json().catch(() => ({}));
-                    showToast(data.error || `Save failed (${resp.status}).`, 'error');
-                }
+                const [modeData, tmData] = await Promise.all([
+                    this._post(this._saveModeUrl, modeBody),
+                    this._post(this._saveThreadMemoryUrl, tmBody),
+                ]);
+                const modeOverride = this._applyModeResponse(modeData);
+                const tmOverride = this._applyThreadMemoryResponse(tmData);
+                this.hasDefaults = modeOverride || tmOverride;
+                this.dirty = false;
+                showToast('Defaults saved.', 'success');
             } catch (e) {
                 showToast(`Save failed: ${e.message}`, 'error');
             } finally {
@@ -2053,22 +2072,15 @@ function personaThreadDefaults() {
             const body = new URLSearchParams();
             body.append('persona', this.persona);
             try {
-                const resp = await fetch(this._clearUrl, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCsrfToken(),
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: body.toString(),
-                });
-                if (resp.ok) {
-                    const data = await resp.json();
-                    this._applyResponse(data);
-                    showToast('Persona defaults cleared.', 'success');
-                } else {
-                    const data = await resp.json().catch(() => ({}));
-                    showToast(data.error || `Clear failed (${resp.status}).`, 'error');
-                }
+                const [modeData, tmData] = await Promise.all([
+                    this._post(this._resetModeUrl, body),
+                    this._post(this._resetThreadMemoryUrl, body),
+                ]);
+                const modeOverride = this._applyModeResponse(modeData);
+                const tmOverride = this._applyThreadMemoryResponse(tmData);
+                this.hasDefaults = modeOverride || tmOverride;
+                this.dirty = false;
+                showToast('Persona defaults cleared.', 'success');
             } catch (e) {
                 showToast(`Clear failed: ${e.message}`, 'error');
             } finally {
