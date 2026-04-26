@@ -633,6 +633,25 @@ async fn render_memory(
         &persona_cfg.auto_memory_message_floor.unwrap_or(10),
     );
 
+    // Per-chat (thread) memory defaults — controls live on the Memory tab.
+    let thread_defaults = persona_cfg.default_thread_memory_settings.unwrap_or_default();
+    ctx.insert(
+        "persona_thread_interval_minutes",
+        &thread_defaults.interval_minutes.unwrap_or(DEFAULT_INTERVAL_MINUTES),
+    );
+    ctx.insert(
+        "persona_thread_message_floor",
+        &thread_defaults.message_floor.unwrap_or(DEFAULT_MESSAGE_FLOOR),
+    );
+    ctx.insert(
+        "persona_thread_size_limit",
+        &thread_defaults.size_limit.unwrap_or(DEFAULT_SIZE_LIMIT),
+    );
+    let has_thread_memory_override = thread_defaults.interval_minutes.is_some()
+        || thread_defaults.message_floor.is_some()
+        || thread_defaults.size_limit.is_some();
+    ctx.insert("persona_has_thread_memory_defaults", &has_thread_memory_override);
+
     let htmx = is_htmx(headers);
     ctx.insert("is_htmx", &htmx);
 

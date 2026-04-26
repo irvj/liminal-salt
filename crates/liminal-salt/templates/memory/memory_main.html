@@ -6,192 +6,292 @@
 <div class="flex-1 overflow-y-auto p-5">
     {% if error %}<div x-data="errorToast" data-error="{{ error | escapejs }}"></div>{% endif %}
 
-    <div class="flex flex-col md:flex-row gap-3 mb-5">
-        <form hx-post="/memory/update/"
-              hx-target="#main-content"
-              hx-swap="innerHTML"
-              hx-on::before-request="showMemoryUpdating()"
-              class="w-full md:w-auto">
-            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-            <input type="hidden" name="persona" value="{{ selected_persona }}">
-            <button type="submit" tabindex="0" class="w-full md:w-auto px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover" id="update-memory-btn">Update Memory</button>
-        </form>
-
-        <form hx-post="/memory/seed/"
-              hx-target="#main-content"
-              hx-swap="innerHTML"
-              hx-on::before-request="showMemoryUpdating()"
-              hx-encoding="multipart/form-data"
-              class="w-full md:w-auto">
-            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-            <input type="hidden" name="persona" value="{{ selected_persona }}">
-            <input type="file" name="file" accept=".md,.txt" class="hidden" id="seed-file-input"
-                   @change="$el.closest('form').requestSubmit()">
-            <button type="button" tabindex="0"
-                    @click="document.getElementById('seed-file-input').click()"
-                    class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Seed Memory</button>
-        </form>
-
-        <button tabindex="0" @click="wipeMemoryWithConfirm()" class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent">Wipe Memory</button>
-    </div>
-
-    <!-- Memory Generation Settings (collapsible) -->
-    <details class="mb-6 group"
-             x-data="memorySettings"
-             data-persona="{{ selected_persona }}"
-             data-save-url="/memory/save-settings/"
-             data-max-threads="{{ user_history_max_threads | default(value=0) }}"
-             data-messages-per-thread="{{ user_history_messages_per_thread | default(value=0) }}"
-             data-size-limit="{{ memory_size_limit | default(value=8000) }}"
-             data-auto-interval="{{ auto_memory_interval | default(value=0) }}"
-             data-message-floor="{{ auto_memory_message_floor | default(value=10) }}">
-        <summary class="flex items-center gap-2 cursor-pointer list-none select-none py-2 text-foreground hover:text-accent-secondary [&::-webkit-details-marker]:hidden">
-            <span class="transition-transform group-open:rotate-90">{{ icons::chevron_right(class="w-4 h-4") }}</span>
-            <span class="text-xl">Memory Generation Settings</span>
-            <span class="text-xs text-accent-secondary" x-show="!saved">· unsaved changes</span>
-        </summary>
-        <p class="text-sm text-foreground-secondary mt-2 mb-5">
-            How {{ selected_persona | display_name }}'s memory is built and refreshed. Memory is disabled by default — adjust these to turn it on.
+    <!-- ──────────── Long-term memory ──────────── -->
+    <section class="mb-8">
+        <h2 class="text-xl text-foreground">Long-term memory</h2>
+        <p class="text-sm text-foreground-secondary mt-1 mb-4">
+            What {{ selected_persona | display_name }} remembers about you across all chats. Updated periodically from your recent conversations.
         </p>
 
-        <!-- Group 1: What memory reads from -->
-        <div class="border-l-2 border-border pl-4 mb-6">
-            <h3 class="text-sm font-medium text-foreground mb-1">What memory reads from</h3>
-            <p class="text-xs text-foreground-muted mb-3">
-                How much past conversation gets fed in when memory is regenerated. Larger values capture more nuance but cost more tokens.
+        <div class="flex flex-col md:flex-row gap-3 mb-5">
+            <form hx-post="/memory/update/"
+                  hx-target="#main-content"
+                  hx-swap="innerHTML"
+                  hx-on::before-request="showMemoryUpdating()"
+                  class="w-full md:w-auto">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <input type="hidden" name="persona" value="{{ selected_persona }}">
+                <button type="submit" tabindex="0" class="w-full md:w-auto px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover" id="update-memory-btn">Update Memory</button>
+            </form>
+
+            <form hx-post="/memory/seed/"
+                  hx-target="#main-content"
+                  hx-swap="innerHTML"
+                  hx-on::before-request="showMemoryUpdating()"
+                  hx-encoding="multipart/form-data"
+                  class="w-full md:w-auto">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <input type="hidden" name="persona" value="{{ selected_persona }}">
+                <input type="file" name="file" accept=".md,.txt" class="hidden" id="seed-file-input"
+                       @change="$el.closest('form').requestSubmit()">
+                <button type="button" tabindex="0"
+                        @click="document.getElementById('seed-file-input').click()"
+                        class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">Seed Memory</button>
+            </form>
+
+            <button tabindex="0" @click="wipeMemoryWithConfirm()" class="w-full md:w-auto px-6 py-3 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent">Wipe Memory</button>
+        </div>
+
+        <div class="text-xs text-foreground-secondary mb-4"
+             id="memory-status-bar"
+             x-data="memoryView"
+             data-status-url="/memory/update-status/"
+             data-memory-url="/memory/"
+             data-persona="{{ selected_persona }}"
+             data-updating="{{ memory_updating | default(value=false) }}">
+            {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update }}"></span>{% else %}No memory yet for {{ selected_persona | display_name }}{% endif %}<span id="memory-status" class="{% if not just_updated and not memory_updating %}hidden{% endif %}"> · {% if just_updated %}{{ icons::check_circle(class="w-4 h-4 inline") }} {{ success | default(value='') }}{% else %}Updating memory<span class="updating-dots"><span class="animate-blink">.</span><span class="animate-blink blink-2">.</span><span class="animate-blink blink-3">.</span></span>{% endif %}</span>
+        </div>
+
+        <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent">
+            {% if memory_content %}
+            <div class="prose prose-invert max-w-none !text-foreground-secondary prose-headings:!text-foreground-secondary">{{ memory_content | markdown | safe }}</div>
+            {% else %}
+                <div class="text-center text-foreground-secondary py-10 px-5">
+                    <strong>No memory yet for {{ selected_persona | display_name }}.</strong><br>
+                    Memory will be created after your first update.
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Memory Modification Input -->
+        <div class="bg-surface-secondary p-5 border-t border-border mt-5">
+            <form hx-post="/memory/modify/"
+                  hx-target="#main-content"
+                  hx-swap="innerHTML"
+                  hx-on::before-request="showMemoryModifying(event)"
+                  class="flex gap-3 items-end">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+                <input type="hidden" name="persona" value="{{ selected_persona }}">
+                <input type="text"
+                       name="command"
+                       id="memory-command-input"
+                       placeholder="Tell {{ selected_persona | display_name }} to remember or forget something..."
+                       required
+                       autocomplete="off"
+                       class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-secondary">
+                <button type="submit" tabindex="0" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Update</button>
+            </form>
+        </div>
+
+        <!-- Long-term memory settings (collapsible) -->
+        <details class="mt-6 group"
+                 x-data="memorySettings"
+                 data-persona="{{ selected_persona }}"
+                 data-save-url="/memory/save-settings/"
+                 data-max-threads="{{ user_history_max_threads | default(value=0) }}"
+                 data-messages-per-thread="{{ user_history_messages_per_thread | default(value=0) }}"
+                 data-size-limit="{{ memory_size_limit | default(value=8000) }}"
+                 data-auto-interval="{{ auto_memory_interval | default(value=0) }}"
+                 data-message-floor="{{ auto_memory_message_floor | default(value=10) }}">
+            <summary class="flex items-center gap-2 cursor-pointer list-none select-none py-2 text-foreground hover:text-accent-secondary [&::-webkit-details-marker]:hidden">
+                <span class="transition-transform group-open:rotate-90">{{ icons::chevron_right(class="w-4 h-4") }}</span>
+                <span class="text-base">Long-term memory settings</span>
+                <span class="text-xs text-accent-secondary" x-show="!saved">· unsaved changes</span>
+            </summary>
+            <p class="text-sm text-foreground-secondary mt-2 mb-5">
+                How long-term memory is built and refreshed. Memory is disabled by default — adjust these to turn it on.
             </p>
-            <div class="grid grid-cols-1 md:grid-cols-[minmax(0,18rem)_1fr] gap-x-6 gap-y-4 items-start">
-                <div>
-                    <label class="block text-sm text-foreground mb-1">Past chats to read from</label>
-                    <div class="flex items-center gap-2">
-                        <input type="number" x-model="userHistoryMaxThreads" @input="saved = false"
-                               min="0" max="100" placeholder="0"
-                               class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
-                        <span class="text-xs text-foreground-muted">chats</span>
-                    </div>
-                </div>
-                <p class="text-sm text-foreground-secondary md:pt-7">
-                    How many of your most recent chats with this persona to consider. Use <strong>0</strong> to rely only on the persona's existing memory.
-                </p>
 
-                <div>
-                    <label class="block text-sm text-foreground mb-1">Messages per past chat</label>
-                    <div class="flex items-center gap-2">
-                        <input type="number" x-model="userHistoryMessagesPerThread" @input="saved = false"
-                               min="0" max="10000" step="100" placeholder="0"
-                               class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
-                        <span class="text-xs text-foreground-muted">messages</span>
-                    </div>
-                </div>
-                <p class="text-sm text-foreground-secondary md:pt-7">
-                    How many recent messages to pull from each of those past chats. Lower this if memory updates feel slow or expensive.
+            <div class="border-l-2 border-border pl-4 mb-6">
+                <h3 class="text-sm font-medium text-foreground mb-1">What memory reads from</h3>
+                <p class="text-xs text-foreground-muted mb-3">
+                    How much past conversation gets fed in when memory is regenerated. Larger values capture more nuance but cost more tokens.
                 </p>
+                <div class="grid grid-cols-1 md:grid-cols-[minmax(0,18rem)_1fr] gap-x-6 gap-y-4 items-start">
+                    <div>
+                        <label class="block text-sm text-foreground mb-1">Past chats to read from</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" x-model="userHistoryMaxThreads" @input="saved = false"
+                                   min="0" max="100" placeholder="0"
+                                   class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+                            <span class="text-xs text-foreground-muted">chats</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-foreground-secondary md:pt-7">
+                        How many of your most recent chats with this persona to consider. Use <strong>0</strong> to rely only on the persona's existing memory.
+                    </p>
+
+                    <div>
+                        <label class="block text-sm text-foreground mb-1">Messages per past chat</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" x-model="userHistoryMessagesPerThread" @input="saved = false"
+                                   min="0" max="10000" step="100" placeholder="0"
+                                   class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+                            <span class="text-xs text-foreground-muted">messages</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-foreground-secondary md:pt-7">
+                        How many recent messages to pull from each of those past chats. Lower this if memory updates feel slow or expensive.
+                    </p>
+                </div>
             </div>
-        </div>
 
-        <!-- Group 2: What memory writes -->
-        <div class="border-l-2 border-border pl-4 mb-6">
-            <h3 class="text-sm font-medium text-foreground mb-1">What memory writes</h3>
-            <div class="grid grid-cols-1 md:grid-cols-[minmax(0,18rem)_1fr] gap-x-6 gap-y-4 items-start mt-3">
-                <div>
-                    <label class="block text-sm text-foreground mb-1">Maximum memory length</label>
-                    <div class="flex items-center gap-2">
-                        <input type="number" x-model="memorySizeLimit" @input="saved = false"
-                               min="0" max="100000" step="1000" placeholder="8000"
-                               class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
-                        <span class="text-xs text-foreground-muted">characters</span>
+            <div class="border-l-2 border-border pl-4 mb-6">
+                <h3 class="text-sm font-medium text-foreground mb-1">What memory writes</h3>
+                <div class="grid grid-cols-1 md:grid-cols-[minmax(0,18rem)_1fr] gap-x-6 gap-y-4 items-start mt-3">
+                    <div>
+                        <label class="block text-sm text-foreground mb-1">Maximum memory length</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" x-model="memorySizeLimit" @input="saved = false"
+                                   min="0" max="100000" step="1000" placeholder="8000"
+                                   class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+                            <span class="text-xs text-foreground-muted">characters</span>
+                        </div>
                     </div>
+                    <p class="text-sm text-foreground-secondary md:pt-7">
+                        The persona summarizes its memory down to fit this size. Roughly 4 characters ≈ 1 word. Use <strong>0</strong> for no limit.
+                    </p>
                 </div>
-                <p class="text-sm text-foreground-secondary md:pt-7">
-                    The persona summarizes its memory down to fit this size. Roughly 4 characters ≈ 1 word. Use <strong>0</strong> for no limit.
-                </p>
             </div>
-        </div>
 
-        <!-- Group 3: When memory updates automatically -->
-        <div class="border-l-2 border-border pl-4 mb-6">
-            <h3 class="text-sm font-medium text-foreground mb-1">When memory updates automatically</h3>
-            <p class="text-xs text-foreground-muted mb-3">
-                Both conditions must be met: enough time must pass <em>and</em> there must be enough new messages.
+            <div class="border-l-2 border-border pl-4 mb-6">
+                <h3 class="text-sm font-medium text-foreground mb-1">When memory updates automatically</h3>
+                <p class="text-xs text-foreground-muted mb-3">
+                    Both conditions must be met: enough time must pass <em>and</em> there must be enough new messages.
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-[minmax(0,18rem)_1fr] gap-x-6 gap-y-4 items-start">
+                    <div>
+                        <label class="block text-sm text-foreground mb-1">Auto-update every</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" x-model="autoMemoryInterval" @input="saved = false"
+                                   min="0" max="1440" placeholder="0"
+                                   class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+                            <span class="text-xs text-foreground-muted">minutes</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-foreground-secondary md:pt-7">
+                        Use <strong>0</strong> to disable auto-updates entirely. Minimum is 5 minutes when enabled.
+                    </p>
+
+                    <div>
+                        <label class="block text-sm text-foreground mb-1">Minimum new messages</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" x-model="autoMemoryMessageFloor" @input="saved = false"
+                                   min="1" max="1000" placeholder="10"
+                                   class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+                            <span class="text-xs text-foreground-muted">messages</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-foreground-secondary md:pt-7">
+                        Don't auto-update unless at least this many messages have been sent since the last update.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3 pt-3 border-t border-border" x-show="!saved">
+                <button type="button" tabindex="0" @click="save()" :disabled="saving"
+                        class="px-4 py-2 bg-accent text-foreground-on-accent rounded text-sm font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
+                    <span x-show="!saving">Save changes</span>
+                    <span x-show="saving">Saving…</span>
+                </button>
+                <span class="text-xs text-foreground-muted">You have unsaved changes.</span>
+            </div>
+        </details>
+    </section>
+
+    <!-- ──────────── Per-chat memory ──────────── -->
+    <section class="mt-10 pt-6 border-t border-border">
+        <h2 class="text-xl text-foreground">Per-chat memory</h2>
+        <p class="text-sm text-foreground-secondary mt-1 mb-4">
+            A running summary kept inside each individual chat with {{ selected_persona | display_name }}. Updated automatically as the conversation progresses; the contents live inside each chat (not here) and individual chats can override these defaults from the chat's thread memory modal.
+        </p>
+
+        <details class="mt-2 group"
+                 x-data="personaThreadMemoryDefaults"
+                 data-persona="{{ selected_persona }}"
+                 data-interval-minutes="{{ persona_thread_interval_minutes | default(value=0) }}"
+                 data-message-floor="{{ persona_thread_message_floor | default(value=4) }}"
+                 data-size-limit="{{ persona_thread_size_limit | default(value=4000) }}"
+                 data-has-override="{{ persona_has_thread_memory_defaults | default(value=false) }}"
+                 data-save-url="/memory/thread-memory-defaults/save/"
+                 data-reset-url="/memory/thread-memory-defaults/reset/">
+            <summary class="flex items-center gap-2 cursor-pointer list-none select-none py-2 text-foreground hover:text-accent-secondary [&::-webkit-details-marker]:hidden">
+                <span class="transition-transform group-open:rotate-90">{{ icons::chevron_right(class="w-4 h-4") }}</span>
+                <span class="text-base">Per-chat memory settings</span>
+                <span class="text-xs text-foreground-muted" x-show="hasOverride && !dirty">· custom for this persona</span>
+                <span class="text-xs text-accent-secondary" x-show="dirty">· unsaved changes</span>
+            </summary>
+            <p class="text-sm text-foreground-secondary mt-2 mb-5">
+                Defaults applied to every new chat with this persona. Per-thread overrides still win.
             </p>
-            <div class="grid grid-cols-1 md:grid-cols-[minmax(0,18rem)_1fr] gap-x-6 gap-y-4 items-start">
-                <div>
-                    <label class="block text-sm text-foreground mb-1">Auto-update every</label>
-                    <div class="flex items-center gap-2">
-                        <input type="number" x-model="autoMemoryInterval" @input="saved = false"
-                               min="0" max="1440" placeholder="0"
-                               class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
-                        <span class="text-xs text-foreground-muted">minutes</span>
-                    </div>
-                </div>
-                <p class="text-sm text-foreground-secondary md:pt-7">
-                    Use <strong>0</strong> to disable auto-updates entirely. Minimum is 5 minutes when enabled.
+
+            <div class="border-l-2 border-border pl-4 mb-6">
+                <h3 class="text-sm font-medium text-foreground mb-1">When per-chat memory updates automatically</h3>
+                <p class="text-xs text-foreground-muted mb-3">
+                    Both conditions must be met before the running summary is regenerated.
                 </p>
-
-                <div>
-                    <label class="block text-sm text-foreground mb-1">Minimum new messages</label>
-                    <div class="flex items-center gap-2">
-                        <input type="number" x-model="autoMemoryMessageFloor" @input="saved = false"
-                               min="1" max="1000" placeholder="10"
-                               class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
-                        <span class="text-xs text-foreground-muted">messages</span>
+                <div class="grid grid-cols-1 md:grid-cols-[minmax(0,18rem)_1fr] gap-x-6 gap-y-4 items-start">
+                    <div>
+                        <label class="block text-sm text-foreground mb-1">Auto-update every</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" x-model.number="intervalMinutes" @input="dirty = true"
+                                   @change="intervalMinutes = clampInterval(intervalMinutes)"
+                                   min="0" max="1440" placeholder="0"
+                                   class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+                            <span class="text-xs text-foreground-muted">minutes</span>
+                        </div>
                     </div>
+                    <p class="text-sm text-foreground-secondary md:pt-7">
+                        Use <strong>0</strong> to disable auto-updates. Minimum is 5 minutes when enabled.
+                    </p>
+
+                    <div>
+                        <label class="block text-sm text-foreground mb-1">Minimum new messages</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" x-model.number="messageFloor" @input="dirty = true"
+                                   @change="messageFloor = clampMessageFloor(messageFloor)"
+                                   min="1" max="1000" placeholder="4"
+                                   class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+                            <span class="text-xs text-foreground-muted">messages</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-foreground-secondary md:pt-7">
+                        Don't auto-update until this many new messages have been exchanged since the last update.
+                    </p>
                 </div>
-                <p class="text-sm text-foreground-secondary md:pt-7">
-                    Don't auto-update unless at least this many messages have been sent since the last update.
-                </p>
             </div>
-        </div>
 
-        <!-- Save bar -->
-        <div class="flex items-center gap-3 pt-3 border-t border-border" x-show="!saved">
-            <button type="button" tabindex="0" @click="save()" :disabled="saving"
-                    class="px-4 py-2 bg-accent text-foreground-on-accent rounded text-sm font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
-                <span x-show="!saving">Save changes</span>
-                <span x-show="saving">Saving…</span>
-            </button>
-            <span class="text-xs text-foreground-muted">You have unsaved changes.</span>
-        </div>
-    </details>
-
-    <div class="text-xs text-foreground-secondary mb-4"
-         id="memory-status-bar"
-         x-data="memoryView"
-         data-status-url="/memory/update-status/"
-         data-memory-url="/memory/"
-         data-persona="{{ selected_persona }}"
-         data-updating="{{ memory_updating | default(value=false) }}">
-        {% if last_update %}Last updated: <span id="last-update-time" data-timestamp="{{ last_update }}"></span>{% else %}No memory yet for {{ selected_persona | display_name }}{% endif %}<span id="memory-status" class="{% if not just_updated and not memory_updating %}hidden{% endif %}"> · {% if just_updated %}{{ icons::check_circle(class="w-4 h-4 inline") }} {{ success | default(value='') }}{% else %}Updating memory<span class="updating-dots"><span class="animate-blink">.</span><span class="animate-blink blink-2">.</span><span class="animate-blink blink-3">.</span></span>{% endif %}</span>
-    </div>
-
-    <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent">
-        {% if memory_content %}
-        <div class="prose prose-invert max-w-none !text-foreground-secondary prose-headings:!text-foreground-secondary">{{ memory_content | markdown | safe }}</div>
-        {% else %}
-            <div class="text-center text-foreground-secondary py-10 px-5">
-                <strong>No memory yet for {{ selected_persona | display_name }}.</strong><br>
-                Memory will be created after your first update.
+            <div class="border-l-2 border-border pl-4 mb-6">
+                <h3 class="text-sm font-medium text-foreground mb-1">What per-chat memory writes</h3>
+                <div class="grid grid-cols-1 md:grid-cols-[minmax(0,18rem)_1fr] gap-x-6 gap-y-4 items-start mt-3">
+                    <div>
+                        <label class="block text-sm text-foreground mb-1">Maximum summary length</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" x-model.number="sizeLimit" @input="dirty = true"
+                                   @change="sizeLimit = clampSizeLimit(sizeLimit)"
+                                   min="0" max="100000" step="500" placeholder="4000"
+                                   class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+                            <span class="text-xs text-foreground-muted">characters</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-foreground-secondary md:pt-7">
+                        Each chat's summary is squeezed to fit this size. Roughly 4 characters ≈ 1 word. Use <strong>0</strong> for no limit.
+                    </p>
+                </div>
             </div>
-        {% endif %}
-    </div>
 
-    <!-- Memory Modification Input -->
-    <div class="bg-surface-secondary p-5 border-t border-border mt-5">
-        <form hx-post="/memory/modify/"
-              hx-target="#main-content"
-              hx-swap="innerHTML"
-              hx-on::before-request="showMemoryModifying(event)"
-              class="flex gap-3 items-end">
-            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-            <input type="hidden" name="persona" value="{{ selected_persona }}">
-            <input type="text"
-                   name="command"
-                   id="memory-command-input"
-                   placeholder="Tell {{ selected_persona | display_name }} to remember or forget something..."
-                   required
-                   autocomplete="off"
-                   class="flex-1 p-3 border border-border rounded bg-surface text-foreground text-base focus:outline-none focus:border-accent-secondary">
-            <button type="submit" tabindex="0" class="px-6 py-3 bg-accent text-foreground-on-accent border border-accent rounded cursor-pointer font-medium text-base hover:bg-accent-hover">Update</button>
-        </form>
-    </div>
+            <div class="flex items-center gap-3 pt-3 border-t border-border" x-show="dirty || hasOverride">
+                <button type="button" tabindex="0" @click="save()" x-show="dirty" :disabled="saving"
+                        class="px-4 py-2 bg-accent text-foreground-on-accent rounded text-sm font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
+                    <span x-show="!saving">Save changes</span>
+                    <span x-show="saving">Saving…</span>
+                </button>
+                <span class="text-xs text-foreground-muted" x-show="dirty">You have unsaved changes.</span>
+                <button type="button" tabindex="0" @click="reset()" x-show="hasOverride && !dirty" :disabled="saving"
+                        class="px-3 py-2 bg-border text-foreground rounded text-sm font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent disabled:opacity-50">
+                    Reset thread memory defaults
+                </button>
+            </div>
+        </details>
+    </section>
 </div>

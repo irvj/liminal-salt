@@ -16,11 +16,6 @@ use crate::{
     services::{
         context_files::ContextScope,
         persona::{self, PersonaConfig, PersonaError},
-        thread_memory::{
-            DEFAULT_THREAD_MEMORY_INTERVAL_MINUTES as DEFAULT_INTERVAL_MINUTES,
-            DEFAULT_THREAD_MEMORY_MESSAGE_FLOOR as DEFAULT_MESSAGE_FLOOR,
-            DEFAULT_THREAD_MEMORY_SIZE as DEFAULT_SIZE_LIMIT,
-        },
     },
 };
 
@@ -88,13 +83,7 @@ pub async fn view(
         )
     };
 
-    // Thread defaults for template data attributes.
-    let thread_defaults = persona_cfg
-        .default_thread_memory_settings
-        .clone()
-        .unwrap_or_default();
-    let has_defaults = persona_cfg.default_mode.is_some()
-        || persona_cfg.default_thread_memory_settings.is_some();
+    let has_default_mode = persona_cfg.default_mode.is_some();
 
     let mut ctx = super::chat::base_chat_context(&state, &session).await;
     ctx.insert("page", "persona");
@@ -112,21 +101,7 @@ pub async fn view(
         "persona_default_mode_raw",
         &persona_cfg.default_mode.clone().unwrap_or_default(),
     );
-    ctx.insert(
-        "persona_default_interval_minutes",
-        &thread_defaults
-            .interval_minutes
-            .unwrap_or(DEFAULT_INTERVAL_MINUTES),
-    );
-    ctx.insert(
-        "persona_default_message_floor",
-        &thread_defaults.message_floor.unwrap_or(DEFAULT_MESSAGE_FLOOR),
-    );
-    ctx.insert(
-        "persona_default_size_limit",
-        &thread_defaults.size_limit.unwrap_or(DEFAULT_SIZE_LIMIT),
-    );
-    ctx.insert("persona_has_thread_defaults", &has_defaults);
+    ctx.insert("persona_has_default_mode", &has_default_mode);
 
     let htmx = crate::handlers::chat::is_htmx(&headers);
     ctx.insert("is_htmx", &htmx);

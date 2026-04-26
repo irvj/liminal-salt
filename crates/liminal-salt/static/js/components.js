@@ -29,7 +29,8 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('providerModelSettings', providerModelSettings);
     Alpine.data('homePersonaPicker', homePersonaPicker);
     Alpine.data('personaScopePicker', personaScopePicker);
-    Alpine.data('personaThreadDefaults', personaThreadDefaults);
+    Alpine.data('personaDefaultMode', personaDefaultMode);
+    Alpine.data('personaThreadMemoryDefaults', personaThreadMemoryDefaults);
     Alpine.data('providerPicker', providerPicker);
     Alpine.data('modelPicker', modelPicker);
     Alpine.data('themePicker', themePicker);
@@ -1910,27 +1911,114 @@ function memorySettings() {
 }
 
 // =============================================================================
-// Persona Thread Defaults Component (persona settings page)
+// Persona Default Mode Component (persona tab)
 // =============================================================================
 
-function personaThreadDefaults() {
+async function _postFormUrlencoded(url, body) {
+    const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCsrfToken(),
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: body.toString(),
+    });
+    if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || `${resp.status}`);
+    }
+    return await resp.json();
+}
+
+function personaDefaultMode() {
     return {
         persona: '',
         defaultMode: 'chatbot',
-        intervalMinutes: 0,
-        messageFloor: 4,
-        sizeLimit: 4000,
-        hasDefaults: false,
+        hasOverride: false,
         dirty: false,
         saving: false,
         modeItems: [
             { id: 'chatbot', label: 'Chatbot' },
             { id: 'roleplay', label: 'Roleplay' },
         ],
-        _saveModeUrl: '',
-        _resetModeUrl: '',
-        _saveThreadMemoryUrl: '',
-        _resetThreadMemoryUrl: '',
+        _saveUrl: '',
+        _resetUrl: '',
+
+        init() {
+            const el = this.$el;
+            this.persona = el.dataset.persona || '';
+            // Backend returns 'roleplay' or ''. Chatbot is the baseline so '' → chatbot.
+            this.defaultMode = el.dataset.defaultMode === 'roleplay' ? 'roleplay' : 'chatbot';
+            this.hasOverride = el.dataset.hasOverride === 'true';
+            this._saveUrl = el.dataset.saveUrl;
+            this._resetUrl = el.dataset.resetUrl;
+        },
+
+        onModeSelect(detail) {
+            const id = detail && detail.id === 'roleplay' ? 'roleplay' : 'chatbot';
+            if (id === this.defaultMode) return;
+            this.defaultMode = id;
+            this.dirty = true;
+        },
+
+        _apply(data) {
+            if (!data) return;
+            this.defaultMode = (data.default_mode_raw === 'roleplay') ? 'roleplay' : 'chatbot';
+            this.hasOverride = !!data.has_override;
+        },
+
+        async save() {
+            if (!this.persona) return;
+            this.saving = true;
+            const body = new URLSearchParams();
+            body.append('persona', this.persona);
+            body.append('default_mode', this.defaultMode || '');
+            try {
+                const data = await _postFormUrlencoded(this._saveUrl, body);
+                this._apply(data);
+                this.dirty = false;
+                showToast('Default mode saved.', 'success');
+            } catch (e) {
+                showToast(`Save failed: ${e.message}`, 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async reset() {
+            if (!this.persona) return;
+            this.saving = true;
+            const body = new URLSearchParams();
+            body.append('persona', this.persona);
+            try {
+                const data = await _postFormUrlencoded(this._resetUrl, body);
+                this._apply(data);
+                this.dirty = false;
+                showToast('Default mode reset.', 'success');
+            } catch (e) {
+                showToast(`Reset failed: ${e.message}`, 'error');
+            } finally {
+                this.saving = false;
+            }
+        }
+    };
+}
+
+// =============================================================================
+// Persona Thread Memory Defaults Component (memory tab)
+// =============================================================================
+
+function personaThreadMemoryDefaults() {
+    return {
+        persona: '',
+        intervalMinutes: 0,
+        messageFloor: 4,
+        sizeLimit: 4000,
+        hasOverride: false,
+        dirty: false,
+        saving: false,
+        _saveUrl: '',
+        _resetUrl: '',
 
         // Match server-side clamping so the displayed value reflects what would
         // be saved. Applied on @change so the user sees the snap before Save.
@@ -1951,86 +2039,40 @@ function personaThreadDefaults() {
         init() {
             const el = this.$el;
             this.persona = el.dataset.persona || '';
-            // Backend returns 'roleplay' or ''. Chatbot is the baseline so '' → chatbot.
-            this.defaultMode = el.dataset.defaultMode === 'roleplay' ? 'roleplay' : 'chatbot';
             this.intervalMinutes = parseInt(el.dataset.intervalMinutes) || 0;
             this.messageFloor = parseInt(el.dataset.messageFloor) || 4;
             this.sizeLimit = parseInt(el.dataset.sizeLimit) || 4000;
-            this.hasDefaults = el.dataset.hasThreadDefaults === 'true';
-            this._saveModeUrl = el.dataset.saveModeUrl;
-            this._resetModeUrl = el.dataset.resetModeUrl;
-            this._saveThreadMemoryUrl = el.dataset.saveThreadMemoryUrl;
-            this._resetThreadMemoryUrl = el.dataset.resetThreadMemoryUrl;
+            this.hasOverride = el.dataset.hasOverride === 'true';
+            this._saveUrl = el.dataset.saveUrl;
+            this._resetUrl = el.dataset.resetUrl;
         },
 
-        onModeSelect(detail) {
-            const id = detail && detail.id === 'roleplay' ? 'roleplay' : 'chatbot';
-            if (id === this.defaultMode) return;
-            this.defaultMode = id;
-            this.dirty = true;
-        },
-
-        _applyModeResponse(data) {
+        _apply(data) {
             if (!data) return;
-            const rawMode = (data.default_mode_raw === 'roleplay') ? 'roleplay' : 'chatbot';
-            this.defaultMode = rawMode;
-            return !!data.has_override;
-        },
-
-        _applyThreadMemoryResponse(data) {
-            if (!data) return false;
             const eff = data.effective || {};
             if (typeof eff.interval_minutes === 'number') this.intervalMinutes = eff.interval_minutes;
             if (typeof eff.message_floor === 'number') this.messageFloor = eff.message_floor;
             if (typeof eff.size_limit === 'number') this.sizeLimit = eff.size_limit;
-            return !!data.has_override;
-        },
-
-        async _post(url, body) {
-            const resp = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': getCsrfToken(),
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: body.toString(),
-            });
-            if (!resp.ok) {
-                const data = await resp.json().catch(() => ({}));
-                throw new Error(data.error || `${resp.status}`);
-            }
-            return await resp.json();
+            this.hasOverride = !!data.has_override;
         },
 
         async save() {
             if (!this.persona) return;
             this.saving = true;
-
-            // Coerce first so empty/NaN inputs don't reach the server as "NaN".
             this.intervalMinutes = this.clampInterval(this.intervalMinutes);
             this.messageFloor = this.clampMessageFloor(this.messageFloor);
             this.sizeLimit = this.clampSizeLimit(this.sizeLimit);
 
-            const modeBody = new URLSearchParams();
-            modeBody.append('persona', this.persona);
-            modeBody.append('default_mode', this.defaultMode || '');
-
-            const tmBody = new URLSearchParams();
-            tmBody.append('persona', this.persona);
-            tmBody.append('interval_minutes', String(this.intervalMinutes));
-            tmBody.append('message_floor', String(this.messageFloor));
-            tmBody.append('size_limit', String(this.sizeLimit));
-
+            const body = new URLSearchParams();
+            body.append('persona', this.persona);
+            body.append('interval_minutes', String(this.intervalMinutes));
+            body.append('message_floor', String(this.messageFloor));
+            body.append('size_limit', String(this.sizeLimit));
             try {
-                const [modeData, tmData] = await Promise.all([
-                    this._post(this._saveModeUrl, modeBody),
-                    this._post(this._saveThreadMemoryUrl, tmBody),
-                ]);
-                const modeOverride = this._applyModeResponse(modeData);
-                const tmOverride = this._applyThreadMemoryResponse(tmData);
-                this.hasDefaults = modeOverride || tmOverride;
+                const data = await _postFormUrlencoded(this._saveUrl, body);
+                this._apply(data);
                 this.dirty = false;
-                showToast('Defaults saved.', 'success');
+                showToast('Thread memory defaults saved.', 'success');
             } catch (e) {
                 showToast(`Save failed: ${e.message}`, 'error');
             } finally {
@@ -2038,23 +2080,18 @@ function personaThreadDefaults() {
             }
         },
 
-        async clear() {
+        async reset() {
             if (!this.persona) return;
             this.saving = true;
             const body = new URLSearchParams();
             body.append('persona', this.persona);
             try {
-                const [modeData, tmData] = await Promise.all([
-                    this._post(this._resetModeUrl, body),
-                    this._post(this._resetThreadMemoryUrl, body),
-                ]);
-                const modeOverride = this._applyModeResponse(modeData);
-                const tmOverride = this._applyThreadMemoryResponse(tmData);
-                this.hasDefaults = modeOverride || tmOverride;
+                const data = await _postFormUrlencoded(this._resetUrl, body);
+                this._apply(data);
                 this.dirty = false;
-                showToast('Persona defaults cleared.', 'success');
+                showToast('Thread memory defaults reset.', 'success');
             } catch (e) {
-                showToast(`Clear failed: ${e.message}`, 'error');
+                showToast(`Reset failed: ${e.message}`, 'error');
             } finally {
                 this.saving = false;
             }
