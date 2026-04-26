@@ -72,74 +72,120 @@
     </div>
     {% endif %}
 
-    <!-- Thread Defaults for this persona -->
-    <div class="mt-6 pt-5 border-t border-border"
-         x-data="personaThreadDefaults"
-         data-persona="{{ selected_persona }}"
-         data-default-mode="{{ persona_default_mode_raw | default(value='') }}"
-         data-interval-minutes="{{ persona_default_interval_minutes | default(value=0) }}"
-         data-message-floor="{{ persona_default_message_floor | default(value=4) }}"
-         data-size-limit="{{ persona_default_size_limit | default(value=4000) }}"
-         data-has-thread-defaults="{{ persona_has_thread_defaults | default(value=false) }}"
-         data-save-url="/persona/save-thread-defaults/"
-         data-clear-url="/persona/clear-thread-defaults/">
-
-        <div class="flex items-center justify-between mb-2">
-            <h3 class="text-lg text-foreground">Thread Defaults</h3>
-            <span class="text-xs text-foreground-muted"
-                  x-text="hasDefaults ? 'Custom defaults for this persona' : 'Standard settings'"></span>
-        </div>
-        <p class="text-xs text-foreground-muted mb-4">
-            Applied when a new thread is created with <span class="text-accent-secondary">{{ selected_persona | display_name }}</span>. Individual threads can override these from the thread memory modal. Chatbot is the baseline; switch to Roleplay only if you want this persona to open as roleplay by default.
+    <!-- Thread Defaults for this persona (collapsible) -->
+    <details class="mt-6 pt-5 border-t border-border group"
+             x-data="personaThreadDefaults"
+             data-persona="{{ selected_persona }}"
+             data-default-mode="{{ persona_default_mode_raw | default(value='') }}"
+             data-interval-minutes="{{ persona_default_interval_minutes | default(value=0) }}"
+             data-message-floor="{{ persona_default_message_floor | default(value=4) }}"
+             data-size-limit="{{ persona_default_size_limit | default(value=4000) }}"
+             data-has-thread-defaults="{{ persona_has_thread_defaults | default(value=false) }}"
+             data-save-url="/persona/save-thread-defaults/"
+             data-clear-url="/persona/clear-thread-defaults/">
+        <summary class="flex items-center gap-2 cursor-pointer list-none select-none py-2 text-foreground hover:text-accent-secondary [&::-webkit-details-marker]:hidden">
+            <span class="transition-transform group-open:rotate-90">{{ icons::chevron_right(class="w-4 h-4") }}</span>
+            <span class="text-lg">Thread Defaults</span>
+            <span class="text-xs text-foreground-muted" x-show="hasDefaults && !dirty">· custom for this persona</span>
+            <span class="text-xs text-accent-secondary" x-show="dirty">· unsaved changes</span>
+        </summary>
+        <p class="text-sm text-foreground-secondary mt-2 mb-5">
+            Applied when a new thread is created with <span class="text-accent-secondary">{{ selected_persona | display_name }}</span>. Individual threads can still override these from the thread memory modal.
         </p>
 
-        <div class="flex flex-wrap items-end gap-4 mb-2"
-             @dropdown-select="onModeSelect($event.detail)">
-            <div>
-                <label class="block text-xs text-foreground-secondary mb-1">Default Mode</label>
-                <div x-data="selectDropdown" :data-items="JSON.stringify(modeItems)" :data-selected="defaultMode">
-                    {% set placeholder = "Use app default" %}
-                    {% set trigger_class = "flex items-center gap-2 text-foreground text-sm cursor-pointer outline-none focus:ring-1 focus:ring-accent-secondary rounded p-2 border border-border bg-surface w-48 justify-between" %}
-                    {% set name = "" %}
-                    {% set searchable = "" %}
-                    {% include "components/select_dropdown.html" %}
+        <div @dropdown-select="onModeSelect($event.detail)">
+            <!-- Group 1: How threads start -->
+            <div class="border-l-2 border-border pl-4 mb-6">
+                <h3 class="text-sm font-medium text-foreground mb-1">How new threads start</h3>
+                <div class="grid grid-cols-1 md:grid-cols-[minmax(0,18rem)_1fr] gap-x-6 gap-y-4 items-start mt-3">
+                    <div>
+                        <label class="block text-sm text-foreground mb-1">Default mode</label>
+                        <div x-data="selectDropdown" :data-items="JSON.stringify(modeItems)" :data-selected="defaultMode">
+                            {% set placeholder = "Use app default" %}
+                            {% set trigger_class = "flex items-center gap-2 text-foreground text-sm cursor-pointer outline-none focus:ring-1 focus:ring-accent-secondary rounded p-2 border border-border bg-surface w-48 justify-between" %}
+                            {% set name = "" %}
+                            {% set searchable = "" %}
+                            {% include "components/select_dropdown.html" %}
+                        </div>
+                    </div>
+                    <p class="text-sm text-foreground-secondary md:pt-7">
+                        <strong>Chatbot</strong> is the standard conversational mode. Switch to <strong>Roleplay</strong> only if you want every new thread with this persona to open as a roleplay scene by default.
+                    </p>
                 </div>
             </div>
-            <div>
-                <label class="block text-xs text-foreground-secondary mb-1">Interval (min)</label>
-                <input type="number" x-model.number="intervalMinutes" @input="dirty = true"
-                       @change="intervalMinutes = clampInterval(intervalMinutes)"
-                       min="0" max="1440" placeholder="0"
-                       class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+
+            <!-- Group 2: When thread memory updates -->
+            <div class="border-l-2 border-border pl-4 mb-6">
+                <h3 class="text-sm font-medium text-foreground mb-1">When thread memory updates automatically</h3>
+                <p class="text-xs text-foreground-muted mb-3">
+                    Thread memory is a per-thread running summary. Both conditions must be met before it auto-updates.
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-[minmax(0,18rem)_1fr] gap-x-6 gap-y-4 items-start">
+                    <div>
+                        <label class="block text-sm text-foreground mb-1">Auto-update every</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" x-model.number="intervalMinutes" @input="dirty = true"
+                                   @change="intervalMinutes = clampInterval(intervalMinutes)"
+                                   min="0" max="1440" placeholder="0"
+                                   class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+                            <span class="text-xs text-foreground-muted">minutes</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-foreground-secondary md:pt-7">
+                        Use <strong>0</strong> to disable auto-updates. Minimum is 5 minutes when enabled.
+                    </p>
+
+                    <div>
+                        <label class="block text-sm text-foreground mb-1">Minimum new messages</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" x-model.number="messageFloor" @input="dirty = true"
+                                   @change="messageFloor = clampMessageFloor(messageFloor)"
+                                   min="1" max="1000" placeholder="4"
+                                   class="w-20 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+                            <span class="text-xs text-foreground-muted">messages</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-foreground-secondary md:pt-7">
+                        Don't auto-update unless at least this many messages have been exchanged since the last update.
+                    </p>
+                </div>
             </div>
-            <div>
-                <label class="block text-xs text-foreground-secondary mb-1">Message Floor</label>
-                <input type="number" x-model.number="messageFloor" @input="dirty = true"
-                       @change="messageFloor = clampMessageFloor(messageFloor)"
-                       min="1" max="1000" placeholder="4"
-                       class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+
+            <!-- Group 3: What thread memory writes -->
+            <div class="border-l-2 border-border pl-4 mb-6">
+                <h3 class="text-sm font-medium text-foreground mb-1">What thread memory writes</h3>
+                <div class="grid grid-cols-1 md:grid-cols-[minmax(0,18rem)_1fr] gap-x-6 gap-y-4 items-start mt-3">
+                    <div>
+                        <label class="block text-sm text-foreground mb-1">Maximum summary length</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" x-model.number="sizeLimit" @input="dirty = true"
+                                   @change="sizeLimit = clampSizeLimit(sizeLimit)"
+                                   min="0" max="100000" step="500" placeholder="4000"
+                                   class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+                            <span class="text-xs text-foreground-muted">characters</span>
+                        </div>
+                    </div>
+                    <p class="text-sm text-foreground-secondary md:pt-7">
+                        Each thread's summary is squeezed to fit this size. Roughly 4 characters ≈ 1 word. Use <strong>0</strong> for no limit.
+                    </p>
+                </div>
             </div>
-            <div>
-                <label class="block text-xs text-foreground-secondary mb-1">Size Limit</label>
-                <input type="number" x-model.number="sizeLimit" @input="dirty = true"
-                       @change="sizeLimit = clampSizeLimit(sizeLimit)"
-                       min="0" max="100000" step="500" placeholder="4000"
-                       class="w-24 p-2 border border-border rounded bg-surface text-foreground text-sm focus:outline-none focus:border-accent-secondary">
+
+            <!-- Save / Clear bar -->
+            <div class="flex items-center gap-3 pt-3 border-t border-border" x-show="dirty || hasDefaults">
+                <button type="button" tabindex="0" @click="save()" x-show="dirty" :disabled="saving"
+                        class="px-4 py-2 bg-accent text-foreground-on-accent rounded text-sm font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
+                    <span x-show="!saving">Save changes</span>
+                    <span x-show="saving">Saving…</span>
+                </button>
+                <span class="text-xs text-foreground-muted" x-show="dirty">You have unsaved changes.</span>
+                <button type="button" tabindex="0" @click="clear()" x-show="hasDefaults && !dirty" :disabled="saving"
+                        class="px-3 py-2 bg-border text-foreground rounded text-sm font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent disabled:opacity-50">
+                    Clear persona defaults
+                </button>
             </div>
-            <button @click="save()" x-show="dirty" :disabled="saving"
-                    class="px-3 py-2 bg-accent text-foreground-on-accent rounded text-sm font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50">
-                <span x-show="!saving">Save</span>
-                <span x-show="saving">...</span>
-            </button>
-            <button @click="clear()" x-show="hasDefaults && !dirty" :disabled="saving"
-                    class="px-3 py-2 bg-border text-foreground rounded text-sm font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent disabled:opacity-50">
-                Clear persona defaults
-            </button>
         </div>
-        <p class="text-xs text-foreground-muted mt-2">
-            Interval 0 = auto-update disabled. Size Limit 0 = unlimited.
-        </p>
-    </div>
+    </details>
 
     {% if persona_preview %}
     <div class="bg-surface-secondary p-5 rounded-lg leading-relaxed border-l-4 border-accent mt-6 prose prose-invert max-w-none !text-foreground-secondary prose-headings:!text-foreground-secondary prose-strong:!text-foreground-secondary marker:!text-foreground-secondary">
