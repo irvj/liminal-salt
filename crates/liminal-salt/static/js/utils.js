@@ -771,19 +771,15 @@ function pollMemoryUpdateStatus(persona, statusUrl, memoryUrl) {
 
 /**
  * Show memory modifying indicator and clear input (called via HTMX hx-on::before-request).
+ * Also disables the Update Memory button — modify and update share the same
+ * server-side mutex, so a second update kicked off mid-modify would just
+ * surface as a 409 toast.
  * @param {Event} event - The event
  */
 function showMemoryModifying(event) {
-    // Clear input immediately
     const input = document.getElementById('memory-command-input');
     if (input) input.value = '';
-
-    // Show updating status
-    const status = document.getElementById('memory-status');
-    if (status) {
-        status.classList.remove('hidden');
-        status.innerHTML = ' · Updating Memory<span class="updating-dots"><span>.</span><span>.</span><span>.</span></span>';
-    }
+    showMemoryUpdating();
 }
 
 // =============================================================================

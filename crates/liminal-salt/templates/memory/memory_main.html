@@ -21,7 +21,7 @@
                   class="w-full md:w-auto">
                 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
                 <input type="hidden" name="persona" value="{{ selected_persona }}">
-                <button type="submit" tabindex="0" class="w-full md:w-auto px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover" id="update-memory-btn">Update Memory</button>
+                <button type="submit" tabindex="0" class="w-full md:w-auto px-6 py-3 bg-accent text-foreground-on-accent rounded font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed" id="update-memory-btn"{% if memory_updating %} disabled{% endif %}>Update Memory</button>
             </form>
 
             <form hx-post="/memory/seed/"
