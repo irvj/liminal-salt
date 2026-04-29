@@ -26,9 +26,10 @@ pub fn memory_status(err: &MemoryError) -> StatusCode {
         MemoryError::InvalidPersonaName(_)
         | MemoryError::NoExistingMemory
         | MemoryError::NoThreads => StatusCode::BAD_REQUEST,
-        MemoryError::UnusableResponse | MemoryError::Io(_) | MemoryError::Llm(_) => {
-            StatusCode::INTERNAL_SERVER_ERROR
-        }
+        MemoryError::UnusableResponse
+        | MemoryError::Io(_)
+        | MemoryError::Llm(_)
+        | MemoryError::Prompt(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
 

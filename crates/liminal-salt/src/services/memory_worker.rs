@@ -422,6 +422,7 @@ impl MemoryWorker {
         let result = memory::update_memory(
             llm,
             &state.data_dir,
+            &state.bundled_prompts_dir,
             persona,
             &identity,
             &threads,
@@ -465,6 +466,7 @@ impl MemoryWorker {
         let result = memory::modify_memory(
             llm,
             &state.data_dir,
+            &state.bundled_prompts_dir,
             persona,
             &identity,
             command,
@@ -508,6 +510,7 @@ impl MemoryWorker {
         let result = memory::seed_memory(
             llm,
             &state.data_dir,
+            &state.bundled_prompts_dir,
             persona,
             &identity,
             seed_content,
@@ -554,6 +557,9 @@ impl MemoryWorker {
                     }
                     memory::MemoryError::InvalidPersonaName(_) => {
                         "Invalid persona name.".to_string()
+                    }
+                    memory::MemoryError::Prompt(_) => {
+                        "Could not load the long-term memory prompt.".to_string()
                     }
                 };
                 self.set_persona_status(
@@ -691,12 +697,16 @@ impl MemoryWorker {
         // ---- LLM call. No session-JSON lock held; thread-memory mutex held. ----
         let merged = thread_memory::merge(
             llm,
-            &persona_display,
-            &existing_memory,
-            &new_messages,
-            effective.size_limit,
-            mode,
-            &persona_memory,
+            thread_memory::MergeRequest {
+                data_dir: &state.data_dir,
+                bundled_prompts_dir: &state.bundled_prompts_dir,
+                persona_display_name: &persona_display,
+                persona_memory: &persona_memory,
+                existing_memory: &existing_memory,
+                new_messages: &new_messages,
+                size_limit: effective.size_limit,
+                mode,
+            },
         )
         .await;
 

@@ -17,10 +17,10 @@ async fn write_bundled(bundled_dir: &Path, id: &str, content: &str) {
 }
 
 #[test]
-fn registry_lists_seven_prompts() {
-    // The roadmap commits to 7 prompts in v1; lock that in so a registry edit
+fn registry_size_locked() {
+    // M3 v1 ships 5 user-editable prompts; lock that in so a registry edit
     // is a deliberate decision, not a drift.
-    assert_eq!(PROMPTS.len(), 7, "prompt registry size changed");
+    assert_eq!(PROMPTS.len(), 5, "prompt registry size changed");
 
     // No duplicate IDs.
     let mut ids: Vec<&str> = PROMPTS.iter().map(|p| p.id).collect();

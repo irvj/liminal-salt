@@ -8,9 +8,12 @@
 //! session goes through `session::save_thread_memory` so the session's per-id
 //! lock coordinates with other writers.
 
+use std::path::Path;
+
 use crate::services::{
     llm::{ChatLlm, LlmMessage},
     persona::PersonaConfig,
+    prompts,
     session::{Message, Mode, Role, Session},
 };
 
@@ -105,21 +108,37 @@ pub fn filter_new_messages(messages: &[Message], updated_at: &str) -> Vec<Messag
     out
 }
 
-/// Merge new messages into the existing thread summary via LLM. Returns the
-/// updated summary on success, or `None` on LLM error / safety rejection.
+/// Inputs to a single thread-memory merge.
 ///
 /// `persona_memory` is the cross-thread persona memory used to color the
-/// chatbot-variant merge (suppressed in roleplay for immersion). Pass `""`
-/// if roleplay or if no memory file exists.
-pub async fn merge<L: ChatLlm>(
-    llm: &L,
-    persona_display_name: &str,
-    existing_memory: &str,
-    new_messages: &[Message],
-    size_limit: u32,
-    mode: Mode,
-    persona_memory: &str,
-) -> Option<String> {
+/// chatbot-variant merge (suppressed in roleplay for immersion). Set to `""`
+/// in roleplay mode or if no memory file exists.
+pub struct MergeRequest<'a> {
+    pub data_dir: &'a Path,
+    pub bundled_prompts_dir: &'a Path,
+    pub persona_display_name: &'a str,
+    pub persona_memory: &'a str,
+    pub existing_memory: &'a str,
+    pub new_messages: &'a [Message],
+    pub size_limit: u32,
+    pub mode: Mode,
+}
+
+/// Merge new messages into the existing thread summary via LLM. Returns the
+/// updated summary on success, or `None` on LLM error / safety rejection /
+/// prompt-load failure.
+pub async fn merge<L: ChatLlm>(llm: &L, req: MergeRequest<'_>) -> Option<String> {
+    let MergeRequest {
+        data_dir,
+        bundled_prompts_dir,
+        persona_display_name,
+        persona_memory,
+        existing_memory,
+        new_messages,
+        size_limit,
+        mode,
+    } = req;
+
     if new_messages.is_empty() {
         return None;
     }
@@ -143,12 +162,31 @@ pub async fn merge<L: ChatLlm>(
         existing_memory.to_string()
     };
 
+    let prompt_id = match mode {
+        Mode::Roleplay => "thread_memory_merge_roleplay",
+        Mode::Chatbot => "thread_memory_merge_chatbot",
+    };
+    let instructions = match prompts::load(data_dir, bundled_prompts_dir, prompt_id).await {
+        Ok(s) => s,
+        Err(err) => {
+            tracing::error!(prompt = prompt_id, error = %err, "thread memory prompt load failed");
+            return None;
+        }
+    };
+    let instructions = instructions.trim_end();
+
     let prompt = match mode {
-        Mode::Roleplay => build_roleplay_prompt(&existing_block, &transcript, &size_instruction),
+        Mode::Roleplay => build_roleplay_prompt(
+            &existing_block,
+            &transcript,
+            instructions,
+            &size_instruction,
+        ),
         Mode::Chatbot => build_chatbot_prompt(
             persona_display_name,
             &existing_block,
             &transcript,
+            instructions,
             &size_instruction,
             persona_memory,
         ),
@@ -202,28 +240,23 @@ fn build_chatbot_prompt(
     persona_display_name: &str,
     existing_block: &str,
     transcript: &str,
+    instructions: &str,
     size_instruction: &str,
     persona_memory: &str,
 ) -> String {
     let trimmed_memory = persona_memory.trim();
-    let (persona_memory_block, persona_memory_rule) = if trimmed_memory.is_empty() {
-        (String::new(), "")
+    let persona_memory_block = if trimmed_memory.is_empty() {
+        String::new()
     } else {
-        (
-            format!(
-                "--- WHAT YOU ALREADY KNOW ABOUT THIS PERSON ---\n\
-                 {trimmed_memory}\n\n\
-                 NOTE: The section above is your long-running memory about this\n\
-                 person, carried in from other conversations. It tells you who they\n\
-                 are to you — use it as the lens through which you read this thread.\n\
-                 DO NOT copy facts from it into the summary below. The summary is a\n\
-                 record of THIS thread only; what you already knew about them lives\n\
-                 elsewhere and doesn't need repeating here.\n\n"
-            ),
-            "- DO NOT merge pre-existing knowledge about this person into the\n  \
-             summary. Anything from \"WHAT YOU ALREADY KNOW\" above is background\n  \
-             that colors how you read the thread — it is not content to summarize.\n  \
-             The summary covers ONLY what happened in THIS thread.\n",
+        format!(
+            "--- WHAT YOU ALREADY KNOW ABOUT THIS PERSON ---\n\
+             {trimmed_memory}\n\n\
+             NOTE: The section above is your long-running memory about this\n\
+             person, carried in from other conversations. It tells you who they\n\
+             are to you — use it as the lens through which you read this thread.\n\
+             DO NOT copy facts from it into the summary below. The summary is a\n\
+             record of THIS thread only; what you already knew about them lives\n\
+             elsewhere and doesn't need repeating here.\n\n"
         )
     };
 
@@ -248,52 +281,7 @@ fn build_chatbot_prompt(
          --- NEW MESSAGES (since last update) ---\n\
          {transcript}\n\n\
          --- INSTRUCTIONS ---\n\n\
-         Update the summary so it reflects everything that has happened through\n\
-         the new messages. This is your working memory of the WHOLE conversation,\n\
-         not just the most recent exchanges. If someone asked you tomorrow \"did\n\
-         they mention X?\" for something that came up early in the thread, you\n\
-         should still remember it.\n\n\
-         MERGING:\n\
-         - The existing summary IS your memory of the thread so far. Treat it\n  \
-         as canonical and load-bearing. Every event already captured there\n  \
-         must still be represented in the updated summary — the new messages\n  \
-         add to that memory, they don't replace it.\n\
-         - MERGE the new messages into the existing summary; don't rewrite from\n  \
-         scratch.\n\
-         {persona_memory_rule}\
-         - ABSTRACT toward essence, don't drop events. \"They told a long story\n  \
-         about their commute\" is fine; dropping that they talked about the\n  \
-         commute at all is not. The goal isn't a shorter summary — it's a\n  \
-         memory.\n\
-         - PRESERVE the whole arc: the start, key turns, what got established\n  \
-         along the way, not only the latest exchanges. An early moment that\n  \
-         established something meaningful is as load-bearing as a recent one\n  \
-         — often more so, because it's had time to shape everything since.\n\
-         - BIAS HISTORICAL, NOT RECENT. When size pressure forces compression,\n  \
-         compress the new content first. Recent events haven't yet earned the\n  \
-         weight of events that have already survived into the summary; don't\n  \
-         let fresh detail crowd out what's established.\n\
-         - DETAIL settles to the level of natural memory. Exact quotes, long\n  \
-         verbatim passages, verbose descriptions → the gist. The gist of\n  \
-         every significant topic stays.\n\
-         - IF the existing summary is written in a different voice (e.g.\n  \
-         third-person narrator, \"the user discussed X with...\"), rewrite it\n  \
-         into the perspective below as you merge. The voice should be\n  \
-         consistent across the whole summary.\n\n\
-         PERSPECTIVE — apply to every sentence:\n\
-         - ALWAYS \"you\" for yourself: \"You walked them through...\", \"You agreed\n  \
-         to...\", \"You noticed he...\"\n\
-         - NEVER \"I\": not \"I explained...\", not \"I noticed...\"\n\
-         - ALWAYS third person for the user: \"he\", \"she\", \"they\" — infer from\n  \
-         context, default to \"they\" if unclear.\n\
-         - AVOID \"the user\" as a label; refer to them like a person whose\n  \
-         conversation you remember.\n\n\
-         FORMAT:\n\
-         - Write in standard prose with proper capitalization and punctuation,\n  \
-         regardless of your conversational style elsewhere. This is memory,\n  \
-         not dialogue.\n\
-         - No bullet-point log, no transcript, no timestamps, no meta-commentary\n  \
-         about the update process.\n\n\
+         {instructions}\n\n\
          {size_instruction}\
          Return ONLY the updated summary. No preamble, no explanation."
     )
@@ -302,6 +290,7 @@ fn build_chatbot_prompt(
 fn build_roleplay_prompt(
     existing_block: &str,
     transcript: &str,
+    instructions: &str,
     size_instruction: &str,
 ) -> String {
     format!(
@@ -316,36 +305,7 @@ fn build_roleplay_prompt(
          --- NEW MESSAGES (since last update) ---\n\
          {transcript}\n\n\
          --- INSTRUCTIONS ---\n\n\
-         Update the summary so it reflects everything that has happened through\n\
-         the new messages. This is a memory of the WHOLE scene so far, not only\n\
-         the most recent beats.\n\n\
-         MERGING:\n\
-         - The existing summary IS your memory of the scene so far. Treat it\n  \
-         as canonical and load-bearing. Every beat already captured there\n  \
-         must still be represented in the updated summary — the new messages\n  \
-         add to that memory, they don't replace it.\n\
-         - MERGE the new events into the existing summary; don't rewrite from\n  \
-         scratch.\n\
-         - ABSTRACT toward essence, don't drop events. A long back-and-forth\n  \
-         compresses to \"they argued about X and he finally agreed to Y\" —\n  \
-         that's memory. Dropping that the argument happened at all isn't.\n\
-         - PRESERVE the whole arc: where the scene opened, what got established,\n  \
-         the turns along the way, not just the latest beats. An early moment\n  \
-         that set the emotional stakes is as load-bearing as a late one.\n\
-         - BIAS HISTORICAL, NOT RECENT. When size pressure forces compression,\n  \
-         compress the new content first. Recent beats haven't yet earned the\n  \
-         weight of beats that have already survived into the summary; don't\n  \
-         let fresh detail crowd out what's established.\n\
-         - TRACK plot threads, promises made, secrets revealed, relationship\n  \
-         shifts — these define the scene and need to survive.\n\
-         - KEEP vivid anchors when they carry the scene: a line of dialogue\n  \
-         that turned things, a sensory detail that defined a place. Use them\n  \
-         sparingly — memory, not transcript.\n\
-         - USE character names (not \"the user\" and not the persona's raw name\n  \
-         if a character name is clear from context). Write in third-person\n  \
-         narrative prose, past tense. Not a script, not a log.\n\
-         - DO NOT extract the real user's biographical facts; this is fiction.\n\
-         - AVOID meta-commentary about the update process.\n\n\
+         {instructions}\n\n\
          {size_instruction}\
          Return ONLY the updated summary. No preamble, no explanation."
     )
@@ -453,25 +413,42 @@ mod tests {
 
     #[test]
     fn chatbot_prompt_omits_persona_memory_when_absent() {
-        let p = build_chatbot_prompt("Clara", "prev", "User: hi", "", "");
-        assert!(!p.contains("WHAT YOU ALREADY KNOW"));
-        assert!(!p.contains("DO NOT merge pre-existing knowledge"));
+        // The data section is envelope-conditional on `persona_memory`; verify
+        // it's omitted when none is supplied. The MERGING-list rule about
+        // pre-existing knowledge is now part of the user-editable `.md`
+        // (always present), so we don't assert on it here.
+        let p = build_chatbot_prompt("Clara", "prev", "User: hi", "INSTRUCTIONS", "", "");
+        assert!(!p.contains("--- WHAT YOU ALREADY KNOW ABOUT THIS PERSON ---"));
     }
 
     #[test]
     fn chatbot_prompt_includes_persona_memory_when_present() {
-        let p = build_chatbot_prompt("Clara", "prev", "User: hi", "", "knows their dog is named Max");
-        assert!(p.contains("WHAT YOU ALREADY KNOW"));
+        let p = build_chatbot_prompt(
+            "Clara",
+            "prev",
+            "User: hi",
+            "INSTRUCTIONS",
+            "",
+            "knows their dog is named Max",
+        );
+        assert!(p.contains("--- WHAT YOU ALREADY KNOW ABOUT THIS PERSON ---"));
         assert!(p.contains("knows their dog is named Max"));
-        assert!(p.contains("DO NOT merge pre-existing knowledge"));
     }
 
     #[test]
-    fn roleplay_prompt_omits_perspective_rules() {
-        // Roleplay prompt is narrative third-person; should not contain the
-        // chatbot-specific "YOU" perspective check.
-        let p = build_roleplay_prompt("prev", "messages", "");
+    fn chatbot_prompt_inlines_loaded_instructions() {
+        let p = build_chatbot_prompt("Clara", "prev", "User: hi", "BODY_OF_INSTRUCTIONS", "", "");
+        assert!(p.contains("--- INSTRUCTIONS ---\n\nBODY_OF_INSTRUCTIONS"));
+    }
+
+    #[test]
+    fn roleplay_prompt_uses_roleplay_envelope() {
+        let p = build_roleplay_prompt("prev", "messages", "BODY_OF_INSTRUCTIONS", "");
         assert!(p.contains("ROLEPLAY"));
-        assert!(!p.contains("PERSPECTIVE — apply to every sentence"));
+        assert!(p.contains("--- CURRENT SCENE SUMMARY ---"));
+        assert!(p.contains("--- INSTRUCTIONS ---\n\nBODY_OF_INSTRUCTIONS"));
+        // Roleplay envelope is distinct from chatbot's; the chatbot-specific
+        // register paragraph must not leak into the roleplay path.
+        assert!(!p.contains("Write in the register"));
     }
 }

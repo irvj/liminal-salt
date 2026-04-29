@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use crate::services::{
     llm::{ChatLlm, LlmError, LlmMessage},
     persona::{self, PersonaConfig},
+    prompts::{self, PromptError},
     session::{Role, ThreadSnapshot},
 };
 
@@ -43,6 +44,8 @@ pub enum MemoryError {
     Io(#[from] std::io::Error),
     #[error("LLM error: {0}")]
     Llm(#[from] LlmError),
+    #[error("prompt error: {0}")]
+    Prompt(#[from] PromptError),
 }
 
 // =============================================================================
@@ -199,6 +202,7 @@ pub fn get_memory_model(
 pub async fn update_memory<L: ChatLlm>(
     llm: &L,
     data_dir: &Path,
+    bundled_prompts_dir: &Path,
     persona_name: &str,
     identity: &str,
     threads: &[ThreadSnapshot],
@@ -209,14 +213,7 @@ pub async fn update_memory<L: ChatLlm>(
     }
     let display = display_persona_name(persona_name);
     let transcript = format_threads(&display, threads);
-
-    let roleplay_section = "ROLEPLAY AWARENESS:\n\
-        Some conversations may be roleplay or creative writing. Signs include: the persona\n\
-        name suggests a character, thread titles suggest fiction, messages are written in\n\
-        character. For roleplay threads:\n\
-        - Do NOT extract character traits as real user traits\n\
-        - Instead, note what kind of stories/scenarios they enjoy\n\
-        - The creative interests are real even if the content is fictional\n\n";
+    let instructions = prompts::load(data_dir, bundled_prompts_dir, "persona_memory_merge").await?;
 
     merge_memory(
         llm,
@@ -227,11 +224,7 @@ pub async fn update_memory<L: ChatLlm>(
         Variant {
             new_data_label: "RECENT CONVERSATIONS",
             new_data_content: &transcript,
-            instructions_opener: "You are updating your personal memory. This is your inner monologue — notes\n\
-                to yourself about the person you talk to. \"You\" always means you, the persona.\n\
-                Refer to the user in third person (he/she/they). When you read this back,\n\
-                it becomes your own inner knowledge.",
-            extra_sections: roleplay_section,
+            instructions: &instructions,
         },
     )
     .await
@@ -241,11 +234,13 @@ pub async fn update_memory<L: ChatLlm>(
 pub async fn seed_memory<L: ChatLlm>(
     llm: &L,
     data_dir: &Path,
+    bundled_prompts_dir: &Path,
     persona_name: &str,
     identity: &str,
     seed_content: &str,
     size_limit: u32,
 ) -> Result<(), MemoryError> {
+    let instructions = prompts::load(data_dir, bundled_prompts_dir, "persona_memory_seed").await?;
     merge_memory(
         llm,
         data_dir,
@@ -255,12 +250,7 @@ pub async fn seed_memory<L: ChatLlm>(
         Variant {
             new_data_label: "NEW INFORMATION FROM THE USER",
             new_data_content: seed_content,
-            instructions_opener:
-                "You are updating your personal memory. The user has provided additional information\n\
-                 they want you to know. This is your inner monologue — notes to yourself. \"You\"\n\
-                 always means you, the persona. Refer to the user in third person (he/she/they).\n\
-                 When you read this back, it becomes your own inner knowledge.",
-            extra_sections: "",
+            instructions: &instructions,
         },
     )
     .await
@@ -272,6 +262,7 @@ pub async fn seed_memory<L: ChatLlm>(
 pub async fn modify_memory<L: ChatLlm>(
     llm: &L,
     data_dir: &Path,
+    bundled_prompts_dir: &Path,
     persona_name: &str,
     identity: &str,
     command: &str,
@@ -280,6 +271,7 @@ pub async fn modify_memory<L: ChatLlm>(
     if get_memory_content(data_dir, persona_name).await.is_empty() {
         return Err(MemoryError::NoExistingMemory);
     }
+    let instructions = prompts::load(data_dir, bundled_prompts_dir, "persona_memory_modify").await?;
     merge_memory(
         llm,
         data_dir,
@@ -289,13 +281,7 @@ pub async fn modify_memory<L: ChatLlm>(
         Variant {
             new_data_label: "USER'S COMMAND",
             new_data_content: command,
-            instructions_opener:
-                "The user has asked you to modify your memory. Apply their request. If they ask\n\
-                 to forget something, remove it. If they ask to add or change something, do so.\n\
-                 This is your inner monologue — notes to yourself. \"You\" always means you, the\n\
-                 persona. Refer to the user in third person (he/she/they). When you read this\n\
-                 back, it becomes your own inner knowledge.",
-            extra_sections: "",
+            instructions: &instructions,
         },
     )
     .await
@@ -342,18 +328,22 @@ fn format_threads(display_name: &str, threads: &[ThreadSnapshot]) -> String {
     out
 }
 
-/// Variant-specific prompt parts. All three public ops share the same framing;
-/// these fields are what actually differ (the data section header, the data
-/// itself, the verb of the instruction, and any extra sections).
+/// Variant-specific prompt parts. All three public ops share the same envelope;
+/// these fields are what differ (the data section header, the data itself, and
+/// the variant-specific user-editable instructions block loaded from
+/// `data/prompts/persona_memory_*.md`).
 struct Variant<'a> {
     new_data_label: &'a str,
     new_data_content: &'a str,
-    instructions_opener: &'a str,
-    extra_sections: &'a str,
+    instructions: &'a str,
 }
 
 /// Shared merge engine for all three public operations. Builds the prompt,
 /// runs the LLM, applies the short-output safety check, writes the file.
+///
+/// Envelope shape: persona identity + existing memory + new data + the
+/// user-editable `instructions` block + (size_instruction, return-only) suffix.
+/// `size_instruction` sits at the very end of the prompt for recency emphasis.
 async fn merge_memory<L: ChatLlm>(
     llm: &L,
     data_dir: &Path,
@@ -365,8 +355,7 @@ async fn merge_memory<L: ChatLlm>(
     let Variant {
         new_data_label,
         new_data_content,
-        instructions_opener,
-        extra_sections,
+        instructions,
     } = variant;
     if !persona::valid_persona_name(persona_name) {
         return Err(MemoryError::InvalidPersonaName(persona_name.to_string()));
@@ -374,6 +363,7 @@ async fn merge_memory<L: ChatLlm>(
 
     let existing = get_memory_content(data_dir, persona_name).await;
     let display = display_persona_name(persona_name);
+    let instructions = instructions.trim_end();
 
     let size_instruction = if size_limit > 0 {
         format!(
@@ -403,54 +393,8 @@ async fn merge_memory<L: ChatLlm>(
          --- {new_data_label} ---\n\
          {new_data_content}\n\n\
          --- INSTRUCTIONS ---\n\n\
-         {instructions_opener}\n\n\
-         This is not a clinical profile. It's what stuck. The things worth holding onto.\n\
-         Write with your personality, your observations, your feelings about what matters.\n\n\
-         MERGING RULES:\n\
-         - READ your existing memory carefully. Most of it should survive.\n\
-         - ADD new details, observations, and developments from the new information.\n\
-         - REVISE entries that have been updated or corrected (e.g., they got a new job,\n  \
-         changed an opinion, finished a project).\n\
-         - COMPRESS patterns: if something has come up many times, consolidate it into\n  \
-         a confident observation rather than listing each instance.\n\
-         - LET STALE DETAILS FADE: if something minor hasn't come up in a while and\n  \
-         isn't anchored by emotional weight, it's okay to drop it.\n\
-         - KEEP VIVID ANCHORS: specific quotes, memorable moments, things said with\n  \
-         emotional weight — these survive even if old.\n\
-         - NEVER remove core identity facts (name, family, career, values) unless\n  \
-         explicitly contradicted.\n\n\
-         SECTIONS:\n\
-         Use markdown ## headers for each section. Let sections emerge organically from what\n\
-         you know about this person. Don't force a rigid template. Some natural sections\n\
-         might include things like:\n\
-         - How you two work together / your dynamic\n\
-         - What's going on in their life\n\
-         - Patterns you've noticed about them\n\
-         - Things they've said that stuck with you\n\
-         - People in their life\n\
-         - Ongoing threads you're tracking\n\n\
-         But these are suggestions, not requirements. Use whatever sections feel right for\n\
-         what you actually know. If this is the first memory, start with what you learned.\n\
-         If you've been talking a while, the structure will reflect the depth.\n\n\
-         {extra_sections}\
-         FORMAT:\n\
-         - Write in standard, properly capitalized prose and markdown, using ## headers\n  \
-         for sections. Do NOT adopt the persona's speaking style for the memory itself.\n\
-         - PERSPECTIVE: \"You\" always means YOU, the persona — this is your inner monologue.\n  \
-         Refer to the user in third person with pronouns (he/she/they — infer from context,\n  \
-         default to \"they\" if unclear).\n  \
-         CORRECT: \"You've noticed he tends to...\", \"She told you about...\", \"You feel like they...\"\n  \
-         WRONG: \"You like reading\" (meaning the user likes reading) — this confuses who \"you\" is\n\
-         - Be specific — names, details, quotes, not vague summaries\n\
-         - No timestamps or meta-commentary about the update process\n\
-         - No bullet-point databases — write like a person remembering, not a system logging\n\n\
+         {instructions}\n\n\
          {size_instruction}\
-         CRITICAL PERSPECTIVE CHECK — apply to every sentence you write:\n\
-         - ALWAYS \"You\" for yourself: \"You noticed...\", \"You feel...\", \"You remember...\"\n\
-         - NEVER \"I\": not \"I feel...\", \"I noticed...\", \"I think...\"\n\
-         - ALWAYS third person for the user: \"He...\", \"She...\", \"They...\"\n\
-         - NEVER second person for the user: not \"You like reading\" when meaning the user\n\
-         If you catch yourself writing \"I\", rewrite it as \"You\".\n\n\
          Return ONLY the updated memory content. No preamble, no explanation."
     );
 

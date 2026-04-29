@@ -55,12 +55,6 @@ pub const PROMPTS: &[PromptMeta] = &[
             "Instructions for folding new messages into a chat thread's running summary in roleplay mode.",
     },
     PromptMeta {
-        id: "thread_memory_seed",
-        display_name: "Per-chat memory — initial summary",
-        description:
-            "Instructions for generating a chat thread's first running summary.",
-    },
-    PromptMeta {
         id: "persona_memory_merge",
         display_name: "Long-term memory — update from conversations",
         description:
@@ -77,12 +71,6 @@ pub const PROMPTS: &[PromptMeta] = &[
         display_name: "Long-term memory — apply user instruction",
         description:
             "Instructions for applying a natural-language user command to a persona's long-term memory.",
-    },
-    PromptMeta {
-        id: "title_summarizer",
-        display_name: "Chat title generator",
-        description:
-            "Instructions for generating a chat thread's title from its first exchange.",
     },
 ];
 
