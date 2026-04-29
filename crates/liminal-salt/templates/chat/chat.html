@@ -74,6 +74,15 @@
                         title="Persona Settings">
                     {{ icons::user_pen(class="w-6 h-6") }}
                 </button>
+                <!-- Prompts editor -->
+                <button hx-get="/prompts/"
+                        hx-target="#main-content"
+                        hx-swap="innerHTML"
+                        @click="saveDraftNow(); clearSidebarHighlight(); if (isMobile) collapsed = true"
+                        class="p-2 text-foreground-secondary hover:text-foreground rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+                        title="Prompts">
+                    {{ icons::pencil(class="w-6 h-6") }}
+                </button>
                 <!-- App Settings -->
                 <button hx-get="/settings/"
                         hx-target="#main-content"
@@ -109,6 +118,8 @@
         {% include "memory/memory_main.html" %}
     {% elif page == "settings" %}
         {% include "settings/settings_main.html" %}
+    {% elif page == "prompts" %}
+        {% include "prompts/prompts_main.html" %}
     {% elif show_home %}
         {% include "chat/chat_home.html" %}
     {% else %}

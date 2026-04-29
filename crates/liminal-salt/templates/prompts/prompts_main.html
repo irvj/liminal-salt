@@ -1,0 +1,86 @@
+{% import "icons.html" as icons %}
+
+<div class="flex-1 overflow-y-auto p-5">
+    <header class="mb-6">
+        <h1 class="text-2xl text-foreground">Prompts</h1>
+        <p class="text-sm text-foreground-secondary mt-1 max-w-2xl">
+            Edit the instructions sent to the model for each memory operation. The app handles the surrounding context (persona name, identity, conversation data, size limits) — you control the prose. Reset restores the bundled default for that prompt.
+        </p>
+    </header>
+
+    <section x-data="promptEditor"
+             data-prompts="{{ prompts_json }}"
+             data-save-url="/prompts/save/"
+             data-reset-url="/prompts/reset/">
+        {% for prompt in prompts %}
+        <details class="mb-4 group" id="prompt-{{ prompt.id }}" data-persist-state>
+            <summary class="flex items-center gap-2 cursor-pointer list-none select-none py-2 text-foreground hover:text-accent-secondary [&::-webkit-details-marker]:hidden">
+                <span class="transition-transform group-open:rotate-90">{{ icons::chevron_right(class="w-4 h-4") }}</span>
+                <span class="text-base">{{ prompt.display_name }}</span>
+                <span class="text-xs text-accent-secondary" x-show="dirty['{{ prompt.id }}']">· unsaved changes</span>
+            </summary>
+
+            <p class="text-sm text-foreground-secondary mt-2 mb-3">{{ prompt.description }}</p>
+
+            <textarea x-model="content['{{ prompt.id }}']"
+                      @input="dirty['{{ prompt.id }}'] = true"
+                      data-prompt-id="{{ prompt.id }}"
+                      class="w-full h-[400px] bg-surface border border-border rounded text-foreground font-mono text-sm p-3 resize-y mb-3 focus:outline-none focus:border-accent-secondary"></textarea>
+
+            <div class="flex flex-wrap gap-3">
+                <button type="button" tabindex="0"
+                        @click="save('{{ prompt.id }}')"
+                        :disabled="!dirty['{{ prompt.id }}'] || saving['{{ prompt.id }}']"
+                        class="px-4 py-2 bg-accent text-foreground-on-accent rounded text-sm font-medium cursor-pointer hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!saving['{{ prompt.id }}']">Save</span>
+                    <span x-show="saving['{{ prompt.id }}']">Saving…</span>
+                </button>
+
+                <button type="button" tabindex="0"
+                        @click="reset('{{ prompt.id }}')"
+                        :disabled="saving['{{ prompt.id }}']"
+                        class="px-4 py-2 bg-border text-foreground rounded text-sm font-medium cursor-pointer hover:bg-danger hover:text-foreground-on-accent disabled:opacity-50">
+                    Reset to default
+                </button>
+
+                <button type="button" tabindex="0"
+                        @click="viewDefault('{{ prompt.id }}', '{{ prompt.display_name | escapejs }}')"
+                        class="px-4 py-2 bg-border text-foreground rounded text-sm font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
+                    View default
+                </button>
+            </div>
+        </details>
+        {% endfor %}
+    </section>
+</div>
+
+<!-- View Default modal — fetched on demand, read-only. -->
+<div x-data="viewDefaultModal" x-cloak data-default-url="/prompts/default/">
+    <div x-show="showModal"
+         @keydown.escape.window="showModal = false"
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-modal"
+         @click.self="showModal = false">
+        <div class="bg-surface-secondary rounded-lg p-6 max-w-modal-2xl w-[90%] border border-border">
+            <h3 class="text-foreground mb-2">Default: <span class="text-accent-secondary" x-text="displayName"></span></h3>
+            <p class="text-foreground-secondary text-sm mb-4">
+                The bundled default for this prompt. Read-only — to use it, click <strong>Reset to default</strong> on the prompt itself.
+            </p>
+
+            <div x-show="loading" class="text-center py-4 text-foreground-secondary">Loading…</div>
+
+            <div x-show="loadError && !loading" class="p-3 px-4 rounded mb-4 bg-danger text-white text-sm" x-text="loadError"></div>
+
+            <textarea x-show="!loading && !loadError"
+                      :value="content"
+                      readonly
+                      class="w-full h-[400px] bg-surface border border-border rounded text-foreground font-mono text-sm p-3 resize-y mb-4 focus:outline-none opacity-90"></textarea>
+
+            <div class="flex gap-3 justify-end">
+                <button type="button" @click="showModal = false"
+                        class="px-4 py-2 bg-border text-foreground rounded font-medium cursor-pointer hover:bg-accent hover:text-foreground-on-accent">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

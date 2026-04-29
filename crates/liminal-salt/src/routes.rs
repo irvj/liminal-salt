@@ -105,6 +105,11 @@ pub fn build_router(state: AppState) -> Router {
             "/session/thread-memory/settings/reset/",
             post(handlers::thread_memory::settings_reset),
         )
+        // Prompts editor (M3).
+        .route("/prompts/", get(handlers::prompts::view))
+        .route("/prompts/save/", post(handlers::prompts::save))
+        .route("/prompts/reset/", post(handlers::prompts::reset))
+        .route("/prompts/default/", get(handlers::prompts::default))
         // API endpoints.
         .route("/api/themes/", get(handlers::api::themes))
         .route("/api/save-theme/", post(handlers::api::save_theme))

@@ -3,6 +3,7 @@ pub mod chat;
 pub mod context;
 pub mod memory;
 pub mod persona;
+pub mod prompts;
 pub mod session;
 pub mod settings;
 pub mod setup;

@@ -10,6 +10,7 @@ use crate::services::{
     local_context::ReadError,
     memory::MemoryError,
     persona::PersonaError,
+    prompts::PromptError,
     session::SessionError,
 };
 
@@ -47,6 +48,14 @@ pub fn chat_status(err: &ChatError) -> StatusCode {
         ChatError::SessionNotFound(_) => StatusCode::NOT_FOUND,
         ChatError::Session(inner) => session_status(inner),
         ChatError::LlmFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+pub fn prompt_status(err: &PromptError) -> StatusCode {
+    match err {
+        PromptError::InvalidId(_) => StatusCode::BAD_REQUEST,
+        PromptError::NotFound(_) => StatusCode::NOT_FOUND,
+        PromptError::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
 }
 
