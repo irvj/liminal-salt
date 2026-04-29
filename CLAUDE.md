@@ -23,12 +23,14 @@ crates/liminal-salt/          Sole crate. Workspace root is the repo root.
   templates/                  Tera. chat/, persona/, memory/, settings/, setup/, components/, icons.html.
   static/                     JS (utils.js, components.js), CSS, themes/*.json, favicon.
   default_personas/           Bundled personas copied into data/personas/ on first boot.
+  default_prompts/            Bundled instruction-prompt defaults; copied into data/prompts/ on first boot.
   tests/                      Integration tests. One file per service area.
 data/                         Gitignored user state.
   config.json                 App config (snake_case keys): provider, api_key, model, theme, setup_complete, agreement_accepted, etc.
   sessions/session_*.json     Chat sessions.
   personas/{name}/            identity.md + config.json (model override, memory settings, thread defaults).
   memory/{name}.md            Per-persona cross-thread memory.
+  prompts/{id}.md             User-editable LLM instruction prompts (seeded from default_prompts/ on first boot).
   user_context/               Global + per-persona uploaded files + local-directory refs.
 AGREEMENT.md                  User agreement. Version in HTML comment on line 1.
 docs/planning/                Roadmap + phase history.
@@ -40,8 +42,9 @@ docs/planning/                Roadmap + phase history.
 |---|---|
 | `session.rs` | Session JSON CRUD. Reads and RMW'd writes hold a per-session `tokio::sync::Mutex`. Session-id regex, `now_timestamp()`. Returns `Result<_, SessionError>`. |
 | `chat.rs` | `send_message(ctx, llm, input, skip_user_save) -> Result<String, ChatError>`. Loads via `session::load_session`, runs LLM with retry, persists via `session::save_chat_history`. Does NOT touch session JSON directly. |
-| `thread_memory.rs` | Per-session summary merge. Stateless: returns merged text, worker persists. Settings resolver (per-thread → persona default → global). Two prompt variants (chatbot/roleplay). |
-| `memory.rs` | Per-persona memory file I/O + LLM merge/seed/modify. Owns `data/memory/{persona}.md`. Returns `Result<(), MemoryError>`. `memory_file()` path builder is module-private; siblings use `get_memory_content`/`get_mtime`/`get_mtime_secs`. |
+| `thread_memory.rs` | Per-session summary merge. Stateless: returns merged text, worker persists. Settings resolver (per-thread → persona default → global). Two prompt variants (chatbot/roleplay). `merge` takes a `MergeRequest` struct (filesystem paths + persona context + thread inputs) so the signature stays readable. |
+| `memory.rs` | Per-persona memory file I/O + LLM merge/seed/modify. Owns `data/memory/{persona}.md`. Returns `Result<(), MemoryError>`. `memory_file()` path builder is module-private; siblings use `get_memory_content`/`get_mtime`/`get_mtime_secs`. Loads instructional prose for each variant via `prompts::load`. |
+| `prompts.rs` | User-editable LLM instruction prompts. Owns `data/prompts/**`. Compile-time `PROMPTS` registry of editable IDs; public API: `list`, `load` (user copy with bundled fallback), `load_default`, `save`, `reset`, `seed_default_prompts`. ID validation is closed-set. Bundled defaults under `crates/liminal-salt/default_prompts/`. |
 | `memory_worker.rs` | Two `tokio::spawn` schedulers (persona memory + thread memory). "Already running" mutex registries (`persona_locks`, `session_locks`) are **separate** from `session::SESSION_LOCKS` — collapsing them reintroduces the "lock across LLM call" bug. `MutexRecover` trait recovers StdMutex-guarded maps from poison. |
 | `prompt.rs` | Assembles system prompt; owns `seed_default_personas`. Reads through other services' public APIs — never builds paths into another service's domain. |
 | `context_files.rs` | `ContextScope { global, persona }`. Owns `data/user_context/**`. Uploaded files + local-directory refs unified under `ContextScopeError`. |
@@ -60,6 +63,7 @@ docs/planning/                Roadmap + phase history.
 - **thread_memory.rs** — `/session/thread-memory/{update,status,settings/save,settings/reset}`.
 - **memory.rs** — memory tab (long-term + per-chat) + update/wipe/modify/seed/save-settings/update-status; per-chat memory defaults under `/memory/thread-memory-defaults/{save,reset}/` (writes persona config via `persona::save_persona_config`).
 - **persona.rs** — persona tab + save/create/delete/save-model; default thread mode under `/persona/{save,reset}-default-mode/`.
+- **prompts.rs** — `/prompts/` editor page + `POST /prompts/save/`, `POST /prompts/reset/`, `GET /prompts/default/?id=`. Save and Reset are AJAX (no HTMX swap) so editing one prompt doesn't lose unsaved edits in another.
 - **context.rs** — uploaded files (global + persona) + local-directory ops. `scope_for(&state, persona)` picks the scope from an optional form field.
 - **settings.rs** — settings page + save/validate-api-key/save-provider-model/save-context-history-limit.
 - **setup.rs** — 3-step wizard. Uses `session_state::setup_step()` for page-refresh persistence.
@@ -71,6 +75,7 @@ docs/planning/                Roadmap + phase history.
 - `/session/*` — per-session ops (scenario, thread memory, fork)
 - `/memory/*` — memory tab: long-term (persona) memory ops + per-chat memory defaults
 - `/persona/*` — persona tab: persona CRUD + default thread mode + persona context files
+- `/prompts/*` — user-editable LLM instruction prompts: list/save/reset + bundled-default fetch
 - `/settings/*` — app settings + global context files
 - `/context/local/*` — local-directory context (shared across scopes via optional `persona` form param)
 - `/api/*` — JSON endpoints (themes, models)
@@ -131,15 +136,17 @@ Written by `session.rs`. `skip_serializing_if = "Option::is_none"` keeps the on-
 
 **Chat doesn't own the session file.** `chat::send_message` loads via `session::load_session`; persists via `session::save_chat_history`. Chat-owned fields (title, persona, messages) are written; every other field (mode, scenario, thread_memory, thread_memory_updated_at, thread_memory_settings, pinned, draft, title_locked) is preserved by the RMW.
 
-**Error conventions.** Services return `Result<T, ServiceError>` with `thiserror`-derived enums (`SessionError`, `MemoryError`, `ContextScopeError`, `PersonaError`, `ChatError`, `LlmError`, `ReadError`). Handlers map variants to HTTP status codes:
+**Error conventions.** Services return `Result<T, ServiceError>` with `thiserror`-derived enums (`SessionError`, `MemoryError`, `ContextScopeError`, `PersonaError`, `ChatError`, `LlmError`, `ReadError`, `PromptError`). Handlers map variants to HTTP status codes:
 - `InvalidId`, `InvalidFilename`, `InvalidPath`, `InvalidState` → 400
 - `NotFound`, `NotTracked` → 404
 - `ReadError::InvalidUtf8` → 422
-- `Io`, `Llm`, `UnusableResponse`, `Corrupt` → 500
+- `Io`, `Llm`, `UnusableResponse`, `Corrupt`, `Prompt` → 500
+
+`MemoryError::Prompt(#[from] PromptError)` propagates prompt-load failures from `memory.rs` — programmer-error territory (registry/disk drift); user sees "Could not load the long-term memory prompt." in the polling status.
 
 Best-effort scans (`list_sessions`, `list_persona_threads`, `list_themes`, `list_files`) stay `Vec<T>` — individual failures shouldn't fail the whole list. Simple attribute reads (`get_memory_content`, `persona::load_identity`) return `String` with "" as the null-object value; no Option wrapping needed at that layer.
 
-**Tauri seam.** `config::data_dir()` is the single function that changes for the Tauri wrap — Tauri will have it return `app_data_dir()`. No other path literal in the crate hard-codes the data root.
+**Tauri seam.** `config::data_dir()` is the single function that changes for the Tauri wrap — Tauri will have it return `app_data_dir()`. No other path literal in the crate hard-codes the data root. `AppState::bundled_prompts_dir` is the parallel seam for *bundled* assets (currently `<crate>/default_prompts/`); M4 will swap it for an embedded-asset path. Set once at boot in `main.rs`; services take it as a `&Path` parameter.
 
 ## Separation of concerns — hard rules
 
@@ -152,6 +159,7 @@ Drift here breaks every other invariant (locks bypassed, ids unvalidated, fields
 | `data/sessions/*.json` | `session.rs` |
 | `data/personas/{name}/` (dir + identity + config.json) | `persona.rs` |
 | `data/memory/{name}.md` | `memory.rs` |
+| `data/prompts/*.md` | `prompts.rs` |
 | `data/user_context/**` | `context_files.rs` |
 | `data/config.json` | `config::save_config` |
 
@@ -185,7 +193,7 @@ When in doubt: add a method to the owning service, call it from the caller. Neve
 
 **JavaScript.** Only two files: `utils.js` (shared functions, runs at load) and `components.js` (Alpine `Alpine.data()` registrations inside an `alpine:init` listener). No inline `<script>` tags — HTMX-swapped fragments wire themselves via Alpine `x-data` (Alpine auto-inits new components on swap). Read `data-*` attributes in `init()` and store as instance properties — `this.$el` may not point at the component root inside event-handler methods. Use `getCsrfToken()` for CSRF, `getAppUrl(key, fallback)` for named routes. `async/await` + `try/catch` throughout; no `.then()` chains. Modal cross-talk via `window.dispatchEvent(new CustomEvent(...))` and `window.addEventListener` in `init()`.
 
-**Templates.** No `onclick`/`onchange`/`oninput` — use Alpine `@click`/`@change`/`@input`. No `style=` — use Tailwind classes or `hidden`/`x-show`. Data flows to Alpine via `data-*` attributes; lists/objects go as JSON in `data-foo='{{ foo_json | safe }}'`. Tera gotchas: `{% import %}` must be the first non-content line; undefined variables hard-error (use `{% set var = var | default(value="") %}` at the top of includes); `slice` is Vec-only; `escapejs` is a custom filter that ports Django's semantic for attribute-safe string escaping.
+**Templates.** No `onclick`/`onchange`/`oninput` — use Alpine `@click`/`@change`/`@input`. No `style=` — use Tailwind classes or `hidden`/`x-show`. Data flows to Alpine via `data-*` attributes; lists/objects go as JSON in `data-foo="{{ foo_json }}"` — **double-quoted, no `| safe`**. Tera auto-escapes apostrophes and quotes inside the JSON so they don't terminate the attribute, and the browser decodes them when reading. Reach for `| safe` only when you genuinely want the raw form (e.g. inside a `<script>` block where HTML escaping breaks the JSON). The single-quoted-attribute-with-`| safe` pattern silently breaks the moment a string has an apostrophe in it. Tera gotchas: `{% import %}` must be the first non-content line; undefined variables hard-error (use `{% set var = var | default(value="") %}` at the top of includes); `slice` is Vec-only; `escapejs` is a custom filter that ports Django's semantic for attribute-safe string escaping.
 
 ## Dev commands
 

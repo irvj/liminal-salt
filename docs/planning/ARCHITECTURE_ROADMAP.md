@@ -1,7 +1,7 @@
 # Liminal Salt — Architecture Roadmap
 
-**Updated:** 2026-04-23
-**Status:** M1 (Python → Rust) complete at v0.20.1. Architecture is mature; this roadmap tracks the refactors and milestones needed for the architecture to become immaterial to further product work.
+**Updated:** 2026-04-29
+**Status:** M1 (Python → Rust) complete at v0.20.1. M2 (multi-provider) shipped. M3 (user-editable prompts) shipped. Architecture is mature; this roadmap tracks the refactors and milestones needed for the architecture to become immaterial to further product work.
 
 ---
 
@@ -24,7 +24,7 @@ Architectural work below is ordered to unblock those directions in the sequence 
 
 - Rust + Axum + Tera backend; HTMX + Alpine + Tailwind frontend. Single-process server on port 8420.
 - Python/Django codebase removed. `cargo run -p liminal-salt` is the dev loop.
-- 159+ integration + unit tests; clippy clean under `-D warnings`.
+- 176+ integration + unit tests; clippy clean under `-D warnings`.
 - Architecture audit (2026-04-23): A on separation of concerns, locking discipline, file I/O durability, documentation; A− on Rust idioms and frontend discipline; polish items from that audit have landed (LlmClient construction out of handlers, scheduler parse warnings, per-error-type status mappers, inline-script removal). Remaining gap: B− on test coverage — services well covered; zero HTTP-layer tests.
 - [`CLAUDE.md`](../../CLAUDE.md) holds architecture invariants, service ownership, and code standards. The invariants are load-bearing, not scar tissue — each exists because the alternative breaks under the workload (LLM calls are slow; flat-file storage has no transaction manager; multiple writers touch the same session document).
 - [`CHANGELOG.md`](../../CHANGELOG.md) holds commit-level history.
@@ -56,38 +56,33 @@ Adding a provider = new module under `services/providers/<name>/`, enum variant 
 
 ---
 
-## Milestone 3: User-editable prompts
+## Milestone 3: User-editable prompts — shipped
 
-Make the app's prompts discoverable, editable, and resettable from inside the app. Designed for non-technical users — no variables, no templating, no placeholders in the user-facing surface. The user edits prose; the app owns the structural envelope that interpolates dynamic values (persona name, recent messages, size limit, etc.).
+Landed across three commits (`85c3493 → fe547b4`) on the `user-editable-prompts` branch. Bundled default prompts (the LLM-facing instructional prose for every memory operation) are now copied into `data/prompts/` on first boot and editable from `/prompts/` in-app. Designed for non-technical users — no variables, no templating, no placeholders in the user-facing surface.
 
-### Design
+**What's in place:**
 
-- **`crates/liminal-salt/default_prompts/*.md`** — bundled, plain prose, no variables. Source of truth for "reset to default."
-- **`data/prompts/*.md`** — user-editable copies. Seeded on first boot; newly-added prompt files are seeded on subsequent app updates; **existing files are never touched** once the user has them.
-- **`services/prompts.rs`** — owns `data/prompts/**`. Public API: `load`, `save`, `reset`, `list`, `seed_default_prompts`. Mirrors the `seed_default_personas` pattern in `prompt.rs`. ~100 LOC. No templating engine.
-- **Envelope pattern.** Prompt-using services (`thread_memory`, `memory`, `summarizer`) keep their `format!(...)` wrapping logic, which continues to inject structural values. The "instructions" block inside the wrapper is loaded from `prompts::load(name)` instead of being an inline string literal. Users see and edit only the instructions block; they never see or need to know about the wrapper or the variables it owns.
+- `services/prompts.rs` — owns `data/prompts/**`. Compile-time `PROMPTS` registry of editable prompts; public API: `list`, `load`, `load_default`, `save`, `reset`, `seed_default_prompts`. ID validation is closed-set (only registered IDs are accepted), so handlers can pass POST input straight through.
+- `crates/liminal-salt/default_prompts/*.md` — bundled defaults, plain prose, no variables. Source of truth for "reset to default." Embedded for M4 alongside `default_personas/`.
+- `data/prompts/{id}.md` — user-editable copies. Seeded on first boot; existing files are never overwritten by seeding (so newly-added prompts in future updates seed cleanly without clobbering user edits).
+- **Envelope pattern** in `memory.rs` and `thread_memory.rs`: the `format!(...)` prompt-builder wraps user-editable instructions loaded via `prompts::load(...)`. Persona name, identity, conversation data, existing memory, conditional persona-memory section, and size target stay in the envelope. The user only sees and edits the instructions block; they never see or need to know about the wrapper or the variables it owns.
+- Editor page at `/prompts/`: collapsible per-prompt sections with textarea + Save + Reset + View Default. Save and Reset are AJAX (no full-page swap) so editing one prompt doesn't blow away unsaved edits in another. Reset uses the global `confirmModal` for the misclick guard.
+- `MergeRequest` struct on `thread_memory::merge` — bundled the 9 args into one named-field request; tests use struct update syntax with a `default_req` helper.
+- 17 new tests across `tests/prompts.rs` and `tests/template_render.rs`; existing memory + thread-memory tests adapted to the new prompts-load path.
 
-### UI
+**Scope shifts from the original design (deliberate):**
 
-- Prompt-editor page lists each editable prompt by name + short description.
-- Each prompt: textarea with current user version; "View default" control shows the bundled default read-only (modal or side-by-side). "Save" persists; "Reset to default" is a button with a confirm dialog to guard against misclick on hard-won edits.
-- No "your prompt differs from default" indicator in v1 — copy-if-missing semantics make it a non-issue until we actually ship a default-prompt update.
+- **7 prompts → 5.** `thread_memory_seed` was specced as a separate prompt but the inline code never had distinct seed instructions — both seed and merge use the same prompt with a different `existing_block` placeholder. Collapsed the registry to reflect what's actually editable. `title_summarizer` was dropped from the user-editable surface entirely: it's a system-controlled fallback, not a tuneable knob, and exposing it would let a user break title generation with no recourse short of a code edit.
+- **Chatbot's "DO NOT merge pre-existing knowledge" rule was conditional** in the inline code (only included when persona memory was non-empty). Rephrased to be unconditional in the `.md` so a single editable instructions block covers both cases without templating; the conditional persona-memory **data section** in the envelope still gates whether that data appears.
+- **`size_instruction` placement in `memory.rs`** shifted from mid-instructions (between FORMAT and CRITICAL PERSPECTIVE CHECK) to envelope-suffix (right before "Return ONLY…"). Functionally a small downward shift; recency-bias preserved or strengthened. `thread_memory.rs` was already at the end, so byte-equivalent there.
 
-### Prompts to externalize (v1)
+**Remaining (future) — not scoped to this milestone:**
 
-1. Thread memory merge — chatbot variant (currently inline in `thread_memory.rs`)
-2. Thread memory merge — roleplay variant (currently inline in `thread_memory.rs`)
-3. Thread memory seed (currently inline in `thread_memory.rs`)
-4. Persona memory merge (currently inline in `memory.rs`)
-5. Persona memory seed (currently inline in `memory.rs`)
-6. Persona memory modify (currently inline in `memory.rs`)
-7. Title summarizer (currently inline in `summarizer.rs`)
-
-### Explicitly deferred
-
-- **Per-persona prompt overrides** — introduces a resolver cascade (per-persona → global → bundled) not needed in v1. Natural future extension.
+- **Per-persona prompt overrides** — power-user feature; adds a resolver cascade (per-persona → global → bundled) not needed in v1.
 - **User-facing variables / templating** — target audience is non-technical. All interpolation stays app-side.
-- **"Default has changed" diff indicator** — copy-if-missing is sufficient until we actually ship a default-prompt update, and even then a manual "view default" viewing is enough.
+- **"Default has changed" diff indicator** — copy-if-missing semantics make it a non-issue until we actually ship a default-prompt update, and even then a manual "view default" comparison is enough.
+
+Adding a new editable prompt = adding a row to `PROMPTS` in `prompts.rs` + shipping the `default_prompts/{id}.md` file + extracting whatever inline instructions the consuming service had. Seeding handles the rest on first boot.
 
 ---
 
