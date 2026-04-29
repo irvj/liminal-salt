@@ -1,12 +1,15 @@
 {% import "icons.html" as icons %}
 
+<!-- Header -->
+<header class="bg-surface-secondary px-5 py-4 border-b border-border">
+    <h1 class="text-2xl text-foreground">Prompt Settings</h1>
+</header>
+
+<!-- Prompt Settings Content -->
 <div class="flex-1 overflow-y-auto p-5">
-    <header class="mb-6">
-        <h1 class="text-2xl text-foreground">Prompts</h1>
-        <p class="text-sm text-foreground-secondary mt-1 max-w-2xl">
-            Edit the instructions sent to the model for each memory operation. The app handles the surrounding context (persona name, identity, conversation data, size limits) — you control the prose. Reset restores the bundled default for that prompt.
-        </p>
-    </header>
+    <p class="text-sm text-foreground-secondary mb-6 max-w-2xl">
+        Edit the instructions sent to the model for each memory operation. The app handles the surrounding context (persona name, identity, conversation data, size limits) — you control the prose. Reset restores the bundled default for that prompt.
+    </p>
 
     <section x-data="promptEditor"
              data-prompts="{{ prompts_json }}"

@@ -591,7 +591,7 @@ fn prompts_page_renders_editor_and_modal() {
 
     let out = tera.render("chat/chat.html", &ctx).expect("render prompts");
     // Page header
-    assert!(out.contains(">Prompts</h1>"));
+    assert!(out.contains(">Prompt Settings</h1>"));
     // Each prompt rendered with its own collapsible
     assert!(out.contains(r#"id="prompt-thread_memory_merge_chatbot""#));
     assert!(out.contains(r#"id="prompt-persona_memory_merge""#));
