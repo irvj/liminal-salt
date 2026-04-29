@@ -10,7 +10,7 @@ use liminal_salt::{
     AppState,
     middleware::{app_ready, csrf},
     routes,
-    services::{config, memory_worker::MemoryWorker, prompt},
+    services::{config, memory_worker::MemoryWorker, prompt, prompts},
     tera_extra,
 };
 
@@ -46,10 +46,16 @@ async fn main() -> anyhow::Result<()> {
     let bundled_personas = manifest_dir.join("default_personas");
     prompt::seed_default_personas(&data_dir, &bundled_personas).await;
 
+    // Bundled default prompts (the editable instruction prose). Same pattern:
+    // copy any registered prompt missing from `<data_dir>/prompts/` on boot.
+    let bundled_prompts_dir = manifest_dir.join("default_prompts");
+    prompts::seed_default_prompts(&data_dir, &bundled_prompts_dir).await;
+
     let state = AppState {
         tera: Arc::new(tera),
         data_dir,
         sessions_dir,
+        bundled_prompts_dir,
         http: reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .build()?,

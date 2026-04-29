@@ -8,6 +8,7 @@ pub mod memory;
 pub mod memory_worker;
 pub mod persona;
 pub mod prompt;
+pub mod prompts;
 pub mod providers;
 pub mod session;
 pub mod summarizer;

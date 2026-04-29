@@ -24,6 +24,7 @@ fn make_state(data_dir: &Path) -> AppState {
         tera: Arc::new(tera::Tera::default()),
         data_dir: data_dir.to_path_buf(),
         sessions_dir: data_dir.join("sessions"),
+        bundled_prompts_dir: data_dir.join("bundled_prompts_unused"),
         http: reqwest::Client::new(),
         memory: MemoryWorker::new(),
     }
