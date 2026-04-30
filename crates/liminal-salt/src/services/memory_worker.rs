@@ -422,7 +422,6 @@ impl MemoryWorker {
         let result = memory::update_memory(
             llm,
             &state.data_dir,
-            &state.bundled_prompts_dir,
             persona,
             &identity,
             &threads,
@@ -466,7 +465,6 @@ impl MemoryWorker {
         let result = memory::modify_memory(
             llm,
             &state.data_dir,
-            &state.bundled_prompts_dir,
             persona,
             &identity,
             command,
@@ -510,7 +508,6 @@ impl MemoryWorker {
         let result = memory::seed_memory(
             llm,
             &state.data_dir,
-            &state.bundled_prompts_dir,
             persona,
             &identity,
             seed_content,
@@ -699,7 +696,6 @@ impl MemoryWorker {
             llm,
             thread_memory::MergeRequest {
                 data_dir: &state.data_dir,
-                bundled_prompts_dir: &state.bundled_prompts_dir,
                 persona_display_name: &persona_display,
                 persona_memory: &persona_memory,
                 existing_memory: &existing_memory,

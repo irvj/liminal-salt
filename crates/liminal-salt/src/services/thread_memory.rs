@@ -115,7 +115,6 @@ pub fn filter_new_messages(messages: &[Message], updated_at: &str) -> Vec<Messag
 /// in roleplay mode or if no memory file exists.
 pub struct MergeRequest<'a> {
     pub data_dir: &'a Path,
-    pub bundled_prompts_dir: &'a Path,
     pub persona_display_name: &'a str,
     pub persona_memory: &'a str,
     pub existing_memory: &'a str,
@@ -130,7 +129,6 @@ pub struct MergeRequest<'a> {
 pub async fn merge<L: ChatLlm>(llm: &L, req: MergeRequest<'_>) -> Option<String> {
     let MergeRequest {
         data_dir,
-        bundled_prompts_dir,
         persona_display_name,
         persona_memory,
         existing_memory,
@@ -166,7 +164,7 @@ pub async fn merge<L: ChatLlm>(llm: &L, req: MergeRequest<'_>) -> Option<String>
         Mode::Roleplay => "thread_memory_merge_roleplay",
         Mode::Chatbot => "thread_memory_merge_chatbot",
     };
-    let instructions = match prompts::load(data_dir, bundled_prompts_dir, prompt_id).await {
+    let instructions = match prompts::load(data_dir, prompt_id).await {
         Ok(s) => s,
         Err(err) => {
             tracing::error!(prompt = prompt_id, error = %err, "thread memory prompt load failed");

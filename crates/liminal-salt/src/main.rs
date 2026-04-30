@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::middleware as axum_mw;
 use tower_http::trace::TraceLayer;
@@ -22,8 +22,6 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-
     let tera = assets::build_tera()?;
 
     let data_dir = config::data_dir();
@@ -31,20 +29,16 @@ async fn main() -> anyhow::Result<()> {
     let sessions_dir = config::sessions_dir(&data_dir);
     tokio::fs::create_dir_all(&sessions_dir).await?;
 
-    // Bundled default personas ship embedded in the binary; the seeder
-    // materializes them into `<data_dir>/personas/` on first boot.
+    // Bundled defaults ship embedded in the binary; seeders materialize them
+    // into `<data_dir>/{personas,prompts}/` on first boot. Existing user
+    // files are never overwritten.
     prompt::seed_default_personas(&data_dir).await;
-
-    // Bundled default prompts (the editable instruction prose). Same pattern:
-    // copy any registered prompt missing from `<data_dir>/prompts/` on boot.
-    let bundled_prompts_dir = manifest_dir.join("default_prompts");
-    prompts::seed_default_prompts(&data_dir, &bundled_prompts_dir).await;
+    prompts::seed_default_prompts(&data_dir).await;
 
     let state = AppState {
         tera: Arc::new(tera),
         data_dir,
         sessions_dir,
-        bundled_prompts_dir,
         http: reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .build()?,

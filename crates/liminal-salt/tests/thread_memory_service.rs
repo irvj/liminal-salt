@@ -10,26 +10,17 @@ use liminal_salt::services::llm::{ChatLlm, LlmError, LlmMessage};
 use liminal_salt::services::session::{Message, Mode, Role};
 use liminal_salt::services::thread_memory::{self, MergeRequest};
 
-/// Real bundled-prompts directory; tests exercise the production prompt content
-/// end-to-end so a content-level regression surfaces in CI.
-fn bundled() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("default_prompts")
-}
-
 fn data_dir(tmp: &tempfile::TempDir) -> PathBuf {
     tmp.path().join("data")
 }
 
 /// Common defaults for `MergeRequest`. Tests override only the fields they care
 /// about via struct update syntax (`MergeRequest { foo: ..., ..default_req(...) }`).
-fn default_req<'a>(
-    data: &'a std::path::Path,
-    bundled: &'a std::path::Path,
-    messages: &'a [Message],
-) -> MergeRequest<'a> {
+/// Bundled prompt content is exercised via the embedded `DefaultPrompts` asset
+/// (`prompts::load` reads it at runtime); no fixture needed here.
+fn default_req<'a>(data: &'a std::path::Path, messages: &'a [Message]) -> MergeRequest<'a> {
     MergeRequest {
         data_dir: data,
-        bundled_prompts_dir: bundled,
         persona_display_name: "Clara",
         persona_memory: "",
         existing_memory: "",
@@ -91,7 +82,7 @@ async fn merge_empty_new_messages_returns_none() {
     let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("should not be used");
     let got =
-        thread_memory::merge(&llm, default_req(&data_dir(&tmp), &bundled(), &[])).await;
+        thread_memory::merge(&llm, default_req(&data_dir(&tmp), &[])).await;
     assert!(got.is_none());
     // LLM not invoked.
     assert!(llm.last_prompt().is_empty());
@@ -110,7 +101,7 @@ async fn merge_chatbot_uses_chatbot_prompt_and_persona_memory_when_present() {
         MergeRequest {
             existing_memory: "They had been scheduling a meet.",
             persona_memory: "They're in Pacific time and avoid mornings.",
-            ..default_req(&data_dir(&tmp), &bundled(), &messages)
+            ..default_req(&data_dir(&tmp), &messages)
         },
     )
     .await;
@@ -134,7 +125,7 @@ async fn merge_chatbot_omits_persona_memory_section_when_empty() {
     let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("fine");
     let messages = vec![msg(Role::User, "hi", "2026-04-22T10:00:00.000000Z")];
-    thread_memory::merge(&llm, default_req(&data_dir(&tmp), &bundled(), &messages)).await;
+    thread_memory::merge(&llm, default_req(&data_dir(&tmp), &messages)).await;
 
     let p = llm.last_prompt();
     // The conditional data section is omitted when persona memory is absent.
@@ -161,7 +152,7 @@ async fn merge_roleplay_uses_roleplay_prompt_and_ignores_persona_memory() {
             existing_memory: "The scene opened at dawn.",
             mode: Mode::Roleplay,
             persona_memory: "REAL-USER FACT: user lives in Seattle.",
-            ..default_req(&data_dir(&tmp), &bundled(), &messages)
+            ..default_req(&data_dir(&tmp), &messages)
         },
     )
     .await;
@@ -183,7 +174,7 @@ async fn merge_short_response_rejected_when_existing_is_substantial() {
         &llm,
         MergeRequest {
             existing_memory: &existing,
-            ..default_req(&data_dir(&tmp), &bundled(), &messages)
+            ..default_req(&data_dir(&tmp), &messages)
         },
     )
     .await;
@@ -196,7 +187,7 @@ async fn merge_short_response_accepted_when_no_existing_summary() {
     let llm = FakeLlm::new("tiny"); // 4 chars but no existing memory.
     let messages = vec![msg(Role::User, "hi", "2026-04-22T10:00:00.000000Z")];
     let got =
-        thread_memory::merge(&llm, default_req(&data_dir(&tmp), &bundled(), &messages)).await;
+        thread_memory::merge(&llm, default_req(&data_dir(&tmp), &messages)).await;
     assert_eq!(got.as_deref(), Some("tiny"));
 }
 
@@ -208,7 +199,7 @@ async fn merge_propagates_llm_error_as_none() {
         &FailingLlm,
         MergeRequest {
             existing_memory: "prior",
-            ..default_req(&data_dir(&tmp), &bundled(), &messages)
+            ..default_req(&data_dir(&tmp), &messages)
         },
     )
     .await;
@@ -220,7 +211,7 @@ async fn merge_empty_existing_uses_start_of_thread_placeholder() {
     let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("first entry");
     let messages = vec![msg(Role::User, "hi", "2026-04-22T10:00:00.000000Z")];
-    thread_memory::merge(&llm, default_req(&data_dir(&tmp), &bundled(), &messages)).await;
+    thread_memory::merge(&llm, default_req(&data_dir(&tmp), &messages)).await;
 
     let p = llm.last_prompt();
     assert!(p.contains("No summary yet. This is the start of the thread."));
@@ -235,7 +226,7 @@ async fn merge_size_limit_zero_omits_size_target() {
         &llm,
         MergeRequest {
             size_limit: 0,
-            ..default_req(&data_dir(&tmp), &bundled(), &messages)
+            ..default_req(&data_dir(&tmp), &messages)
         },
     )
     .await;
@@ -246,7 +237,7 @@ async fn merge_size_limit_zero_omits_size_target() {
         &llm,
         MergeRequest {
             size_limit: 2500,
-            ..default_req(&data_dir(&tmp), &bundled(), &messages)
+            ..default_req(&data_dir(&tmp), &messages)
         },
     )
     .await;

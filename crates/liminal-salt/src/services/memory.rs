@@ -202,7 +202,6 @@ pub fn get_memory_model(
 pub async fn update_memory<L: ChatLlm>(
     llm: &L,
     data_dir: &Path,
-    bundled_prompts_dir: &Path,
     persona_name: &str,
     identity: &str,
     threads: &[ThreadSnapshot],
@@ -213,7 +212,7 @@ pub async fn update_memory<L: ChatLlm>(
     }
     let display = display_persona_name(persona_name);
     let transcript = format_threads(&display, threads);
-    let instructions = prompts::load(data_dir, bundled_prompts_dir, "persona_memory_merge").await?;
+    let instructions = prompts::load(data_dir, "persona_memory_merge").await?;
 
     merge_memory(
         llm,
@@ -234,13 +233,12 @@ pub async fn update_memory<L: ChatLlm>(
 pub async fn seed_memory<L: ChatLlm>(
     llm: &L,
     data_dir: &Path,
-    bundled_prompts_dir: &Path,
     persona_name: &str,
     identity: &str,
     seed_content: &str,
     size_limit: u32,
 ) -> Result<(), MemoryError> {
-    let instructions = prompts::load(data_dir, bundled_prompts_dir, "persona_memory_seed").await?;
+    let instructions = prompts::load(data_dir, "persona_memory_seed").await?;
     merge_memory(
         llm,
         data_dir,
@@ -262,7 +260,6 @@ pub async fn seed_memory<L: ChatLlm>(
 pub async fn modify_memory<L: ChatLlm>(
     llm: &L,
     data_dir: &Path,
-    bundled_prompts_dir: &Path,
     persona_name: &str,
     identity: &str,
     command: &str,
@@ -271,7 +268,7 @@ pub async fn modify_memory<L: ChatLlm>(
     if get_memory_content(data_dir, persona_name).await.is_empty() {
         return Err(MemoryError::NoExistingMemory);
     }
-    let instructions = prompts::load(data_dir, bundled_prompts_dir, "persona_memory_modify").await?;
+    let instructions = prompts::load(data_dir, "persona_memory_modify").await?;
     merge_memory(
         llm,
         data_dir,

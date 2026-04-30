@@ -39,7 +39,7 @@ pub async fn view(
 ) -> Response {
     let mut entries = Vec::with_capacity(PROMPTS.len());
     for meta in PROMPTS {
-        let content = prompts::load(&state.data_dir, &state.bundled_prompts_dir, meta.id)
+        let content = prompts::load(&state.data_dir, meta.id)
             .await
             .unwrap_or_else(|err| {
                 tracing::warn!(prompt = meta.id, error = %err, "prompt load failed; rendering empty");
@@ -116,7 +116,7 @@ pub struct ResetForm {
 }
 
 pub async fn reset(State(state): State<AppState>, Form(form): Form<ResetForm>) -> Response {
-    if let Err(err) = prompts::reset(&state.data_dir, &state.bundled_prompts_dir, &form.id).await {
+    if let Err(err) = prompts::reset(&state.data_dir, &form.id).await {
         let status = prompt_status(&err);
         tracing::warn!(id = %form.id, error = %err, "prompt reset failed");
         return (status, err.to_string()).into_response();
@@ -124,7 +124,7 @@ pub async fn reset(State(state): State<AppState>, Form(form): Form<ResetForm>) -
     // Return the new content so the editor can populate the textarea without a
     // separate fetch. After `reset`, `load` will return the default — the user
     // file now mirrors the bundled default byte-for-byte.
-    match prompts::load(&state.data_dir, &state.bundled_prompts_dir, &form.id).await {
+    match prompts::load(&state.data_dir, &form.id).await {
         Ok(content) => (StatusCode::OK, content).into_response(),
         Err(err) => {
             let status = prompt_status(&err);
@@ -143,11 +143,8 @@ pub struct DefaultQuery {
     pub id: String,
 }
 
-pub async fn default(
-    State(state): State<AppState>,
-    Query(q): Query<DefaultQuery>,
-) -> Response {
-    match prompts::load_default(&state.bundled_prompts_dir, &q.id).await {
+pub async fn default(Query(q): Query<DefaultQuery>) -> Response {
+    match prompts::load_default(&q.id) {
         Ok(content) => (StatusCode::OK, content).into_response(),
         Err(err) => {
             let status = prompt_status(&err);

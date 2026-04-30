@@ -1,20 +1,10 @@
-//! Integration tests for `services::prompts`. All filesystem state lives in
-//! tempdirs; both the user `data/prompts/` and the bundled `default_prompts/`
-//! are pointed at fixtures so the real crate's bundled defaults are not
-//! required (Phase 1 ships them as empty placeholders anyway).
-
-use std::path::Path;
+//! Integration tests for `services::prompts`.
+//!
+//! Bundled defaults are embedded at compile time via `crate::assets::DefaultPrompts`,
+//! so these tests assert against the real shipped content rather than fixtures.
+//! User state lives in tempdirs.
 
 use liminal_salt::services::prompts::{self, PROMPTS, PromptError};
-
-/// Write a fake bundled default. Mirrors what `crates/liminal-salt/default_prompts/`
-/// will contain in Phase 2.
-async fn write_bundled(bundled_dir: &Path, id: &str, content: &str) {
-    tokio::fs::create_dir_all(bundled_dir).await.unwrap();
-    tokio::fs::write(bundled_dir.join(format!("{id}.md")), content)
-        .await
-        .unwrap();
-}
 
 #[test]
 fn registry_size_locked() {
@@ -36,40 +26,45 @@ fn list_returns_full_registry() {
     assert_eq!(listed.len(), PROMPTS.len());
 }
 
+#[test]
+fn every_registered_prompt_has_a_bundled_default() {
+    // Catches registry/disk drift at test time: a registered ID with no
+    // shipped `.md` would be a runtime warning + broken Reset.
+    for meta in PROMPTS {
+        let content = prompts::load_default(meta.id)
+            .unwrap_or_else(|err| panic!("bundled default missing for {}: {err:?}", meta.id));
+        assert!(!content.is_empty(), "bundled default empty for {}", meta.id);
+    }
+}
+
 #[tokio::test]
-async fn seed_copies_bundled_files_when_missing() {
+async fn seed_writes_every_registered_prompt_into_data_dir() {
     let tmp = tempfile::tempdir().unwrap();
     let data_dir = tmp.path().join("data");
-    let bundled_dir = tmp.path().join("bundled");
 
-    // Provide bundled content for one registered prompt; leave the rest absent
-    // (seed should warn-and-continue, not panic).
-    let id = PROMPTS[0].id;
-    write_bundled(&bundled_dir, id, "bundled body").await;
+    prompts::seed_default_prompts(&data_dir).await;
 
-    prompts::seed_default_prompts(&data_dir, &bundled_dir).await;
-
-    let target = data_dir.join("prompts").join(format!("{id}.md"));
-    let body = tokio::fs::read_to_string(&target).await.unwrap();
-    assert_eq!(body, "bundled body");
+    for meta in PROMPTS {
+        let target = data_dir.join("prompts").join(format!("{}.md", meta.id));
+        let body = tokio::fs::read_to_string(&target).await.unwrap_or_else(|err| {
+            panic!("seeded file missing for {}: {err}", meta.id);
+        });
+        let bundled = prompts::load_default(meta.id).unwrap();
+        assert_eq!(body, bundled, "seeded content differs from bundled default for {}", meta.id);
+    }
 }
 
 #[tokio::test]
 async fn seed_does_not_overwrite_user_edits() {
     let tmp = tempfile::tempdir().unwrap();
     let data_dir = tmp.path().join("data");
-    let bundled_dir = tmp.path().join("bundled");
     let id = PROMPTS[0].id;
 
-    // User has an existing edited copy. Bundled default is different.
     let user_path = data_dir.join("prompts").join(format!("{id}.md"));
-    tokio::fs::create_dir_all(user_path.parent().unwrap())
-        .await
-        .unwrap();
+    tokio::fs::create_dir_all(user_path.parent().unwrap()).await.unwrap();
     tokio::fs::write(&user_path, "user's edit").await.unwrap();
-    write_bundled(&bundled_dir, id, "bundled body").await;
 
-    prompts::seed_default_prompts(&data_dir, &bundled_dir).await;
+    prompts::seed_default_prompts(&data_dir).await;
 
     let body = tokio::fs::read_to_string(&user_path).await.unwrap();
     assert_eq!(body, "user's edit", "seed must not overwrite user edits");
@@ -79,11 +74,10 @@ async fn seed_does_not_overwrite_user_edits() {
 async fn save_then_load_round_trips() {
     let tmp = tempfile::tempdir().unwrap();
     let data_dir = tmp.path().join("data");
-    let bundled_dir = tmp.path().join("bundled");
     let id = PROMPTS[0].id;
 
     prompts::save(&data_dir, id, "edited content").await.unwrap();
-    let loaded = prompts::load(&data_dir, &bundled_dir, id).await.unwrap();
+    let loaded = prompts::load(&data_dir, id).await.unwrap();
     assert_eq!(loaded, "edited content");
 }
 
@@ -91,29 +85,22 @@ async fn save_then_load_round_trips() {
 async fn load_falls_back_to_bundled_when_user_file_missing() {
     let tmp = tempfile::tempdir().unwrap();
     let data_dir = tmp.path().join("data");
-    let bundled_dir = tmp.path().join("bundled");
     let id = PROMPTS[0].id;
 
-    write_bundled(&bundled_dir, id, "default body").await;
-
-    let loaded = prompts::load(&data_dir, &bundled_dir, id).await.unwrap();
-    assert_eq!(
-        loaded, "default body",
-        "load must fall back to bundled default if user file absent"
-    );
+    let loaded = prompts::load(&data_dir, id).await.unwrap();
+    let bundled = prompts::load_default(id).unwrap();
+    assert_eq!(loaded, bundled, "load must fall back to bundled default if user file absent");
 }
 
 #[tokio::test]
 async fn load_user_copy_wins_over_bundled() {
     let tmp = tempfile::tempdir().unwrap();
     let data_dir = tmp.path().join("data");
-    let bundled_dir = tmp.path().join("bundled");
     let id = PROMPTS[0].id;
 
-    write_bundled(&bundled_dir, id, "default body").await;
     prompts::save(&data_dir, id, "user override").await.unwrap();
 
-    let loaded = prompts::load(&data_dir, &bundled_dir, id).await.unwrap();
+    let loaded = prompts::load(&data_dir, id).await.unwrap();
     assert_eq!(loaded, "user override");
 }
 
@@ -121,65 +108,41 @@ async fn load_user_copy_wins_over_bundled() {
 async fn reset_overwrites_user_with_bundled() {
     let tmp = tempfile::tempdir().unwrap();
     let data_dir = tmp.path().join("data");
-    let bundled_dir = tmp.path().join("bundled");
     let id = PROMPTS[0].id;
 
-    write_bundled(&bundled_dir, id, "default body").await;
     prompts::save(&data_dir, id, "user override").await.unwrap();
+    prompts::reset(&data_dir, id).await.unwrap();
 
-    prompts::reset(&data_dir, &bundled_dir, id).await.unwrap();
-    let loaded = prompts::load(&data_dir, &bundled_dir, id).await.unwrap();
-    assert_eq!(loaded, "default body");
-}
-
-#[tokio::test]
-async fn reset_returns_not_found_when_bundled_missing() {
-    let tmp = tempfile::tempdir().unwrap();
-    let data_dir = tmp.path().join("data");
-    let bundled_dir = tmp.path().join("bundled");
-    let id = PROMPTS[0].id;
-
-    // Deliberately do NOT write a bundled default.
-    let err = prompts::reset(&data_dir, &bundled_dir, id).await.unwrap_err();
-    assert!(matches!(err, PromptError::NotFound(_)), "got {err:?}");
+    let loaded = prompts::load(&data_dir, id).await.unwrap();
+    let bundled = prompts::load_default(id).unwrap();
+    assert_eq!(loaded, bundled);
 }
 
 #[tokio::test]
 async fn invalid_id_rejected_by_save() {
     let tmp = tempfile::tempdir().unwrap();
-    let err = prompts::save(tmp.path(), "not_in_registry", "x")
-        .await
-        .unwrap_err();
+    let err = prompts::save(tmp.path(), "not_in_registry", "x").await.unwrap_err();
     assert!(matches!(err, PromptError::InvalidId(_)));
 }
 
 #[tokio::test]
 async fn invalid_id_rejected_by_load() {
     let tmp = tempfile::tempdir().unwrap();
-    let bundled = tmp.path().join("bundled");
-    let err = prompts::load(tmp.path(), &bundled, "not_in_registry")
-        .await
-        .unwrap_err();
+    let err = prompts::load(tmp.path(), "not_in_registry").await.unwrap_err();
     assert!(matches!(err, PromptError::InvalidId(_)));
 }
 
 #[tokio::test]
 async fn invalid_id_rejected_by_reset() {
     let tmp = tempfile::tempdir().unwrap();
-    let bundled = tmp.path().join("bundled");
-    let err = prompts::reset(tmp.path(), &bundled, "not_in_registry")
-        .await
-        .unwrap_err();
+    let err = prompts::reset(tmp.path(), "not_in_registry").await.unwrap_err();
     assert!(matches!(err, PromptError::InvalidId(_)));
 }
 
-#[tokio::test]
-async fn load_default_returns_not_found_for_registered_but_missing() {
-    let tmp = tempfile::tempdir().unwrap();
-    let bundled = tmp.path().join("bundled");
-    let id = PROMPTS[0].id;
-    let err = prompts::load_default(&bundled, id).await.unwrap_err();
-    assert!(matches!(err, PromptError::NotFound(_)));
+#[test]
+fn invalid_id_rejected_by_load_default() {
+    let err = prompts::load_default("not_in_registry").unwrap_err();
+    assert!(matches!(err, PromptError::InvalidId(_)));
 }
 
 #[tokio::test]

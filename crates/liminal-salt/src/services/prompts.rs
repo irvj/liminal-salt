@@ -4,14 +4,17 @@
 //! - **Registry** (`PROMPTS`) — compile-time list of editable prompts. Drives
 //!   the editor UI list and gates which IDs are valid for load/save/reset.
 //! - **Filesystem** — `data/prompts/{id}.md` is the user's editable copy,
-//!   seeded from `<bundled_dir>/{id}.md` on first boot. Existing user files
-//!   are never overwritten by seeding. Reset reads the bundled default and
-//!   overwrites the user copy.
+//!   seeded from the embedded `DefaultPrompts` bundle on first boot. Existing
+//!   user files are never overwritten by seeding. Reset reads the bundled
+//!   default and overwrites the user copy.
 //!
-//! `bundled_dir` resolves at boot to `<crate manifest>/default_prompts/`; M4
-//! (Tauri) will swap this for embedded assets.
+//! Bundled defaults are compiled into the binary via `crate::assets::DefaultPrompts`
+//! (rust-embed). In debug builds they're read from `crates/liminal-salt/default_prompts/`
+//! on disk; in release and Tauri builds they're embedded.
 
 use std::path::{Path, PathBuf};
+
+use crate::assets::DefaultPrompts;
 
 // =============================================================================
 // Errors
@@ -94,8 +97,9 @@ fn prompt_file(data_dir: &Path, id: &str) -> PathBuf {
     prompts_dir(data_dir).join(format!("{id}.md"))
 }
 
-fn default_file(bundled_dir: &Path, id: &str) -> PathBuf {
-    bundled_dir.join(format!("{id}.md"))
+fn read_bundled(id: &str) -> Option<String> {
+    let file = DefaultPrompts::get(&format!("{id}.md"))?;
+    String::from_utf8(file.data.into_owned()).ok()
 }
 
 // =============================================================================
@@ -106,33 +110,25 @@ fn default_file(bundled_dir: &Path, id: &str) -> PathBuf {
 /// user file is absent (e.g. user manually deleted it). `NotFound` only when
 /// both are missing — that's a programmer error (registered id with no
 /// bundled default shipped).
-pub async fn load(data_dir: &Path, bundled_dir: &Path, id: &str) -> Result<String, PromptError> {
+pub async fn load(data_dir: &Path, id: &str) -> Result<String, PromptError> {
     if find(id).is_none() {
         return Err(PromptError::InvalidId(id.to_string()));
     }
     let user_path = prompt_file(data_dir, id);
     match tokio::fs::read_to_string(&user_path).await {
         Ok(s) => Ok(s),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-            load_default(bundled_dir, id).await
-        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => load_default(id),
         Err(err) => Err(PromptError::Io(err)),
     }
 }
 
-/// Load the bundled default. `NotFound` if the bundled file is missing.
-pub async fn load_default(bundled_dir: &Path, id: &str) -> Result<String, PromptError> {
+/// Load the bundled default. `NotFound` if the bundled file is missing —
+/// programmer error (registry/disk drift).
+pub fn load_default(id: &str) -> Result<String, PromptError> {
     if find(id).is_none() {
         return Err(PromptError::InvalidId(id.to_string()));
     }
-    let path = default_file(bundled_dir, id);
-    match tokio::fs::read_to_string(&path).await {
-        Ok(s) => Ok(s),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-            Err(PromptError::NotFound(id.to_string()))
-        }
-        Err(err) => Err(PromptError::Io(err)),
-    }
+    read_bundled(id).ok_or_else(|| PromptError::NotFound(id.to_string()))
 }
 
 /// Persist the user's edit (atomic write).
@@ -145,19 +141,15 @@ pub async fn save(data_dir: &Path, id: &str, content: &str) -> Result<(), Prompt
 }
 
 /// Restore the user copy from the bundled default.
-pub async fn reset(
-    data_dir: &Path,
-    bundled_dir: &Path,
-    id: &str,
-) -> Result<(), PromptError> {
-    let content = load_default(bundled_dir, id).await?;
+pub async fn reset(data_dir: &Path, id: &str) -> Result<(), PromptError> {
+    let content = load_default(id)?;
     save(data_dir, id, &content).await
 }
 
-/// On startup, copy any registered prompt that's missing its `data/prompts/`
-/// copy from the bundled directory. Existing user files are never overwritten;
+/// On startup, materialize any registered prompt missing its `data/prompts/`
+/// copy from the embedded bundle. Existing user files are never overwritten;
 /// missing bundled defaults are logged but do not fail boot.
-pub async fn seed_default_prompts(data_dir: &Path, bundled_dir: &Path) {
+pub async fn seed_default_prompts(data_dir: &Path) {
     let target_root = prompts_dir(data_dir);
     if let Err(err) = tokio::fs::create_dir_all(&target_root).await {
         tracing::warn!(?target_root, error = %err, "could not create prompts dir");
@@ -168,26 +160,17 @@ pub async fn seed_default_prompts(data_dir: &Path, bundled_dir: &Path) {
         if tokio::fs::try_exists(&target).await.unwrap_or(false) {
             continue;
         }
-        let source = default_file(bundled_dir, meta.id);
-        match tokio::fs::read(&source).await {
-            Ok(bytes) => {
-                if let Err(err) =
-                    crate::services::fs::write_atomic(&target, &bytes).await
-                {
-                    tracing::warn!(prompt = meta.id, error = %err, "default prompt seed failed");
-                } else {
-                    tracing::info!(prompt = meta.id, "seeded default prompt");
-                }
-            }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                tracing::warn!(
-                    prompt = meta.id,
-                    ?source,
-                    "bundled default prompt missing — registry/disk drift"
-                );
-            }
+        let Some(content) = read_bundled(meta.id) else {
+            tracing::warn!(
+                prompt = meta.id,
+                "bundled default prompt missing — registry/disk drift"
+            );
+            continue;
+        };
+        match crate::services::fs::write_atomic(&target, content.as_bytes()).await {
+            Ok(()) => tracing::info!(prompt = meta.id, "seeded default prompt"),
             Err(err) => {
-                tracing::warn!(prompt = meta.id, error = %err, "default prompt read failed");
+                tracing::warn!(prompt = meta.id, error = %err, "default prompt seed failed");
             }
         }
     }

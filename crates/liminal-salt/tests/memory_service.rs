@@ -2,20 +2,12 @@
 //! resolution, and the three LLM-driven operations against a fake LLM. No
 //! network traffic, all state in tempdirs.
 
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use liminal_salt::services::llm::{ChatLlm, LlmError, LlmMessage};
 use liminal_salt::services::memory::{self, MemoryError};
 use liminal_salt::services::persona::PersonaConfig;
 use liminal_salt::services::session::{Message, Role, ThreadSnapshot};
-
-/// The real bundled-prompts directory shipped with the crate. LLM-driven memory
-/// ops `prompts::load` from here at runtime; tests use the same path so the
-/// production prompt content is exercised end-to-end.
-fn bundled_prompts() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("default_prompts")
-}
 
 /// Fake LLM that returns a canned response and records the prompts it saw.
 /// Lets tests assert both the output-side behavior AND the shape of the
@@ -187,7 +179,7 @@ async fn update_memory_empty_threads_returns_no_threads() {
     let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("updated memory");
     assert!(matches!(
-        memory::update_memory(&*llm, tmp.path(), &bundled_prompts(), "assistant", "identity", &[], 8000).await,
+        memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &[], 8000).await,
         Err(MemoryError::NoThreads)
     ));
     // Nothing was written.
@@ -211,7 +203,6 @@ async fn update_memory_writes_file_and_builds_expected_prompt() {
     memory::update_memory(
         &*llm,
         tmp.path(),
-        &bundled_prompts(),
         "carl_sagan",
         "You are Carl Sagan.",
         &threads,
@@ -244,7 +235,7 @@ async fn update_memory_size_limit_zero_omits_size_target() {
         persona: "a".to_string(),
         messages: vec![msg(Role::User, "hi")],
     }];
-    memory::update_memory(&*llm, tmp.path(), &bundled_prompts(), "assistant", "id", &threads, 0)
+    memory::update_memory(&*llm, tmp.path(), "assistant", "id", &threads, 0)
         .await
         .unwrap();
     assert!(!llm.last_prompt().contains("SIZE TARGET"));
@@ -257,7 +248,6 @@ async fn seed_memory_uses_seed_label_and_omits_roleplay_section() {
     memory::seed_memory(
         &*llm,
         tmp.path(),
-        &bundled_prompts(),
         "assistant",
         "identity",
         "User bio: lives in Portland.",
@@ -281,7 +271,6 @@ async fn modify_memory_refuses_when_no_existing_memory() {
         memory::modify_memory(
             &*llm,
             tmp.path(),
-            &bundled_prompts(),
             "assistant",
             "identity",
             "Forget their birthday",
@@ -306,7 +295,6 @@ async fn modify_memory_uses_command_label_when_memory_exists() {
     memory::modify_memory(
         &*llm,
         tmp.path(),
-        &bundled_prompts(),
         "assistant",
         "identity",
         "They don't love cats anymore",
@@ -341,7 +329,7 @@ async fn short_response_rejected_when_existing_memory_is_substantial() {
     }];
 
     assert!(matches!(
-        memory::update_memory(&*llm, tmp.path(), &bundled_prompts(), "assistant", "identity", &threads, 8000).await,
+        memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &threads, 8000).await,
         Err(MemoryError::UnusableResponse)
     ));
 
@@ -360,7 +348,7 @@ async fn short_response_accepted_when_existing_memory_is_empty() {
         messages: vec![msg(Role::User, "hi")],
     }];
 
-    memory::update_memory(&*llm, tmp.path(), &bundled_prompts(), "assistant", "identity", &threads, 8000)
+    memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &threads, 8000)
         .await
         .unwrap();
     assert_eq!(
@@ -386,7 +374,6 @@ async fn llm_error_returns_llm_variant_and_preserves_existing_memory() {
         memory::update_memory(
             &FailingLlm,
             tmp.path(),
-            &bundled_prompts(),
             "assistant",
             "identity",
             &threads,
@@ -414,7 +401,7 @@ async fn merge_includes_existing_memory_in_prompt() {
         persona: "assistant".to_string(),
         messages: vec![msg(Role::User, "got a cat")],
     }];
-    memory::update_memory(&*llm, tmp.path(), &bundled_prompts(), "assistant", "identity", &threads, 8000)
+    memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &threads, 8000)
         .await
         .unwrap();
 
@@ -432,7 +419,7 @@ async fn merge_first_run_uses_beginning_placeholder() {
         persona: "assistant".to_string(),
         messages: vec![msg(Role::User, "hi")],
     }];
-    memory::update_memory(&*llm, tmp.path(), &bundled_prompts(), "assistant", "identity", &threads, 8000)
+    memory::update_memory(&*llm, tmp.path(), "assistant", "identity", &threads, 8000)
         .await
         .unwrap();
 
