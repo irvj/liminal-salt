@@ -1,17 +1,15 @@
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use axum::middleware as axum_mw;
-use tera::Tera;
 use tower_http::{services::ServeDir, trace::TraceLayer};
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer, cookie::time::Duration as CookieDuration};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 use liminal_salt::{
-    AppState,
+    AppState, assets,
     middleware::{app_ready, csrf},
     routes,
     services::{config, memory_worker::MemoryWorker, prompt, prompts},
-    tera_extra,
 };
 
 #[tokio::main]
@@ -26,15 +24,7 @@ async fn main() -> anyhow::Result<()> {
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
-    let mut tera = Tera::new(
-        manifest_dir
-            .join("templates")
-            .join("**")
-            .join("*.html")
-            .to_str()
-            .expect("template glob is utf-8"),
-    )?;
-    tera_extra::register(&mut tera);
+    let tera = assets::build_tera()?;
 
     let data_dir = config::data_dir();
     tokio::fs::create_dir_all(&data_dir).await?;
