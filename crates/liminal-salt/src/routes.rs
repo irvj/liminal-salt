@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post},
 };
 
-use crate::{AppState, handlers};
+use crate::{AppState, assets, handlers};
 
 pub fn build_router(state: AppState) -> Router {
     Router::new()
@@ -114,6 +114,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/themes/", get(handlers::api::themes))
         .route("/api/save-theme/", post(handlers::api::save_theme))
         .route("/settings/available-models/", get(handlers::api::available_models))
+        // Static assets — embedded in the binary; served by `assets::serve_static`.
+        .route("/static/{*path}", get(assets::serve_static))
         .with_state(state)
 }
 

@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use axum::middleware as axum_mw;
-use tower_http::{services::ServeDir, trace::TraceLayer};
+use tower_http::trace::TraceLayer;
 use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer, cookie::time::Duration as CookieDuration};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -56,12 +56,6 @@ async fn main() -> anyhow::Result<()> {
     // so a scheduler mid-LLM-call gets to finish before the process exits.
     let scheduler_handles = state.memory.start_schedulers(state.clone());
 
-    // Static assets (JS, CSS, themes, favicon) ship inside the crate and are
-    // served by tower-http's ServeDir at /static/. In M2 (Tauri) they'll get
-    // embedded via rust-embed; the resolver in `data_dir()` is the only other
-    // path literal that changes.
-    let static_dir = manifest_dir.join("static");
-
     // Session state (current session id, user timezone, CSRF token) lives in a
     // process-local memory store. Two-week cookie expiry on inactivity.
     let session_store = MemoryStore::default();
@@ -80,7 +74,6 @@ async fn main() -> anyhow::Result<()> {
     //   app_ready  (needs session for the redirect; runs after csrf so we
     //               don't burn CSRF on a request we're about to redirect)
     let app = routes::build_router(state.clone())
-        .nest_service("/static", ServeDir::new(&static_dir))
         .layer(axum_mw::from_fn_with_state(
             state.clone(),
             app_ready::require_app_ready,
