@@ -90,26 +90,19 @@ pub async fn config_file_exists(data_dir: &Path) -> bool {
 static VERSION_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)<!--\s*version:\s*(\S+)\s*-->").expect("valid regex"));
 
-fn agreement_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../AGREEMENT.md")
-}
+/// AGREEMENT.md is embedded at compile time. The file is the canonical user
+/// agreement (visible at the repo root on GitHub); the version comment on
+/// line 1 is parsed at startup via the `AGREEMENT` `LazyLock`.
+const AGREEMENT_SOURCE: &str = include_str!("../../../../AGREEMENT.md");
 
 fn load_agreement() -> (String, String) {
-    let path = agreement_path();
-    let text = match std::fs::read_to_string(&path) {
-        Ok(t) => t,
-        Err(err) => {
-            tracing::warn!(?path, error = %err, "AGREEMENT.md not found");
-            return ("0.0".to_string(), String::new());
-        }
-    };
     let version = VERSION_RE
-        .captures(&text)
+        .captures(AGREEMENT_SOURCE)
         .and_then(|c| c.get(1))
         .map(|m| m.as_str().to_string())
         .unwrap_or_else(|| "0.0".to_string());
     let body = VERSION_RE
-        .replace(&text, "")
+        .replace(AGREEMENT_SOURCE, "")
         .trim_start_matches('\n')
         .trim_end()
         .to_string();
