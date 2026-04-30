@@ -10,8 +10,9 @@
 //! Persona memory writes live in `memory.rs`; this module only reads the
 //! resulting markdown through `memory::get_memory_content`.
 
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
+use crate::assets::DefaultPersonas;
 use crate::services::{
     context_files::ContextScope,
     memory, persona,
@@ -125,49 +126,58 @@ pub async fn available_personas(data_dir: &Path) -> Vec<String> {
     persona::list_personas(data_dir).await
 }
 
-/// On startup, copy bundled default personas from the crate's
-/// `default_personas/` directory into `<data_dir>/personas/` if the persona
-/// doesn't already exist.
-pub async fn seed_default_personas(data_dir: &Path, bundled_dir: &Path) {
+/// On startup, materialize bundled default personas from the embedded
+/// `DefaultPersonas` asset into `<data_dir>/personas/`. Existing persona
+/// directories are never overwritten — newly added bundled personas seed
+/// cleanly on later boots without clobbering user edits.
+pub async fn seed_default_personas(data_dir: &Path) {
     let target_root = data_dir.join("personas");
     if let Err(err) = tokio::fs::create_dir_all(&target_root).await {
         tracing::warn!(?target_root, error = %err, "could not create personas dir");
         return;
     }
-    let mut entries = match tokio::fs::read_dir(bundled_dir).await {
-        Ok(e) => e,
-        Err(_) => return,
-    };
-    while let Ok(Some(entry)) = entries.next_entry().await {
-        let Ok(ft) = entry.file_type().await else { continue };
-        if !ft.is_dir() {
-            continue;
+
+    // Group embedded files by top-level persona folder (e.g. "assistant/...").
+    // Top-level files (no slash) are ignored — bundle is folder-per-persona.
+    let mut personas: HashMap<String, Vec<String>> = HashMap::new();
+    for path in DefaultPersonas::iter() {
+        if let Some((name, _)) = path.split_once('/') {
+            personas
+                .entry(name.to_string())
+                .or_default()
+                .push(path.into_owned());
         }
-        let name = entry.file_name();
+    }
+
+    for (name, files) in personas {
         let target = target_root.join(&name);
         if tokio::fs::try_exists(&target).await.unwrap_or(false) {
             continue;
         }
-        if let Err(err) = copy_dir(&entry.path(), &target).await {
-            tracing::warn!(persona = ?name, error = %err, "default persona copy failed");
-        } else {
-            tracing::info!(persona = ?name, "seeded default persona");
+        match seed_persona(&target, &files).await {
+            Ok(()) => tracing::info!(persona = name, "seeded default persona"),
+            Err(err) => {
+                tracing::warn!(persona = name, error = %err, "default persona copy failed");
+            }
         }
     }
 }
 
-async fn copy_dir(src: &Path, dst: &Path) -> std::io::Result<()> {
-    tokio::fs::create_dir_all(dst).await?;
-    let mut entries = tokio::fs::read_dir(src).await?;
-    while let Some(entry) = entries.next_entry().await? {
-        let ft = entry.file_type().await?;
-        let from = entry.path();
-        let to = dst.join(entry.file_name());
-        if ft.is_dir() {
-            Box::pin(copy_dir(&from, &to)).await?;
-        } else if ft.is_file() {
-            tokio::fs::copy(&from, &to).await?;
+async fn seed_persona(target: &Path, files: &[String]) -> std::io::Result<()> {
+    tokio::fs::create_dir_all(target).await?;
+    for path in files {
+        let file = DefaultPersonas::get(path).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("embedded persona file disappeared: {path}"),
+            )
+        })?;
+        let rel = path.split_once('/').map(|(_, r)| r).unwrap_or(path.as_str());
+        let dest = target.join(rel);
+        if let Some(parent) = dest.parent() {
+            tokio::fs::create_dir_all(parent).await?;
         }
+        tokio::fs::write(&dest, file.data.as_ref()).await?;
     }
     Ok(())
 }
