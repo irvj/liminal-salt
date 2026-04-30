@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.22.0] - 2026-04-29
+
+### Changes
+- Merge branch 'user-editable-prompts': M3 user-editable prompts
+- update M3 commit range in roadmap
+- rename prompts page to Prompt Settings; align header with other settings pages
+- unwrap hard line breaks in default prompts
+- distinct sidebar icon for prompts editor
+- docs: mark M3 shipped; document prompts service and Tera attribute escaping
+- feat: prompts editor page (AJAX save/reset, view-default modal)
+- feat: load memory prompts from data/prompts; bundle defaults
+- feat: scaffold user-editable prompts service
+
 ## [0.21.0] - 2026-04-26
 
 ### Changes
