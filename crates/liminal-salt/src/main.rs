@@ -1,16 +1,6 @@
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::net::SocketAddr;
 
-use axum::middleware as axum_mw;
-use tower_http::trace::TraceLayer;
-use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer, cookie::time::Duration as CookieDuration};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
-
-use liminal_salt::{
-    AppState, assets,
-    middleware::{app_ready, csrf},
-    routes,
-    services::{config, memory_worker::MemoryWorker, prompt, prompts},
-};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -22,78 +12,6 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let tera = assets::build_tera()?;
-
-    let data_dir = config::data_dir();
-    tokio::fs::create_dir_all(&data_dir).await?;
-    let sessions_dir = config::sessions_dir(&data_dir);
-    tokio::fs::create_dir_all(&sessions_dir).await?;
-
-    // Bundled defaults ship embedded in the binary; seeders materialize them
-    // into `<data_dir>/{personas,prompts}/` on first boot. Existing user
-    // files are never overwritten.
-    prompt::seed_default_personas(&data_dir).await;
-    prompts::seed_default_prompts(&data_dir).await;
-
-    let state = AppState {
-        tera: Arc::new(tera),
-        data_dir,
-        sessions_dir,
-        http: reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .build()?,
-        memory: MemoryWorker::new(),
-    };
-
-    // Kick off the two memory schedulers. They're stopped via ctrl_c below
-    // so a scheduler mid-LLM-call gets to finish before the process exits.
-    let scheduler_handles = state.memory.start_schedulers(state.clone());
-
-    // Session state (current session id, user timezone, CSRF token) lives in a
-    // process-local memory store. Two-week cookie expiry on inactivity.
-    let session_store = MemoryStore::default();
-    let session_layer = SessionManagerLayer::new(session_store)
-        .with_name("liminal_salt_session")
-        // `Secure = true` (the default) would make browsers reject the cookie
-        // on plain http://localhost, silently breaking every POST because a
-        // fresh session (with a new CSRF token) gets created per request.
-        .with_secure(false)
-        .with_expiry(Expiry::OnInactivity(CookieDuration::weeks(2)));
-
-    // Layer order (outer → inner as written; inner runs first at request time):
-    //   TraceLayer  (outermost, sees every request)
-    //   session_layer  (must run before any middleware that reads the session)
-    //   csrf_layer  (needs session)
-    //   app_ready  (needs session for the redirect; runs after csrf so we
-    //               don't burn CSRF on a request we're about to redirect)
-    let app = routes::build_router(state.clone())
-        .layer(axum_mw::from_fn_with_state(
-            state.clone(),
-            app_ready::require_app_ready,
-        ))
-        .layer(axum_mw::from_fn(csrf::require_csrf))
-        .layer(session_layer)
-        .layer(TraceLayer::new_for_http());
-
     let addr = SocketAddr::from(([127, 0, 0, 1], 8420));
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-
-    println!();
-    println!("Liminal Salt v{}", env!("CARGO_PKG_VERSION"));
-    println!("Listening on http://{addr}");
-    println!("Press Ctrl-C to stop.");
-    println!();
-
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-            tracing::info!("ctrl_c received, shutting down");
-        })
-        .await?;
-
-    // Stop the schedulers AFTER the server drains so any in-flight request
-    // that would dispatch to the worker still finds the worker alive.
-    MemoryWorker::stop_schedulers(scheduler_handles).await;
-    tracing::info!("schedulers stopped");
-    Ok(())
+    liminal_salt::run_server(addr).await
 }
