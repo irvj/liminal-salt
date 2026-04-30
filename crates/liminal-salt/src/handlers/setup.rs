@@ -343,7 +343,7 @@ async fn render_step2(
     let cfg = config::load_config(&state.data_dir).await;
     let provider = providers::by_id(&cfg.provider).unwrap_or(providers::Provider::OpenRouter);
     let models = provider.list_models(&state.http, args.api_key).await;
-    let themes_list = themes::list_themes().await;
+    let themes_list = themes::list();
     let models_json = serde_json::to_string(&models).unwrap_or_else(|_| "[]".into());
     let themes_json = serde_json::to_string(&themes_list).unwrap_or_else(|_| "[]".into());
 

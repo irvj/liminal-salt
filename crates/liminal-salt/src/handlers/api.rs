@@ -22,7 +22,7 @@ use crate::{
 // =============================================================================
 
 pub async fn themes(State(_state): State<AppState>) -> Response {
-    let list = themes::list_themes().await;
+    let list = themes::list();
     Json(serde_json::json!({"themes": list})).into_response()
 }
 
