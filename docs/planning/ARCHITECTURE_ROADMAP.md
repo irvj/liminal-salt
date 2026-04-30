@@ -1,7 +1,7 @@
 # Liminal Salt — Architecture Roadmap
 
-**Updated:** 2026-04-29
-**Status:** M1 (Python → Rust) complete at v0.20.1. M2 (multi-provider) shipped. M3 (user-editable prompts) shipped. Architecture is mature; this roadmap tracks the refactors and milestones needed for the architecture to become immaterial to further product work.
+**Updated:** 2026-04-30
+**Status:** M1 (Python → Rust) complete at v0.20.1. M2 (multi-provider) shipped. M3 (user-editable prompts) shipped. M4 (Tauri desktop) asset-embedding pre-work shipped on `tauri-build-refactor` branch. Architecture is mature; this roadmap tracks the refactors and milestones needed for the architecture to become immaterial to further product work.
 
 ---
 
@@ -102,6 +102,18 @@ Currently zero HTTP-layer tests. As UX churn accelerates (M3 prompt editor, post
 
 Wrap the Rust backend in Tauri. Axum runs in-process — no child process, no bundled runtimes, no IPC bridge. This is plumbing once M2 and M3 have landed; all the service-layer shape should be right by this point.
 
+### Pre-M4 work — shipped (`9836343 → docs commit`)
+
+Asset-embedding refactor on the `tauri-build-refactor` branch. All bundled
+assets (templates, static, default personas, default prompts, AGREEMENT.md)
+now route through `crate::assets` (rust-embed with `debug-embed`) or
+`include_str!`, so a release/Tauri build is self-contained and a dev build
+still hot-reloads from disk. `AppState::bundled_prompts_dir` is gone;
+`lib::run_server(addr)` is the shared boot entry point both the CLI and a
+future Tauri `setup` hook can call. The same code path supports both
+distribution channels (browser-via-cargo and Tauri desktop). Only `data_dir()`
+remains as a Tauri-time seam.
+
 ### Architecture
 
 ```
@@ -128,11 +140,11 @@ Wrap the Rust backend in Tauri. Axum runs in-process — no child process, no bu
 | Task | Details |
 |------|---------|
 | Scaffold | `cargo tauri init` adds `src-tauri/` as a workspace member. Configure `tauri.conf.json` (window size, title, icons, app ID `com.liminalsalt.app`). |
-| Axum integration | Start Axum in Tauri's `setup` hook, bind `127.0.0.1:0` to pick a dynamic port, read back the actual port, pass to the window URL. |
+| Axum integration | Call `liminal_salt::run_server(addr)` from Tauri's `setup` hook with `127.0.0.1:0` to pick a dynamic port; read back the actual port, pass to the window URL. (`run_server` will need to surface the bound port — currently it prints it — that's a small extension.) |
 | Window management | Single window → `http://127.0.0.1:{port}`. Disable dev tools in release. |
-| Lifecycle | Axum task spawned on Tauri setup; abort on window-close event. Clean shutdown via the same `tokio::signal::ctrl_c` equivalent the CLI server uses. |
-| Data directory | Swap `config::data_dir()` to return Tauri's `app_data_dir()`. This is the single seam M1 was designed around — no other path literal hard-codes the data root. |
-| Asset embedding | Use `rust-embed` (or `include_dir!`) to ship: `crates/liminal-salt/templates/`, `crates/liminal-salt/static/` (including `static/vendor/htmx.min.js`, `static/vendor/alpinejs.min.js`, and the 16 theme JSONs), `crates/liminal-salt/default_personas/`, `crates/liminal-salt/default_prompts/` (new from M3), and `AGREEMENT.md`. On first launch, seed defaults into `app_data_dir()`. |
+| Lifecycle | Axum task spawned on Tauri setup; abort on window-close event. Currently `run_server` shuts down on `ctrl_c`; Tauri will need a parallel signal hook (extension on `run_server`). |
+| Data directory | Swap `config::data_dir()` to return Tauri's `app_data_dir()`. This is the only remaining path-resolver seam — no other literal in the crate hard-codes the data root. |
+| Asset embedding | **Done (pre-M4).** All bundled assets are embedded via `crate::assets` (rust-embed) or `include_str!`. Tauri build inherits this for free. |
 | App icons | Generate `.icns` / `.ico` / `.png` via `cargo tauri icon`. |
 | Build | `cargo tauri build` per target platform. |
 

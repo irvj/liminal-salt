@@ -4,7 +4,7 @@ Navigation + conventions for Claude working in this repo. Written for Claude, no
 
 ## What this is
 
-Liminal Salt — Rust + Axum + Tera web chatbot on top of OpenRouter. No database; state lives in JSON/Markdown files under `data/`. Single-process (hyper via Axum). HTMX + Alpine.js + Tailwind on the frontend. Current state is a browser-based Rust server; multi-provider LLM support, user-editable prompts, and Tauri desktop distribution are on the roadmap.
+Liminal Salt — Rust + Axum + Tera web chatbot on top of OpenRouter. No database; state lives in JSON/Markdown files under `data/`. Single-process (hyper via Axum). HTMX + Alpine.js + Tailwind on the frontend. Bundled assets (templates, static, default personas/prompts) are embedded in the binary via `rust-embed`, so `cargo build --release` is a self-contained binary; in dev (`cargo run`) the same code reads from disk so template/static edits hot-reload. The library entry point `liminal_salt::run_server` boots the Axum app from any host — currently the CLI binary, Tauri desktop next.
 
 See [`docs/planning/ARCHITECTURE_ROADMAP.md`](docs/planning/ARCHITECTURE_ROADMAP.md) for the milestone plan, ordering rationale, and what's deliberately out of scope.
 
@@ -13,8 +13,9 @@ See [`docs/planning/ARCHITECTURE_ROADMAP.md`](docs/planning/ARCHITECTURE_ROADMAP
 ```
 crates/liminal-salt/          Sole crate. Workspace root is the repo root.
   src/
-    main.rs                   Boot: state, layers, schedulers, ServeDir, graceful shutdown.
-    lib.rs                    Exposes services, routes, handlers, middleware, AppState.
+    main.rs                   CLI entry: tracing init + call to `run_server`.
+    lib.rs                    `run_server` (boot sequence, shared by future Tauri shell), `AppState`, public modules.
+    assets.rs                 `rust-embed` bundles (templates, static, default personas/prompts) + Tera/static helpers.
     routes.rs                 Router assembly.
     tera_extra.rs             Custom Tera filters (markdown, display_name, escapejs).
     services/                 All file I/O, LLM calls, locks, caches.
@@ -22,8 +23,8 @@ crates/liminal-salt/          Sole crate. Workspace root is the repo root.
     middleware/               csrf, app_ready, session_state.
   templates/                  Tera. chat/, persona/, memory/, settings/, setup/, components/, icons.html.
   static/                     JS (utils.js, components.js), CSS, themes/*.json, favicon.
-  default_personas/           Bundled personas copied into data/personas/ on first boot.
-  default_prompts/            Bundled instruction-prompt defaults; copied into data/prompts/ on first boot.
+  default_personas/           Bundled personas embedded via `assets::DefaultPersonas`; seeded into data/personas/ on first boot.
+  default_prompts/            Bundled instruction-prompt defaults embedded via `assets::DefaultPrompts`; seeded into data/prompts/ on first boot.
   tests/                      Integration tests. One file per service area.
 data/                         Gitignored user state.
   config.json                 App config (snake_case keys): provider, api_key, model, theme, setup_complete, agreement_accepted, etc.
@@ -44,7 +45,7 @@ docs/planning/                Roadmap + phase history.
 | `chat.rs` | `send_message(ctx, llm, input, skip_user_save) -> Result<String, ChatError>`. Loads via `session::load_session`, runs LLM with retry, persists via `session::save_chat_history`. Does NOT touch session JSON directly. |
 | `thread_memory.rs` | Per-session summary merge. Stateless: returns merged text, worker persists. Settings resolver (per-thread → persona default → global). Two prompt variants (chatbot/roleplay). `merge` takes a `MergeRequest` struct (filesystem paths + persona context + thread inputs) so the signature stays readable. |
 | `memory.rs` | Per-persona memory file I/O + LLM merge/seed/modify. Owns `data/memory/{persona}.md`. Returns `Result<(), MemoryError>`. `memory_file()` path builder is module-private; siblings use `get_memory_content`/`get_mtime`/`get_mtime_secs`. Loads instructional prose for each variant via `prompts::load`. |
-| `prompts.rs` | User-editable LLM instruction prompts. Owns `data/prompts/**`. Compile-time `PROMPTS` registry of editable IDs; public API: `list`, `load` (user copy with bundled fallback), `load_default`, `save`, `reset`, `seed_default_prompts`. ID validation is closed-set. Bundled defaults under `crates/liminal-salt/default_prompts/`. |
+| `prompts.rs` | User-editable LLM instruction prompts. Owns `data/prompts/**`. Compile-time `PROMPTS` registry of editable IDs; public API: `list`, `load` (user copy with bundled fallback), `load_default`, `save`, `reset`, `seed_default_prompts`. ID validation is closed-set. Bundled defaults read from `assets::DefaultPrompts` (embedded). |
 | `memory_worker.rs` | Two `tokio::spawn` schedulers (persona memory + thread memory). "Already running" mutex registries (`persona_locks`, `session_locks`) are **separate** from `session::SESSION_LOCKS` — collapsing them reintroduces the "lock across LLM call" bug. `MutexRecover` trait recovers StdMutex-guarded maps from poison. |
 | `prompt.rs` | Assembles system prompt; owns `seed_default_personas`. Reads through other services' public APIs — never builds paths into another service's domain. |
 | `context_files.rs` | `ContextScope { global, persona }`. Owns `data/user_context/**`. Uploaded files + local-directory refs unified under `ContextScopeError`. |
@@ -146,7 +147,7 @@ Written by `session.rs`. `skip_serializing_if = "Option::is_none"` keeps the on-
 
 Best-effort scans (`list_sessions`, `list_persona_threads`, `list_themes`, `list_files`) stay `Vec<T>` — individual failures shouldn't fail the whole list. Simple attribute reads (`get_memory_content`, `persona::load_identity`) return `String` with "" as the null-object value; no Option wrapping needed at that layer.
 
-**Tauri seam.** `config::data_dir()` is the single function that changes for the Tauri wrap — Tauri will have it return `app_data_dir()`. No other path literal in the crate hard-codes the data root. `AppState::bundled_prompts_dir` is the parallel seam for *bundled* assets (currently `<crate>/default_prompts/`); M4 will swap it for an embedded-asset path. Set once at boot in `main.rs`; services take it as a `&Path` parameter.
+**Tauri seam.** `config::data_dir()` is the single function that changes for the Tauri wrap — Tauri will have it return `app_data_dir()`. No other path literal in the crate hard-codes the data root. Bundled assets are not a seam: `assets::{Templates, Static, DefaultPersonas, DefaultPrompts}` are compile-time embedded via `rust-embed` (with `debug-embed` so dev still hot-reloads from disk), so the same code path serves both CLI and Tauri builds. `lib::run_server(addr)` is the boot entry point both binaries call.
 
 ## Separation of concerns — hard rules
 
@@ -228,3 +229,4 @@ At the end of a task or phase: propose a terse commit message in the repo's styl
 - New service error variant? Add it to the enum via `thiserror`, then extend the handler `match` for a proper status code. Don't log-and-return-default unless the variant genuinely has no handler remediation.
 - New `<details>` collapsible inside `#main-content`? Give it a stable `id` and `data-persist-state` if you want the open/closed state to survive HTMX swaps (Save, Update, persona switch).
 - New endpoint that writes persona config from the Memory tab UI? Put the handler in `handlers/memory.rs` and route it under `/memory/...`. The handler calls `persona::save_persona_config` (or a more specific service fn) through its public API — file ownership stays with `persona.rs`.
+- New bundled asset (template, static file, default persona/prompt)? Drop it into the matching directory under `crates/liminal-salt/`; the corresponding `RustEmbed` struct in `assets.rs` picks it up automatically. New asset *category*? Add a new struct to `assets.rs` and document the consumer.
