@@ -18,6 +18,10 @@ pub struct AppState {
     pub tera: Arc<Tera>,
     pub data_dir: PathBuf,
     pub sessions_dir: PathBuf,
+    /// Bundled default prompts ship inside the crate at
+    /// `<manifest>/default_prompts/`; resolved once at boot. M4 (Tauri) swaps
+    /// this for embedded assets.
+    pub bundled_prompts_dir: PathBuf,
     pub http: reqwest::Client,
     /// Shared memory worker — owns per-persona + per-session "already running"
     /// mutexes and the status map for `/memory/status/` polling. Cheap to

@@ -24,6 +24,10 @@ fn make_state(data_dir: &Path) -> AppState {
         tera: Arc::new(tera::Tera::default()),
         data_dir: data_dir.to_path_buf(),
         sessions_dir: data_dir.join("sessions"),
+        // LLM-driven memory ops `prompts::load` from this dir; point at the
+        // real shipped defaults so the worker can actually run.
+        bundled_prompts_dir: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("default_prompts"),
         http: reqwest::Client::new(),
         memory: MemoryWorker::new(),
     }

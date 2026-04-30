@@ -38,6 +38,8 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('themeModeToggle', themeModeToggle);
     Alpine.data('memorySettings', memorySettings);
     Alpine.data('contextHistoryLimit', contextHistoryLimit);
+    Alpine.data('promptEditor', promptEditor);
+    Alpine.data('viewDefaultModal', viewDefaultModal);
 });
 
 // =============================================================================
@@ -2139,5 +2141,166 @@ function contextHistoryLimit() {
                 this.saving = false;
             }
         }
+    };
+}
+
+// =============================================================================
+// Prompt Editor Component (Prompts page — AJAX save/reset, no page reload)
+// =============================================================================
+
+/**
+ * Manages all 5 user-editable prompts on /prompts/. Per-prompt state
+ * (content, dirty, saving) is keyed by id so editing prompt B doesn't
+ * affect prompt A's unsaved buffer. Save and Reset are AJAX so a save in
+ * one prompt never blows away unsaved edits in another.
+ */
+function promptEditor() {
+    return {
+        content: {},
+        saved: {},
+        dirty: {},
+        saving: {},
+        _saveUrl: '',
+        _resetUrl: '',
+
+        init() {
+            const el = this.$el;
+            this._saveUrl = el.dataset.saveUrl;
+            this._resetUrl = el.dataset.resetUrl;
+            try {
+                const list = JSON.parse(el.dataset.prompts || '[]');
+                for (const p of list) {
+                    const body = p.content || '';
+                    this.content[p.id] = body;
+                    this.saved[p.id] = body;
+                    this.dirty[p.id] = false;
+                    this.saving[p.id] = false;
+                }
+            } catch (e) {
+                console.error('Failed to parse prompts data:', e);
+            }
+        },
+
+        async save(id) {
+            if (!id || !this.dirty[id] || this.saving[id]) return;
+            this.saving[id] = true;
+            const body = new URLSearchParams();
+            body.append('id', id);
+            body.append('content', this.content[id] || '');
+            try {
+                const resp = await fetch(this._saveUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: body.toString(),
+                });
+                if (resp.ok) {
+                    this.saved[id] = this.content[id];
+                    this.dirty[id] = false;
+                    showToast('Prompt saved.', 'success');
+                } else {
+                    const text = await resp.text().catch(() => '');
+                    showToast(`Save failed: ${text || resp.status}`, 'error');
+                }
+            } catch (e) {
+                console.error('Failed to save prompt:', e);
+                showToast('Failed to save prompt.', 'error');
+            } finally {
+                this.saving[id] = false;
+            }
+        },
+
+        async reset(id) {
+            if (!id || this.saving[id]) return;
+            if (!await confirmDialog({
+                title: 'Reset to default?',
+                message: 'This replaces the current prompt with the bundled default. This cannot be undone.',
+                confirmText: 'Reset',
+            })) return;
+
+            this.saving[id] = true;
+            const body = new URLSearchParams();
+            body.append('id', id);
+            try {
+                const resp = await fetch(this._resetUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: body.toString(),
+                });
+                if (resp.ok) {
+                    const newContent = await resp.text();
+                    this.content[id] = newContent;
+                    this.saved[id] = newContent;
+                    this.dirty[id] = false;
+                    showToast('Reset to default.', 'success');
+                } else {
+                    const text = await resp.text().catch(() => '');
+                    showToast(`Reset failed: ${text || resp.status}`, 'error');
+                }
+            } catch (e) {
+                console.error('Failed to reset prompt:', e);
+                showToast('Failed to reset prompt.', 'error');
+            } finally {
+                this.saving[id] = false;
+            }
+        },
+
+        viewDefault(id, displayName) {
+            window.dispatchEvent(new CustomEvent('open-view-default-modal', {
+                detail: { id, displayName },
+            }));
+        },
+    };
+}
+
+// =============================================================================
+// View Default Modal (read-only display of a bundled default prompt)
+// =============================================================================
+
+function viewDefaultModal() {
+    return {
+        showModal: false,
+        loading: false,
+        loadError: '',
+        content: '',
+        displayName: '',
+        _defaultUrl: '',
+
+        init() {
+            this._defaultUrl = this.$el.dataset.defaultUrl;
+            window.addEventListener('open-view-default-modal', (e) => {
+                const detail = e.detail || {};
+                this.open(detail.id, detail.displayName);
+            });
+        },
+
+        async open(id, displayName) {
+            if (!id) return;
+            this.displayName = displayName || id;
+            this.content = '';
+            this.loadError = '';
+            this.loading = true;
+            this.showModal = true;
+            try {
+                const url = `${this._defaultUrl}?id=${encodeURIComponent(id)}`;
+                const resp = await fetch(url);
+                if (resp.ok) {
+                    this.content = await resp.text();
+                } else {
+                    const text = await resp.text().catch(() => '');
+                    this.loadError = `Failed to load default: ${text || resp.status}`;
+                }
+            } catch (e) {
+                console.error('Failed to fetch prompt default:', e);
+                this.loadError = 'Failed to load default.';
+            } finally {
+                this.loading = false;
+            }
+        },
     };
 }

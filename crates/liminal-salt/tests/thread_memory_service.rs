@@ -3,11 +3,41 @@
 //! short-output safety check all validated here; module-level unit tests in
 //! `thread_memory.rs` cover prompt shape and settings resolver logic.
 
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 use liminal_salt::services::llm::{ChatLlm, LlmError, LlmMessage};
 use liminal_salt::services::session::{Message, Mode, Role};
-use liminal_salt::services::thread_memory;
+use liminal_salt::services::thread_memory::{self, MergeRequest};
+
+/// Real bundled-prompts directory; tests exercise the production prompt content
+/// end-to-end so a content-level regression surfaces in CI.
+fn bundled() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("default_prompts")
+}
+
+fn data_dir(tmp: &tempfile::TempDir) -> PathBuf {
+    tmp.path().join("data")
+}
+
+/// Common defaults for `MergeRequest`. Tests override only the fields they care
+/// about via struct update syntax (`MergeRequest { foo: ..., ..default_req(...) }`).
+fn default_req<'a>(
+    data: &'a std::path::Path,
+    bundled: &'a std::path::Path,
+    messages: &'a [Message],
+) -> MergeRequest<'a> {
+    MergeRequest {
+        data_dir: data,
+        bundled_prompts_dir: bundled,
+        persona_display_name: "Clara",
+        persona_memory: "",
+        existing_memory: "",
+        new_messages: messages,
+        size_limit: 4000,
+        mode: Mode::Chatbot,
+    }
+}
 
 struct FakeLlm {
     response: String,
@@ -58,8 +88,10 @@ fn msg(role: Role, content: &str, ts: &str) -> Message {
 
 #[tokio::test]
 async fn merge_empty_new_messages_returns_none() {
+    let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("should not be used");
-    let got = thread_memory::merge(&llm, "Clara", "", &[], 4000, Mode::Chatbot, "").await;
+    let got =
+        thread_memory::merge(&llm, default_req(&data_dir(&tmp), &bundled(), &[])).await;
     assert!(got.is_none());
     // LLM not invoked.
     assert!(llm.last_prompt().is_empty());
@@ -67,6 +99,7 @@ async fn merge_empty_new_messages_returns_none() {
 
 #[tokio::test]
 async fn merge_chatbot_uses_chatbot_prompt_and_persona_memory_when_present() {
+    let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("They settled on Tuesday.");
     let messages = vec![
         msg(Role::User, "let's meet Tuesday", "2026-04-22T10:00:00.000000Z"),
@@ -74,12 +107,11 @@ async fn merge_chatbot_uses_chatbot_prompt_and_persona_memory_when_present() {
     ];
     let got = thread_memory::merge(
         &llm,
-        "Clara",
-        "They had been scheduling a meet.",
-        &messages,
-        4000,
-        Mode::Chatbot,
-        "They're in Pacific time and avoid mornings.",
+        MergeRequest {
+            existing_memory: "They had been scheduling a meet.",
+            persona_memory: "They're in Pacific time and avoid mornings.",
+            ..default_req(&data_dir(&tmp), &bundled(), &messages)
+        },
     )
     .await;
     assert_eq!(got.as_deref(), Some("They settled on Tuesday."));
@@ -92,22 +124,28 @@ async fn merge_chatbot_uses_chatbot_prompt_and_persona_memory_when_present() {
     assert!(p.contains("They had been scheduling a meet."));
     assert!(p.contains("User: let's meet Tuesday"));
     assert!(p.contains("Clara: works for me"));
+    // PERSPECTIVE rules now live in the chatbot prompt's `.md`; verify they
+    // reach the constructed prompt via the load path.
     assert!(p.contains("PERSPECTIVE — apply to every sentence"));
 }
 
 #[tokio::test]
 async fn merge_chatbot_omits_persona_memory_section_when_empty() {
+    let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("fine");
     let messages = vec![msg(Role::User, "hi", "2026-04-22T10:00:00.000000Z")];
-    thread_memory::merge(&llm, "Clara", "", &messages, 4000, Mode::Chatbot, "").await;
+    thread_memory::merge(&llm, default_req(&data_dir(&tmp), &bundled(), &messages)).await;
 
     let p = llm.last_prompt();
-    assert!(!p.contains("WHAT YOU ALREADY KNOW"));
-    assert!(!p.contains("DO NOT merge pre-existing knowledge"));
+    // The conditional data section is omitted when persona memory is absent.
+    // (The MERGING-list rule that names it is unconditional in the .md, so
+    // we don't assert on that — only the data section is conditional.)
+    assert!(!p.contains("--- WHAT YOU ALREADY KNOW ABOUT THIS PERSON ---"));
 }
 
 #[tokio::test]
 async fn merge_roleplay_uses_roleplay_prompt_and_ignores_persona_memory() {
+    let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("The duel ended in a draw.");
     let messages = vec![msg(
         Role::Assistant,
@@ -118,12 +156,13 @@ async fn merge_roleplay_uses_roleplay_prompt_and_ignores_persona_memory() {
     // Roleplay mode: even if persona_memory is passed, the section must not appear.
     thread_memory::merge(
         &llm,
-        "Sir Evrard",
-        "The scene opened at dawn.",
-        &messages,
-        4000,
-        Mode::Roleplay,
-        "REAL-USER FACT: user lives in Seattle.",
+        MergeRequest {
+            persona_display_name: "Sir Evrard",
+            existing_memory: "The scene opened at dawn.",
+            mode: Mode::Roleplay,
+            persona_memory: "REAL-USER FACT: user lives in Seattle.",
+            ..default_req(&data_dir(&tmp), &bundled(), &messages)
+        },
     )
     .await;
 
@@ -136,32 +175,41 @@ async fn merge_roleplay_uses_roleplay_prompt_and_ignores_persona_memory() {
 
 #[tokio::test]
 async fn merge_short_response_rejected_when_existing_is_substantial() {
+    let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("ok"); // 2 chars.
     let messages = vec![msg(Role::User, "hi", "2026-04-22T10:00:00.000000Z")];
     let existing = "x".repeat(200);
-    let got = thread_memory::merge(&llm, "Clara", &existing, &messages, 4000, Mode::Chatbot, "").await;
+    let got = thread_memory::merge(
+        &llm,
+        MergeRequest {
+            existing_memory: &existing,
+            ..default_req(&data_dir(&tmp), &bundled(), &messages)
+        },
+    )
+    .await;
     assert!(got.is_none());
 }
 
 #[tokio::test]
 async fn merge_short_response_accepted_when_no_existing_summary() {
+    let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("tiny"); // 4 chars but no existing memory.
     let messages = vec![msg(Role::User, "hi", "2026-04-22T10:00:00.000000Z")];
-    let got = thread_memory::merge(&llm, "Clara", "", &messages, 4000, Mode::Chatbot, "").await;
+    let got =
+        thread_memory::merge(&llm, default_req(&data_dir(&tmp), &bundled(), &messages)).await;
     assert_eq!(got.as_deref(), Some("tiny"));
 }
 
 #[tokio::test]
 async fn merge_propagates_llm_error_as_none() {
+    let tmp = tempfile::tempdir().unwrap();
     let messages = vec![msg(Role::User, "hi", "2026-04-22T10:00:00.000000Z")];
     let got = thread_memory::merge(
         &FailingLlm,
-        "Clara",
-        "prior",
-        &messages,
-        4000,
-        Mode::Chatbot,
-        "",
+        MergeRequest {
+            existing_memory: "prior",
+            ..default_req(&data_dir(&tmp), &bundled(), &messages)
+        },
     )
     .await;
     assert!(got.is_none());
@@ -169,9 +217,10 @@ async fn merge_propagates_llm_error_as_none() {
 
 #[tokio::test]
 async fn merge_empty_existing_uses_start_of_thread_placeholder() {
+    let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("first entry");
     let messages = vec![msg(Role::User, "hi", "2026-04-22T10:00:00.000000Z")];
-    thread_memory::merge(&llm, "Clara", "", &messages, 4000, Mode::Chatbot, "").await;
+    thread_memory::merge(&llm, default_req(&data_dir(&tmp), &bundled(), &messages)).await;
 
     let p = llm.last_prompt();
     assert!(p.contains("No summary yet. This is the start of the thread."));
@@ -179,12 +228,27 @@ async fn merge_empty_existing_uses_start_of_thread_placeholder() {
 
 #[tokio::test]
 async fn merge_size_limit_zero_omits_size_target() {
+    let tmp = tempfile::tempdir().unwrap();
     let llm = FakeLlm::new("body");
     let messages = vec![msg(Role::User, "hi", "2026-04-22T10:00:00.000000Z")];
-    thread_memory::merge(&llm, "Clara", "", &messages, 0, Mode::Chatbot, "").await;
+    thread_memory::merge(
+        &llm,
+        MergeRequest {
+            size_limit: 0,
+            ..default_req(&data_dir(&tmp), &bundled(), &messages)
+        },
+    )
+    .await;
     assert!(!llm.last_prompt().contains("SIZE TARGET"));
 
     let llm = FakeLlm::new("body");
-    thread_memory::merge(&llm, "Clara", "", &messages, 2500, Mode::Chatbot, "").await;
+    thread_memory::merge(
+        &llm,
+        MergeRequest {
+            size_limit: 2500,
+            ..default_req(&data_dir(&tmp), &bundled(), &messages)
+        },
+    )
+    .await;
     assert!(llm.last_prompt().contains("SIZE TARGET: Aim for roughly 2500"));
 }

@@ -544,6 +544,91 @@ fn settings_main_renders_provider_model_and_context_sections() {
 }
 
 #[test]
+fn prompts_page_renders_editor_and_modal() {
+    let tera = build_tera();
+    let mut ctx = base_context();
+    ctx.insert("page", "prompts");
+    ctx.insert("show_home", &false);
+    ctx.insert("pinned_sessions", &Vec::<serde_json::Value>::new());
+    ctx.insert("grouped_sessions", &Vec::<serde_json::Value>::new());
+    // Fixture content includes apostrophes — the bundled defaults all have
+    // them ("don't", "you've", etc.), and a previous version of the template
+    // wrapped the data-prompts attribute in single quotes with `| safe`, so an
+    // apostrophe in JSON content terminated the HTML attribute and broke
+    // Alpine's JSON parse. Keep the fixture noisy so any regression surfaces.
+    ctx.insert(
+        "prompts",
+        &json!([
+            {
+                "id": "thread_memory_merge_chatbot",
+                "display_name": "Per-chat memory — update (chatbot)",
+                "description": "Used when updating a chat's running summary in chatbot mode.",
+                "content": "Body with an apostrophe: don't drop this."
+            },
+            {
+                "id": "persona_memory_merge",
+                "display_name": "Long-term memory — update from conversations",
+                "description": "Folds recent conversations into long-term memory.",
+                "content": "Another body: it's a test of \"escaped\" quotes too."
+            }
+        ]),
+    );
+    let prompts_json = serde_json::to_string(&json!([
+        {
+            "id": "thread_memory_merge_chatbot",
+            "display_name": "Per-chat memory — update (chatbot)",
+            "description": "d",
+            "content": "Body with an apostrophe: don't drop this."
+        },
+        {
+            "id": "persona_memory_merge",
+            "display_name": "Long-term memory — update from conversations",
+            "description": "d",
+            "content": "Another body: it's a test of \"escaped\" quotes too."
+        }
+    ])).expect("serialize prompts_json");
+    ctx.insert("prompts_json", &prompts_json);
+
+    let out = tera.render("chat/chat.html", &ctx).expect("render prompts");
+    // Page header
+    assert!(out.contains(">Prompt Settings</h1>"));
+    // Each prompt rendered with its own collapsible
+    assert!(out.contains(r#"id="prompt-thread_memory_merge_chatbot""#));
+    assert!(out.contains(r#"id="prompt-persona_memory_merge""#));
+    // Display names + descriptions reach the markup
+    assert!(out.contains("Per-chat memory — update (chatbot)"));
+    assert!(out.contains("Folds recent conversations into long-term memory"));
+    // Editor component wired with save/reset endpoints
+    assert!(out.contains(r#"data-save-url="/prompts/save/""#));
+    assert!(out.contains(r#"data-reset-url="/prompts/reset/""#));
+    // View Default modal mounted with its data endpoint
+    assert!(out.contains(r#"x-data="viewDefaultModal""#));
+    assert!(out.contains(r#"data-default-url="/prompts/default/""#));
+    // Sidebar entry for Prompts present
+    assert!(out.contains(r#"hx-get="/prompts/""#));
+    // The data-prompts JSON must be HTML-escaped so apostrophes and quotes
+    // in prompt content don't corrupt the attribute. Raw `'` or unescaped `"`
+    // in the rendered attribute would mean Tera's auto-escape was bypassed.
+    let attr_start = out
+        .find("data-prompts=\"")
+        .expect("data-prompts attribute present");
+    let attr_end = attr_start
+        + 14
+        + out[attr_start + 14..]
+            .find('"')
+            .expect("data-prompts attribute closes");
+    let attr_value = &out[attr_start + 14..attr_end];
+    assert!(
+        !attr_value.contains('\''),
+        "raw apostrophe in data-prompts attribute would let JSON content terminate the attribute prematurely; expected entity-escaped form"
+    );
+    assert!(
+        attr_value.contains("don"),
+        "fixture content with apostrophe should still appear (entity-encoded) in the attribute"
+    );
+}
+
+#[test]
 fn setup_step3_hides_back_when_agreement_reprompt() {
     let tera = build_tera();
     let mut ctx = base_context();
