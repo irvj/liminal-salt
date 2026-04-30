@@ -18,7 +18,10 @@
 //! embedded via `include_str!` in `services::config` rather than through a
 //! `RustEmbed` struct here — one file, no enumeration needed.
 
+use std::borrow::Cow;
+
 use axum::{
+    body::Bytes,
     extract::Path,
     http::{StatusCode, header},
     response::{IntoResponse, Response},
@@ -75,17 +78,17 @@ pub fn build_tera() -> anyhow::Result<Tera> {
 
 /// Axum handler serving embedded `Static` content at `/static/{*path}`.
 /// `Content-Type` is derived from the path extension via `mime_guess`;
-/// missing files return 404.
+/// missing files return 404. Body is zero-copy in release/embedded mode
+/// (`Cow::Borrowed(&'static [u8])` → `Bytes::from_static`); dev mode reads
+/// from disk and produces an owned `Vec<u8>`.
 pub async fn serve_static(Path(path): Path<String>) -> Response {
-    match Static::get(&path) {
-        Some(file) => {
-            let mime = mime_guess::from_path(&path).first_or_octet_stream();
-            (
-                [(header::CONTENT_TYPE, mime.as_ref().to_string())],
-                file.data.into_owned(),
-            )
-                .into_response()
-        }
-        None => StatusCode::NOT_FOUND.into_response(),
-    }
+    let Some(file) = Static::get(&path) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let mime = mime_guess::from_path(&path).first_or_octet_stream();
+    let body = match file.data {
+        Cow::Borrowed(s) => Bytes::from_static(s),
+        Cow::Owned(v) => Bytes::from(v),
+    };
+    ([(header::CONTENT_TYPE, mime.as_ref().to_string())], body).into_response()
 }

@@ -172,12 +172,14 @@ async fn seed_persona(target: &Path, files: &[String]) -> std::io::Result<()> {
                 format!("embedded persona file disappeared: {path}"),
             )
         })?;
-        let rel = path.split_once('/').map(|(_, r)| r).unwrap_or(path.as_str());
+        // Outer caller filtered for `split_once('/')` returning Some, so this
+        // is infallible by construction.
+        let (_, rel) = path.split_once('/').expect("filtered to have a slash prefix");
         let dest = target.join(rel);
         if let Some(parent) = dest.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
-        tokio::fs::write(&dest, file.data.as_ref()).await?;
+        crate::services::fs::write_atomic(&dest, file.data.as_ref()).await?;
     }
     Ok(())
 }
