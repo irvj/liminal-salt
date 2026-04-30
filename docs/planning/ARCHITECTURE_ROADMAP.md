@@ -58,7 +58,7 @@ Adding a provider = new module under `services/providers/<name>/`, enum variant 
 
 ## Milestone 3: User-editable prompts — shipped
 
-Landed across three commits (`85c3493 → fe547b4`) on the `user-editable-prompts` branch. Bundled default prompts (the LLM-facing instructional prose for every memory operation) are now copied into `data/prompts/` on first boot and editable from `/prompts/` in-app. Designed for non-technical users — no variables, no templating, no placeholders in the user-facing surface.
+Landed across seven commits (`85c3493 → 773a7cb`) on the `user-editable-prompts` branch. Bundled default prompts (the LLM-facing instructional prose for every memory operation) are now copied into `data/prompts/` on first boot and editable from `/prompts/` in-app. Designed for non-technical users — no variables, no templating, no placeholders in the user-facing surface.
 
 **What's in place:**
 
