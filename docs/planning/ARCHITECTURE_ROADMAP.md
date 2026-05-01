@@ -1,7 +1,7 @@
 # Liminal Salt — Architecture Roadmap
 
-**Updated:** 2026-04-30
-**Status:** M1 (Python → Rust) complete at v0.20.1. M2 (multi-provider) shipped. M3 (user-editable prompts) shipped. M4 (Tauri desktop) asset-embedding pre-work shipped on `tauri-build-refactor` branch. Architecture is mature; this roadmap tracks the refactors and milestones needed for the architecture to become immaterial to further product work.
+**Updated:** 2026-05-01
+**Status:** M1 (Python → Rust) complete at v0.20.1. M2 (multi-provider) shipped. M3 (user-editable prompts) shipped. M4 (Tauri desktop) Phase A — asset-embedding pre-work — shipped on `tauri-build-refactor` branch (pushed to origin, 10 commits ahead of main, not yet merged). Phase B (actual Tauri scaffolding) is the next concrete unit of work; see "Pre-M4 work" + "Implementation scope" below. Architecture is mature; this roadmap tracks the refactors and milestones needed for the architecture to become immaterial to further product work.
 
 ---
 
@@ -102,17 +102,43 @@ Currently zero HTTP-layer tests. As UX churn accelerates (M3 prompt editor, post
 
 Wrap the Rust backend in Tauri. Axum runs in-process — no child process, no bundled runtimes, no IPC bridge. This is plumbing once M2 and M3 have landed; all the service-layer shape should be right by this point.
 
-### Pre-M4 work — shipped (`9836343 → docs commit`)
+### Phase A — asset-embedding pre-work — shipped (`9836343 → b4a52b8`, branch `tauri-build-refactor`)
 
-Asset-embedding refactor on the `tauri-build-refactor` branch. All bundled
-assets (templates, static, default personas, default prompts, AGREEMENT.md)
-now route through `crate::assets` (rust-embed with `debug-embed`) or
-`include_str!`, so a release/Tauri build is self-contained and a dev build
-still hot-reloads from disk. `AppState::bundled_prompts_dir` is gone;
-`lib::run_server(addr)` is the shared boot entry point both the CLI and a
-future Tauri `setup` hook can call. The same code path supports both
+Branch is pushed to origin and not yet merged into `main` — pull with
+`git fetch && git checkout tauri-build-refactor` to resume.
+
+All bundled assets (templates, static, default personas, default prompts,
+AGREEMENT.md) now route through `crate::assets` (rust-embed with
+`debug-embed`) or `include_str!`, so a release/Tauri build is self-contained
+and a dev build still hot-reloads from disk. `AppState::bundled_prompts_dir`
+is gone; `lib::run_server(addr)` is the shared boot entry point both the CLI
+and a future Tauri `setup` hook can call. The same code path supports both
 distribution channels (browser-via-cargo and Tauri desktop). Only `data_dir()`
 remains as a Tauri-time seam.
+
+**Verification before Phase B:** `cargo run -p liminal-salt` (dev — disk
+hot-reload), `cargo build --release -p liminal-salt` + run the binary from a
+different cwd (release — embedded assets, no disk dependency), `cargo test
+-p liminal-salt`, `cargo clippy -p liminal-salt --all-targets -- -D warnings`.
+
+### Phase B — Tauri scaffolding — not started
+
+Resume here. See "Implementation scope" table below for the full task list;
+the asset-embedding row is already done. Order to tackle in:
+
+1. `cargo tauri init` → adds `src-tauri/` workspace member + `tauri.conf.json`.
+2. Wire `liminal_salt::run_server(addr)` into Tauri's `setup` hook with
+   `127.0.0.1:0`. `run_server` currently prints the bound port and shuts
+   down on `ctrl_c`; it'll need a small extension to *return* the bound
+   `SocketAddr` and accept a parallel shutdown signal so Tauri can abort it
+   on window-close.
+3. Swap `config::data_dir()` to return Tauri's `app_data_dir()` when running
+   in the Tauri shell. Keep the CLI binary's behavior identical for
+   browser-via-cargo users.
+4. Generate icons via `cargo tauri icon`; `cargo tauri build` per platform.
+
+Before starting Phase B, also resolve the two open questions in the section
+below (session-store persistence, CSRF in same-origin Tauri).
 
 ### Architecture
 
